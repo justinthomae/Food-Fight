@@ -1,0 +1,15 @@
+{
+  "name": "Food Fight",
+  "short_name": "Food Fight",
+  "description": "A fast multiplayer food-matching battle from Grudge Match Games.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#131627",
+  "theme_color": "#131627",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ]
+}

@@ -11,6 +11,8 @@ def inline(m):
     src = re.search(r'src="([^"]+)"', tag).group(1)
     return '<script>\n' + (root / src).read_text() + '\n</script>'
 html = re.sub(r'<script[^>]*src="[^"]+"[^>]*></script>', inline, html)
+# site-only head tags (icons, manifest, link previews) don't apply inside the artifact
+html = re.sub(r'<(link|meta)[^>]*data-site-only[^>]*>\s*', '', html)
 # merge the separate scripts into one so class/const declarations share scope exactly as in the browser
 blocks = re.findall(r'<script>\n(.*?)\n</script>', html, re.S)
 html = re.sub(r'<script>\n.*?\n</script>\n?', '', html, flags=re.S)
