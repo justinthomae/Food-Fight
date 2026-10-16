@@ -1,6 +1,6 @@
 // Food Fight UI: drawing, input, settings, practice mode and the online lobby.
 (function(){
-const VERSION='0.4.1';
+const VERSION='0.5.0';
 const $=s=>document.querySelector(s);
 const $$=s=>[...document.querySelectorAll(s)];
 const cv=$('#board'),ctx=cv.getContext('2d');
@@ -21,10 +21,16 @@ const names=()=>prefs.art==='shapes'?SHAPE_NAMES:FOOD_NAMES;
 let prefs={palette:'classic',theme:'night',muted:false,name:'',art:'food',av:'bun'};
 const ART={
   logo:'assets/logo.webp',
-  bun:'assets/bun.webp',sprinkles:'assets/sprinkles.webp',crunch:'assets/crunch.webp',slice:'assets/slice.webp',
-  'bun-face':'assets/bun-face.webp','sprinkles-face':'assets/sprinkles-face.webp','crunch-face':'assets/crunch-face.webp','slice-face':'assets/slice-face.webp'
+  bun:'assets/bun.webp','bun-face':'assets/bun-face.webp',
+  sprinkles:'assets/sprinkles.webp','sprinkles-face':'assets/sprinkles-face.webp',
+  crunch:'assets/crunch.webp','crunch-face':'assets/crunch-face.webp',
+  slice:'assets/slice.webp','slice-face':'assets/slice-face.webp',
+  fudge:'assets/fudge.webp','fudge-face':'assets/fudge-face.webp',
+  splat:'assets/splat.webp','splat-face':'assets/splat-face.webp',
+  guac:'assets/guac.webp','guac-face':'assets/guac-face.webp',
+  glaze:'assets/glaze.webp','glaze-face':'assets/glaze-face.webp',
 };
-const FIGHTER_INFO={bun:{name:'King Bun',tag:'Burger brawler'},sprinkles:{name:'Sprinkles',tag:'Sweet and savage'},crunch:{name:'Crunch',tag:'Shell-shocker'},slice:{name:'Slice',tag:'Hot and cheesy'}};
+const FIGHTER_INFO={bun:{name:'Patty',tag:'Burger brawler'},sprinkles:{name:'Sprinkles',tag:'Sweet and savage'},crunch:{name:'Crunch',tag:'Shell-shocker'},slice:{name:'Slice',tag:'Hot and cheesy'},fudge:{name:'Fudge',tag:'Tough cookie'},splat:{name:'Splat',tag:'Saucy striker'},guac:{name:'Guac',tag:'Ninja of the pit'},glaze:{name:'Glaze',tag:'Sugar-rush slugger'}};
 const face=av=>ART[(FIGHTERS.includes(av)?av:'bun')+'-face'];
 const body=av=>ART[FIGHTERS.includes(av)?av:'bun'];
 const avImg=(av,cls)=>`<img class="${cls||'av'}" src="${face(av)}" alt="" width="64" height="64">`;

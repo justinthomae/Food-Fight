@@ -11,10 +11,10 @@ const MARGIN=50,RACK=3,RUSH=180,CYCLE=180,CREAM=300,FREEZE=150,SPECIAL_RATE=.16;
 const JUNK_KINDS=['pie','tower'],ATTACK_KINDS=['pie','tower','sauce','cream','freeze','blender'],SPECIALS=['cream','freeze','blender','pin'],SPECIAL_W=[3,2,3,2];
 function pickSpecial(rng){let x=rng()*10;for(let i=0;i<SPECIALS.length;i++){x-=SPECIAL_W[i];if(x<0)return SPECIALS[i]}return SPECIALS[0]}
 function specialRow(rng){if(rng()>=SPECIAL_RATE)return null;const col=Math.floor(rng()*COLS),row=new Array(COLS).fill(null);row[col]=pickSpecial(rng);return row}
-// the cast: four fighters; bots use them (and a second line-up of names past four)
-const FIGHTERS=['bun','sprinkles','crunch','slice'];
-const BOTS=[{name:'King Bun',av:'bun'},{name:'Sprinkles',av:'sprinkles'},{name:'Crunch',av:'crunch'},{name:'Slice',av:'slice'},
-            {name:'Patty',av:'bun'},{name:'Swirl',av:'sprinkles'},{name:'Salsa',av:'crunch'},{name:'Pepperoni',av:'slice'}];
+// the cast: eight fighters, one per seat in a full room; bots use whoever you didn't pick
+const FIGHTERS=['bun','sprinkles','crunch','slice','fudge','splat','guac','glaze'];
+const BOTS=[{name:'Patty',av:'bun'},{name:'Sprinkles',av:'sprinkles'},{name:'Crunch',av:'crunch'},{name:'Slice',av:'slice'},
+            {name:'Fudge',av:'fudge'},{name:'Splat',av:'splat'},{name:'Guac',av:'guac'},{name:'Glaze',av:'glaze'}];
 const BOTNAMES=BOTS.map(b=>b.name);
 const MAX_PLAYERS=8;
 // bots for a match: characters other than yours first, so a duel is always a real match-up

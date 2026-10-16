@@ -79,3 +79,13 @@ ok(lb.length===1&&lb[0].avatar==='crunch','board returns the avatar');
 r=await asAnon(`select ff_submit_score(p_device_id=>'device-old1',p_name=>'Old',p_mode=>'duel',p_difficulty=>1,p_score=>100,p_max_chain=>1,p_kos=>0,p_won=>false,p_place=>2,p_duration_s=>60,p_version=>'0.3.1') r`).then(x=>x.rows[0].r);
 ok(r.ok,'v0.3 call shape without avatar still accepted');
 console.log('v2 done');
+
+// ---- v3: any fighter id
+const v3=fs.readFileSync(new URL('../supabase/migrations/20261016000003_ff_leaderboard_v3.sql',import.meta.url),'utf8');
+await db.exec(v3);await db.exec(v3);
+r=await submit2('device-v3a1','Guacamole','duel',1,300,'guac');
+lb=(await asAnon(`select * from ff_leaderboard('duel',1,'all','device-v3a1',50)`)).rows;
+ok(lb.find(x=>x.mine).avatar==='guac','new fighter avatar stored after v3');
+r=await submit2('device-v3a2','Bad','duel',1,300,"x'; drop table ff_scores;--");
+ok(r.ok&&(await asAnon(`select * from ff_leaderboard('duel',1,'all','device-v3a2',50)`)).rows.find(x=>x.mine).avatar==='','junk avatar stored as blank');
+console.log('v3 done');

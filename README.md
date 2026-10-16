@@ -11,7 +11,7 @@ js/engine.js          game rules (pure logic, no DOM), shared by site, artifact 
 js/app.js             drawing, input, settings, practice mode, online lobby
 js/net.js             Supabase Realtime rooms
 js/scores.js          leaderboard calls (submit + read)
-assets/               logo and the four fighters (WebP, trimmed; *-face = avatar crops)
+assets/               logo and the eight fighters (WebP, trimmed; *-face = avatar crops)
 supabase/migrations/  leaderboard table + functions
 js/config.js          Supabase URL + anon key  ← fill in
 CNAME                 custom domain for GitHub Pages
@@ -30,7 +30,7 @@ You can reuse the BoomTown Supabase project. Using the same project now makes a 
 1. Supabase → Project Settings → API: copy the **Project URL** and the **anon / publishable key** into `js/config.js`.
 2. Supabase → Realtime → Settings: make sure **"Allow public access"** is on. Food Fight uses public channels named `ff:ROOMCODE`.
    - If you'd rather keep private-only channels, that needs a Realtime authorization policy plus signed-in users, which can be done later alongside shared accounts.
-3. Run the leaderboard migrations once, in order: `20261016000001_ff_leaderboard.sql`, then `20261016000002_ff_leaderboard_v2.sql` (fighter avatars, Big Brawl board, 8-player limits). Same method for both: paste `supabase/migrations/20261016000001_ff_leaderboard.sql` into the SQL editor (or apply it with the Supabase MCP / CLI). It creates one table, `ff_scores`, and two functions, `ff_submit_score` and `ff_leaderboard`. The table is locked: browsers can only go through those two functions. Everything is prefixed `ff_`, so it can't collide with BoomTown.
+3. Run the leaderboard migrations once, in order: `20261016000001_ff_leaderboard.sql`, then `20261016000002_ff_leaderboard_v2.sql` (fighter avatars, Big Brawl board, 8-player limits), then `20261016000003_ff_leaderboard_v3.sql` (eight fighters; any fighter id accepted). Same method for both: paste `supabase/migrations/20261016000001_ff_leaderboard.sql` into the SQL editor (or apply it with the Supabase MCP / CLI). It creates one table, `ff_scores`, and two functions, `ff_submit_score` and `ff_leaderboard`. The table is locked: browsers can only go through those two functions. Everything is prefixed `ff_`, so it can't collide with BoomTown.
 
 ### 2. GitHub Pages (same setup as Fliptide and ChipWreck)
 1. Push this folder to `justinthomae/FoodFight`. The `CNAME` file already says `foodfight.grudgematchgames.com`, and `.nojekyll` makes Pages serve the files as-is.
