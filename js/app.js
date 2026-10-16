@@ -1,6 +1,6 @@
 // Food Fight UI: drawing, input, settings, practice mode and the online lobby.
 (function(){
-const VERSION='0.3.0';
+const VERSION='0.3.1';
 const $=s=>document.querySelector(s);
 const $$=s=>[...document.querySelectorAll(s)];
 const cv=$('#board'),ctx=cv.getContext('2d');
@@ -217,6 +217,7 @@ function render(){
     const t=B.g[r][c];if(!t)continue;
     const sx=danger[c]&&live?Math.sin(f*.8+c*1.7)*S*(B.grace<GRACE?.05:.025):0;
     drawTile(ctx,t,c*S+t.xo*S+sx,r*S-ro+t.yo*S+shakeY,S,B.dead?.45:1,f);
+    if(t.splat>0){const k=1-t.splat/24,x=c*S+S/2,y=r*S-ro+S/2+shakeY;ctx.globalAlpha=1-k;ctx.strokeStyle='#E0A86E';ctx.lineWidth=S*.12*(1-k)+1;ctx.beginPath();ctx.arc(x,y,S*(.35+k*.6),0,Math.PI*2);ctx.stroke();ctx.globalAlpha=1}
   }
   for(let c=0;c<COLS;c++)drawTile(ctx,{t:B.preview[c],clr:0,sp:B.previewSp&&B.previewSp[c]},c*S,ROWS*S-ro+shakeY,S,.45,f);
   ctx.fillStyle=TOK.shade;ctx.fillRect(0,H-ro,W,ro);
