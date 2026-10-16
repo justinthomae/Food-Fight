@@ -4,7 +4,7 @@ const {JSDOM}=require('jsdom');
 const fs=require('fs'),path=require('path');
 const root=path.join(__dirname,'..');
 const html=fs.readFileSync(path.join(root,'index.html'),'utf8').replace(/<script[^>]*src=[^>]*><\/script>/g,'');
-const scripts=['js/engine.js','js/net.js','js/scores.js','js/app.js'].map(f=>fs.readFileSync(path.join(root,f),'utf8'));
+const scripts=['js/sfx.js','js/engine.js','js/net.js','js/scores.js','js/app.js'].map(f=>fs.readFileSync(path.join(root,f),'utf8'));
 
 // ---- fake Supabase Realtime: one shared bus per channel name ----
 const buses={},rpcLog=[],rpcRows=[{mode:'brawl',diff:1,name:'Top Chef',score:99999,device:'d-other-device'}];

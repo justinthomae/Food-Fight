@@ -1,6 +1,6 @@
 // Food Fight UI: drawing, input, settings, practice mode and the online lobby.
 (function(){
-const VERSION='0.5.0';
+const VERSION='0.6.0';
 const $=s=>document.querySelector(s);
 const $$=s=>[...document.querySelectorAll(s)];
 const cv=$('#board'),ctx=cv.getContext('2d');
@@ -50,7 +50,7 @@ function applyLook(){
   document.documentElement.setAttribute('data-ff-theme',prefs.theme);
   readTokens();
   const tc=document.querySelector('meta[name="theme-color"]');if(tc)tc.setAttribute('content',TOK.bg);
-  drawLegend();renderPals();
+  renderPals();
   $$('#theme button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.t===prefs.theme)));
   $$('#art button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.a===prefs.art)));
   render();minis.forEach(renderMini);
@@ -63,19 +63,11 @@ try{const s=JSON.parse(localStorage.getItem('ff-best')||'null');if(s)best=Object
 function saveBest(){try{localStorage.setItem('ff-best',JSON.stringify(best))}catch(e){}}
 function showBest(){$('#best').textContent=(best.wins||best.score?`Your best: ${best.score} points · ${best.chain}-chain · ${best.wins} win${best.wins===1?'':'s'} · `:'')+'v'+VERSION}
 
-/* ---------- audio ---------- */
-let AC=null;
-function tone(f,d=.08,type='triangle',v=.07){
-  if(!AC||prefs.muted)return;
-  try{const t0=AC.currentTime,o=AC.createOscillator(),g=AC.createGain();
-  o.type=type;o.frequency.setValueAtTime(f,t0);g.gain.setValueAtTime(v,t0);
-  g.gain.exponentialRampToValueAtTime(.0001,t0+d);o.connect(g).connect(AC.destination);o.start(t0);o.stop(t0+d+.02)}catch(e){}
-}
-function wakeAudio(){
-  if(!AC){try{AC=new (window.AudioContext||window.webkitAudioContext)()}catch(e){}}
-  if(AC&&AC.state==='suspended')AC.resume();
-}
-function showMute(){$('#wave').style.opacity=prefs.muted?0:1;$('#bSound').setAttribute('aria-label',prefs.muted?'Sound off':'Sound on')}
+/* ---------- audio (js/sfx.js does the synthesis) ---------- */
+const SND=window.FFSound;
+const sfx=(n,a)=>SND&&SND.play(n,a);
+function wakeAudio(){if(SND)SND.wake()}
+function showMute(){$('#wave').style.opacity=prefs.muted?0:1;$('#bSound').setAttribute('aria-label',prefs.muted?'Sound off':'Sound on');if(SND)SND.setMuted(prefs.muted)}
 
 /* ---------- drawing ---------- */
 function rr(c,x,y,w,h,r){c.beginPath();c.moveTo(x+r,y);c.arcTo(x+w,y,x+w,y+h,r);c.arcTo(x+w,y+h,x,y+h,r);c.arcTo(x,y+h,x,y,r);c.arcTo(x,y,x+w,y,r);c.closePath()}
@@ -402,8 +394,7 @@ function fly(src,tgt,it,slot){
   d.style.transform=`translate(${x}px,${y}px)`;
   requestAnimationFrame(()=>requestAnimationFrame(()=>{d.style.transform=`translate(${tx}px,${ty}px) scale(.8)`}));
   setTimeout(()=>d.remove(),600);
-  if(src===G.player)tone(500,.1,'triangle',.06);
-  if(tgt===G.player)tone(240,.1,'sawtooth',.03);
+  if(src===G.player)sfx('throw');
 }
 
 /* ---------- tray + hud ---------- */
@@ -502,8 +493,8 @@ if(matchMedia('(pointer:fine)').matches)$('#kbd').hidden=false;
 /* ---------- overlays ---------- */
 const OVS=['#ovLoad','#ovStart','#ovHow','#ovLook','#ovBoard','#ovOnline','#ovLobby','#ovVs','#ovPause','#ovEnd'];
 let backTo='#ovStart';
-function show(id){OVS.forEach(s=>$(s).hidden=s!==id);if(id!=='#ovEnd')$('#outToast').hidden=true}
-function hideAll(){OVS.forEach(s=>$(s).hidden=true)}
+function show(id){OVS.forEach(s=>$(s).hidden=s!==id);if(id!=='#ovEnd')$('#outToast').hidden=true;if(SND)SND.ambience(id==='#ovLobby')}
+function hideAll(){OVS.forEach(s=>$(s).hidden=true);if(SND)SND.ambience(false)}
 function openSub(id){backTo=OVS.find(s=>!$(s).hidden)||null;show(id)}
 $$('[data-close]').forEach(b=>b.addEventListener('click',()=>{if(backTo)show(backTo);else hideAll()}));
 $('#bHow').addEventListener('click',()=>openSub('#ovHow'));
@@ -514,12 +505,12 @@ $$('#art button').forEach(b=>b.addEventListener('click',()=>{prefs.art=b.dataset
 
 /* ---------- game hooks ---------- */
 const baseHooks={
-  sound:tone,
+  sfx,
   fly,
   rack:renderRack,
   shift(){if(drag&&drag.r!=null)drag.r--;kb.r=Math.max(0,kb.r-1)},
   ko(b,k){
-    if(b!==G.player){tone(880,.25,'triangle',.07);if(k===G.player)G.player.pops.push({text:'KO! Power up',x:3,y:5,col:'#F7C548',size:1.1,life:80})}
+    if(b!==G.player){sfx('ko');if(k===G.player)G.player.pops.push({text:'KO! Power up',x:3,y:5,col:'#F7C548',size:1.1,life:80})}
     updateAim();
   },
   end(res){
@@ -543,7 +534,7 @@ const baseHooks={
     recordScore(res);
     $('#eTime').textContent=fmt(G.frame);$('#eChain').textContent=B.maxChain;$('#eScore').textContent=B.score;
     $('#eSent').textContent=B.sent;$('#eBlock').textContent=B.blocked;$('#eKO').textContent=B.kos;
-    tone(won?660:200,.4,'triangle',.08);
+    sfx(won?'win':'lose');
     B.raising=false;
     setTimeout(()=>{if(G&&G.over){$('#outToast').hidden=true;show('#ovEnd')}},700);
   }
@@ -647,11 +638,11 @@ function showMatchup(seconds,go){
     st.innerHTML=`<div class="chunky" style="font-size:40px;margin-bottom:10px">${G.boards.length}-cook brawl!</div><div class="crowd">${G.boards.map((b,i)=>`<div class="fighter${b===me?' me':''}" style="animation-delay:${i*.06}s"><img src="${body(b.av)}" alt="" style="animation-delay:${i*.06}s"><div class="chunky">${esc(b.name)}</div></div>`).join('')}</div>`;
   }
   let n=seconds;
-  $('#countNum').textContent=seconds>1?n:'';show('#ovVs');tone(330,.15,'square',.04);
+  $('#countNum').textContent=seconds>1?n:'';show('#ovVs');sfx('slam');
   vsTimer=setInterval(()=>{
     n--;
-    if(n>0){$('#countNum').textContent=n;tone(440,.12)}
-    else if(n===0){$('#countNum').textContent='Fight!';tone(880,.2)}
+    if(n>0){$('#countNum').textContent=n;sfx('count')}
+    else if(n===0){$('#countNum').textContent='Fight!';sfx('fight')}
     else{clearInterval(vsTimer);hideAll();go()}
   },seconds>1?1000:900);
 }
@@ -670,7 +661,7 @@ $('#bResume').addEventListener('click',closePause);
 $('#bQuit').addEventListener('click',()=>{if(G&&G.online){leaveRoom()}else{if(G)G.over=true;toMenu()}});
 $('#bAgain').addEventListener('click',()=>{if(G&&G.online)backToLobby();else startPractice(lastDiff,lastMode,lastSize)});
 $('#bMenu').addEventListener('click',()=>{if(G&&G.online)leaveRoom();else toMenu()});
-$('#bSound').addEventListener('click',()=>{prefs.muted=!prefs.muted;savePrefs();showMute();wakeAudio()});
+$('#bSound').addEventListener('click',()=>{prefs.muted=!prefs.muted;savePrefs();wakeAudio();showMute()});
 document.addEventListener('visibilitychange',()=>{if(document.hidden&&G&&!G.over&&!G.online&&!G.paused&&!anyOverlay())openPause()});
 function toMenu(){showBest();demo();show('#ovStart')}
 function demo(){G=new Game('duel',1,baseHooks,false,{av:prefs.av,name:ME.name});G.paused=true;rackIds='~';trayKey='~';buildOpps();renderRack()}
@@ -687,7 +678,7 @@ function renderPicker(){
     const b=document.createElement('button');b.type='button';b.className='pick';b.dataset.av=av;
     b.innerHTML=`<img src="${body(av)}" alt="" width="120" height="120"><span>${FIGHTER_INFO[av].name}</span>`;
     b.setAttribute('aria-label',`${FIGHTER_INFO[av].name}, ${FIGHTER_INFO[av].tag}`);
-    b.addEventListener('click',()=>{prefs.av=av;savePrefs();renderPicker();tone(620,.06);if(NET&&inRoom)NET.setProfile({av});if(G&&G.paused&&!G.online&&G.player)G.player.av=av});
+    b.addEventListener('click',()=>{prefs.av=av;savePrefs();renderPicker();wakeAudio();sfx('tap');if(NET&&inRoom)NET.setProfile({av});if(G&&G.paused&&!G.online&&G.player)G.player.av=av});
     box.appendChild(b);
   });
   $$('.pick').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.av===prefs.av)));
@@ -832,7 +823,8 @@ function loop(now){
   acc+=Math.min(100,now-last);last=now;
   while(acc>=1000/60){if(G)G.step();acc-=1000/60}
   if(G!==lastG){lastG=G;lastMargin=1}
-  if(G&&!G.over&&!G.paused&&!G.player.dead){const m=G.margin();if(m>lastMargin){lastMargin=m;G.player.pops.push({text:`Overtime · throws ×${m.toFixed(1)}`,x:3,y:4,col:'#F7C548',size:.85,life:90});tone(330,.2,'triangle',.05)}}
+  if(G&&!G.over&&!G.paused&&!G.player.dead){const m=G.margin();if(m>lastMargin){lastMargin=m;G.player.pops.push({text:`Overtime · throws ×${m.toFixed(1)}`,x:3,y:4,col:'#F7C548',size:.85,life:90});sfx('overtime')}}
+  if(G&&!G.over&&!G.paused&&!G.player.dead&&hf%48===0&&(G.player.g[0].some(Boolean)||G.player.g[1].some(Boolean)))sfx('heart');
   render();
   if(++hf%3===0&&G){updateOpps();renderTray();hud();updateAim()}
   requestAnimationFrame(loop);

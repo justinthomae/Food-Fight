@@ -63,7 +63,7 @@ class Board{
     this.preview=genRow(this.g[ROWS-1],this.g[ROWS-2],this.rng);
     this.previewSp=specialRow(this.rng);
   }
-  snd(f,d,type,v){if(this===this.game.player&&this.game.hooks.sound)this.game.hooks.sound(f,d,type,v)}
+  sfx(name,arg){if(this===this.game.player&&this.game.hooks.sfx)this.game.hooks.sfx(name,arg)}
   each(fn){for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){const t=this.g[r][c];if(t)fn(t,r,c)}}
   height(){for(let r=0;r<ROWS;r++)if(this.g[r].some(Boolean))return ROWS-r;return 0}
   trySwap(r,c,d){
@@ -79,7 +79,7 @@ class Board{
     g[r][c]=b;g[r][c2]=a;
     if(a){a.xo=-d;a.chain=false}
     if(b){b.xo=d;b.chain=false}
-    this.snd(520,.04,'sine',.035);
+    this.sfx('swap');
     return true;
   }
   trySwapV(r,c,d){
@@ -91,7 +91,7 @@ class Board{
     if(!ok(a)||!ok(b))return false;
     g[r][c]=b;g[r2][c]=a;
     a.yo=-d;b.yo=d;a.chain=b.chain=false;
-    this.snd(560,.04,'sine',.035);
+    this.sfx('swap');
     return true;
   }
   shiftUp(){
@@ -157,14 +157,14 @@ class Board{
       const specials=arr.filter(t=>t.sp).map(t=>{const k=t.sp;t.sp=null;return k});
       const gids=new Set();let broke=0;
       arr.forEach(t=>{const [r,c]=pos.get(t);[[1,0],[-1,0],[0,1],[0,-1]].forEach(([dr,dc])=>{const u=g[r+dr]&&g[r+dr][c+dc];if(u&&u.t<0&&u.clr===0)gids.add(u.gid)})});
-      if(gids.size){let i=0;for(let r=ROWS-1;r>=0;r--)for(let c=0;c<COLS;c++){const u=g[r][c];if(u&&u.t<0&&gids.has(u.gid)&&u.clr===0){u.clr=CLR+n*4+12+i*3;u.conv=true;i++}}broke=i;this.snd(180,.15,'square',.03)}
+      if(gids.size){let i=0;for(let r=ROWS-1;r>=0;r--)for(let c=0;c<COLS;c++){const u=g[r][c];if(u&&u.t<0&&gids.has(u.gid)&&u.clr===0){u.clr=CLR+n*4+12+i*3;u.conv=true;i++}}broke=i;this.sfx('break')}
       if(isChain)this.tower+=6;
       this.score+=n*10*this.chain+(n>=4?(n-3)*30:0)+(isChain?this.chain*50:0);
       this.stop=Math.max(this.stop,40+n*6+(isChain?this.chain*25:0));
       let cx=0,cy=0;arr.forEach(t=>{const [r,c]=pos.get(t);cx+=c+.5;cy+=r+.5});cx/=n;cy/=n;
       if(isChain)this.pop(`${this.chain} chain!`,cx,cy,'#F7C548',1.2);
       else if(n>=4)this.pop(`${n} combo`,cx,cy,'#EEF0FA',1);
-      this.snd(isChain?440*Math.pow(1.19,this.chain):392+(n-3)*40,.14,'triangle',.07);
+      if(isChain)this.sfx('chain',this.chain);else this.sfx('match',n);
       if(isChain)this.towerAt={c:cx,r:cy};
       if(n>=4)this.earn({k:'pie',cells:n-1},cx,cy);
       if(broke)this.earn({k:'sauce'},cx,cy-1);
@@ -200,7 +200,7 @@ class Board{
     if(JUNK_KINDS.includes(item.k)){
       let a=item.cells,blocked=0;
       while(a>0&&this.inc.length){const it=this.inc[0];const m=Math.min(a,it.cells);it.cells-=m;a-=m;blocked+=m;if(it.cells<=0)this.inc.shift()}
-      if(blocked){this.blocked+=blocked;this.pop(`Blocked ${blocked}`,cx,cy+.9,'#56B4E9',.9);this.snd(660,.12,'sine',.06)}
+      if(blocked){this.blocked+=blocked;this.pop(`Blocked ${blocked}`,cx,cy+.9,'#56B4E9',.9);this.sfx('block')}
       if(a<=0)return;
       item.cells=a;
     }
@@ -209,7 +209,7 @@ class Board{
     const label={pie:`Pie +${item.cells}`,tower:`Pie tower +${item.cells}`,sauce:'Hot sauce earned',cream:'Whipped cream!',freeze:'Brain freeze!',blender:'Blender!',pin:'Rolling pin!'}[item.k];
     const special=!JUNK_KINDS.includes(item.k);
     this.pop(label,cx,cy,special?'#F7C548':'#EEF0FA',.85);
-    this.snd(special?760:600,.08,'triangle',.05);
+    this.sfx('earn',special);
     if(this.rack.length>RACK){const i=this.rack.findIndex(x=>x.k!=='pin');this.fire(i<0?0:i)}
     if(this===this.game.player&&this.game.hooks.rack)this.game.hooks.rack();
   }
@@ -237,13 +237,13 @@ class Board{
   rush(from){
     if(this.dead)return;
     this.rushT=RUSH;this.lastAttacker=from;this.hitFlash=24;
-    this.pop('Hot sauce!',3,10.5,'#F7C548',1.1);this.snd(300,.25,'sawtooth',.04);
+    this.pop('Hot sauce!',3,10.5,'#F7C548',1.1);this.sfx('sauce');
   }
   receive(cells,from,at){
     if(this.dead)return;
     this.inc.push({cells,t:INC_T,T:INC_T,from,at:at||null});
     this.lastAttacker=from;this.hitFlash=24;
-    this.snd(240,.1,'sawtooth',.03);
+    this.sfx('incoming');
   }
   // junk lands where the thrower made it: same columns, wedged into the stack at the same row
   // (tiles above get pushed up); if that spot is above the stack it just drops onto those columns
@@ -272,10 +272,10 @@ class Board{
       }
     }
     if(this===this.game.player)this.shake=8;
-    this.snd(140,.22,'square',.05);
+    this.sfx('junk');
   }
-  cream(from){if(this.dead)return;this.creamT=CREAM;this.creamSeed=Math.random();this.lastAttacker=from;this.hitFlash=24;this.pop('Whipped cream!',3,9,'#EEF0FA',1.1);this.snd(520,.3,'sine',.05)}
-  freeze(from){if(this.dead)return;this.frozenT=FREEZE;this.lastAttacker=from;this.hitFlash=24;this.raising=false;this.pop('Brain freeze!',3,9,'#56B4E9',1.1);this.snd(1200,.25,'sine',.04)}
+  cream(from){if(this.dead)return;this.creamT=CREAM;this.creamSeed=Math.random();this.lastAttacker=from;this.hitFlash=24;this.pop('Whipped cream!',3,9,'#EEF0FA',1.1);this.sfx('cream')}
+  freeze(from){if(this.dead)return;this.frozenT=FREEZE;this.lastAttacker=from;this.hitFlash=24;this.raising=false;this.pop('Brain freeze!',3,9,'#56B4E9',1.1);this.sfx('freeze')}
   blend(from){
     if(this.dead)return;
     this.lastAttacker=from;this.hitFlash=24;this.blendT=30;
@@ -285,13 +285,13 @@ class Board{
     const types=cells.map(t=>t.t);
     for(let i=types.length-1;i>0;i--){const j=Math.floor(this.rng()*(i+1));[types[i],types[j]]=[types[j],types[i]]}
     cells.forEach((t,i)=>{t.t=types[i];t.chain=false;t.xo=(this.rng()-.5)*.6});
-    this.pop('Blended!',3,9,'#CC79A7',1.1);this.snd(180,.3,'sawtooth',.04);
+    this.pop('Blended!',3,9,'#CC79A7',1.1);this.sfx('blender');
   }
   flatten(){
     let top=0;while(top<ROWS&&!this.g[top].some(Boolean))top++;
     let n=0;
     for(let r=top;r<Math.min(ROWS,top+3);r++)for(let c=0;c<COLS;c++){const t=this.g[r][c];if(t&&t.clr===0){t.clr=CLR+n*2;t.conv=false;t.sp=null;t.chain=false;n++}}
-    this.pop('Flattened!',3,top+1.5,'#F7C548',1.1);this.snd(300,.2,'triangle',.06);
+    this.pop('Flattened!',3,top+1.5,'#F7C548',1.1);this.sfx('pin');
   }
   snap(){
     let g='';
