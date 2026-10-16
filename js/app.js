@@ -829,6 +829,7 @@ function preload(){
 
 /* ---------- boot ---------- */
 document.querySelectorAll('[data-icon]').forEach(e=>e.innerHTML=ICONS[e.dataset.icon]);
+try{$('#year').textContent=new Date().getFullYear()}catch(e){}
 showMute();showBest();renderPicker();
 demo();applyLook();show('#ovLoad');preload();
 window.__ff={get game(){return G}}; // handy for debugging in the console
