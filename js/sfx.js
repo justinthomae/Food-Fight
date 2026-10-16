@@ -134,6 +134,24 @@ window.FFSound=(function(){
       for(let i=0;i<4;i++)tone({type:'sine',f:90,to:60,d:.1,v:.35,t:i*.11});
       tone({type:'triangle',f:523,to:1047,d:.25,v:.08,t:.45,wet:.5});
     },
+    helping(){ // ka-ching
+      tone({type:'square',f:1319,d:.06,v:.06,lp:4000});tone({type:'square',f:1760,d:.25,v:.07,lp:4000,t:.06,wet:.5});
+      noise({type:'highpass',f:6000,d:.15,v:.08,t:.06});
+    },
+    snack(){ // chomp chomp + swipe
+      for(let i=0;i<2;i++){noise({type:'lowpass',f:1500,to:400,d:.08,v:.4,t:i*.14});tone({type:'sine',f:180,to:90,d:.08,v:.3,t:i*.14})}
+      noise({type:'bandpass',f:3000,to:600,q:2,d:.25,v:.2,t:.3});
+      tone({type:'triangle',f:659,to:1319,d:.15,v:.08,t:.3,wet:.4});
+    },
+    feast(){ // everything pops at once
+      tone({type:'sawtooth',f:110,to:880,d:.6,v:.08,lp:3000,sweep:.8});
+      for(let i=0;i<12;i++)tone({type:'sine',f:500+Math.random()*900,to:1400+Math.random()*1400,d:.08,v:.12,t:.25+i*.035});
+      [523,659,784,1047,1319].forEach((f,i)=>tone({type:'square',f,d:.3,v:.05,lp:3500,t:.5+i*.04,wet:.6}));
+      tone({type:'sine',f:130,to:40,d:.4,v:.5,t:.45});
+    },
+    stolen(){ // hey!
+      tone({type:'triangle',f:880,to:330,d:.3,v:.12,wet:.3});noise({type:'bandpass',f:2500,to:500,q:2,d:.2,v:.12});
+    },
     heart(){ // danger: your stack is near the top
       tone({type:'sine',f:70,to:45,d:.12,v:.5});
       tone({type:'sine',f:65,to:42,d:.14,v:.4,t:.18});

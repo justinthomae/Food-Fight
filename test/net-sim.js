@@ -1,5 +1,6 @@
 // Simulates an online match: several clients, each with its own Game, joined by a fake broadcast bus with latency.
 const E=require('../js/engine.js');
+const stats={};
 function match(nHumans,nBots,seed){
   const ids=Array.from({length:nHumans},(_,i)=>'p'+i);
   const roster=ids.map(id=>({id,name:id.toUpperCase()}));
@@ -9,7 +10,7 @@ function match(nHumans,nBots,seed){
     const hooks={send:m=>queue.push({at:tick+2+Math.floor(Math.random()*6),from:id,m:JSON.parse(JSON.stringify(m))})};
     clients[id]=new E.Game('online',1,hooks,true,{roster,myId:id,seed});
   });
-  const deliver=(c,m)=>{if(m.t==='snaps')c.netSnaps(m.list);else if(m.t==='atk')c.netAttack(m);else if(m.t==='ko')c.netKO(m.id,m.by)};
+  const deliver=(c,m)=>{stats[m.t]=(stats[m.t]||0)+1;if(m.t==='snaps')c.netSnaps(m.list);else if(m.t==='atk')c.netAttack(m);else if(m.t==='ko')c.netKO(m.id,m.by);else if(m.t==='steal')c.netSteal(m);else if(m.t==='give')c.netGive(m)};
   while(tick<60*900&&!Object.values(clients).every(c=>c.over)){
     tick++;
     for(let i=queue.length-1;i>=0;i--){const q=queue[i];if(q.at<=tick){queue.splice(i,1);for(const id in clients)if(id!==q.from)deliver(clients[id],q.m)}}
@@ -28,3 +29,5 @@ for(let i=0;i<3;i++)console.log(JSON.stringify(match(3,1,200+i)));
 console.log(JSON.stringify(match(4,0,300)));
 console.log(JSON.stringify(match(8,0,400)));
 console.log(JSON.stringify(match(3,5,500)));
+
+console.log('messages delivered by type:',JSON.stringify(stats));

@@ -1,6 +1,6 @@
 // Food Fight UI: drawing, input, settings, practice mode and the online lobby.
 (function(){
-const VERSION='0.6.0';
+const VERSION='0.7.0';
 const $=s=>document.querySelector(s);
 const $$=s=>[...document.querySelectorAll(s)];
 const cv=$('#board'),ctx=cv.getContext('2d');
@@ -235,6 +235,19 @@ function render(){
   }
   if(kb.on){ctx.strokeStyle='#F7C548';ctx.lineWidth=3;rr(ctx,kb.c*S+1.5,kb.r*S-ro+1.5,S*2-3,S-3,S*.22);ctx.stroke()}
   drawEffects(ctx,B,W,H,f);
+  if(B.streak>=1&&B.streakType!=null&&!B.dead){
+    const k=B.streak,next=k===1?'Double':k===2?'Snack':'FEAST',sz=S*.62,x=S*.12,y=S*.38;
+    const label=`×${k} → ${next}`;
+    ctx.font=`${Math.round(S*.34)}px 'Lilita One','Arial Rounded MT Bold',sans-serif`;
+    const tw=ctx.measureText(label).width,w=sz+tw+S*.42,pulse=k>=3?.15*Math.sin(f*.25):0;
+    ctx.globalAlpha=k===1?.6:1;
+    ctx.fillStyle='rgba(20,12,28,.78)';rr(ctx,x,y,w,sz+S*.16,(sz+S*.16)/2);ctx.fill();
+    if(k>=2){ctx.strokeStyle=`rgba(247,197,72,${.7+pulse})`;ctx.lineWidth=2;ctx.stroke()}
+    ctx.drawImage(tileSprite(B.streakType,sz,PAL),x+S*.08,y+S*.08,sz,sz);
+    ctx.textAlign='left';ctx.textBaseline='middle';ctx.fillStyle=k>=3?'#F7C548':'#EEF0FA';
+    ctx.fillText(label,x+sz+S*.2,y+(sz+S*.16)/2+1);
+    ctx.globalAlpha=1;ctx.textAlign='center';
+  }
   B.parts.forEach(p=>{ctx.globalAlpha=Math.min(1,p.life/14);ctx.fillStyle=p.kind<0?'#E0A86E':PAL.c[p.kind];ctx.beginPath();ctx.arc(p.x*S,p.y*S-ro,S*.07,0,Math.PI*2);ctx.fill()});
   ctx.globalAlpha=1;
   ctx.textAlign='center';ctx.textBaseline='middle';
@@ -788,6 +801,8 @@ if(NET){
       if(m.t==='snaps')G.netSnaps(m.list);
       else if(m.t==='atk')G.netAttack(m);
       else if(m.t==='ko')G.netKO(m.id,m.by);
+      else if(m.t==='steal')G.netSteal(m);
+      else if(m.t==='give')G.netGive(m);
     },
     members(list){
       lobbyMembers=list;renderLobby();

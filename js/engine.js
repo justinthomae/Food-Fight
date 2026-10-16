@@ -59,7 +59,7 @@ class Board{
     const rng=mulberry32(seed>>>0);
     Object.assign(this,{game,name,isBot,idx,id:id||('b'+idx),rng,g:newGrid(rng),rise:0,chain:1,maxChain:1,maxCombo:0,score:0,inc:[],stop:0,
       grace:GRACE,raising:false,raiseT:0,dead:false,sent:0,blocked:0,kos:0,pops:[],parts:[],side:false,shake:0,
-      lastAttacker:null,killedBy:null,place:0,think:50+rnd(40),hitFlash:0,diedAt:0,rack:[],tower:0,rushT:0,fireT:60,creamT:0,frozenT:0,blendT:0});
+      lastAttacker:null,killedBy:null,place:0,think:50+rnd(40),hitFlash:0,diedAt:0,rack:[],tower:0,rushT:0,fireT:60,creamT:0,frozenT:0,blendT:0,streak:0,streakType:null,maxStreak:1});
     this.preview=genRow(this.g[ROWS-1],this.g[ROWS-2],this.rng);
     this.previewSp=specialRow(this.rng);
   }
@@ -149,7 +149,17 @@ class Board{
     for(let r=0;r<ROWS;r++){let c=0;while(c<COLS){const t=g[r][c];if(!el(t)){c++;continue}let e=c+1;while(e<COLS&&el(g[r][e])&&g[r][e].t===t.t)e++;if(e-c>=3)for(let k=c;k<e;k++){hit.add(g[r][k]);pos.set(g[r][k],[r,k])}c=e}}
     for(let c=0;c<COLS;c++){let r=0;while(r<ROWS){const t=g[r][c];if(!el(t)){r++;continue}let e=r+1;while(e<ROWS&&el(g[e][c])&&g[e][c].t===t.t)e++;if(e-r>=3)for(let k=r;k<e;k++){hit.add(g[k][c]);pos.set(g[k][c],[k,c])}r=e}}
     if(hit.size){
-      const arr=[...hit].sort((a,b)=>{const p=pos.get(a),q=pos.get(b);return p[0]-q[0]||p[1]-q[1]});
+      let arr=[...hit].sort((a,b)=>{const p=pos.get(a),q=pos.get(b);return p[0]-q[0]||p[1]-q[1]});
+      // ---- food streak: the same food cleared in back-to-back matches ----
+      const counts={};arr.forEach(t=>counts[t.t]=(counts[t.t]||0)+1);
+      const ft=this.streakType!=null&&counts[this.streakType]?this.streakType:+Object.keys(counts).sort((a,b)=>counts[b]-counts[a])[0];
+      if(ft===this.streakType)this.streak++;else{this.streakType=ft;this.streak=1}
+      this.maxStreak=Math.max(this.maxStreak||1,this.streak);
+      const streak=this.streak;
+      if(streak>=4){ // Feast: every other tile of that food on the board joins this clear
+        for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){const u=g[r][c];if(u&&u.t===ft&&u.clr===0&&u.st==='idle'&&!hit.has(u)){hit.add(u);pos.set(u,[r,c]);arr.push(u)}}
+        this.streak=0;this.streakType=null;
+      }
       const n=arr.length,isChain=arr.some(t=>t.chain);
       if(isChain){this.chain++;this.maxChain=Math.max(this.maxChain,this.chain)}
       this.maxCombo=Math.max(this.maxCombo,n);
@@ -159,14 +169,18 @@ class Board{
       arr.forEach(t=>{const [r,c]=pos.get(t);[[1,0],[-1,0],[0,1],[0,-1]].forEach(([dr,dc])=>{const u=g[r+dr]&&g[r+dr][c+dc];if(u&&u.t<0&&u.clr===0)gids.add(u.gid)})});
       if(gids.size){let i=0;for(let r=ROWS-1;r>=0;r--)for(let c=0;c<COLS;c++){const u=g[r][c];if(u&&u.t<0&&gids.has(u.gid)&&u.clr===0){u.clr=CLR+n*4+12+i*3;u.conv=true;i++}}broke=i;this.sfx('break')}
       if(isChain)this.tower+=6;
-      this.score+=n*10*this.chain+(n>=4?(n-3)*30:0)+(isChain?this.chain*50:0);
+      const gained=n*10*this.chain+(n>=4?(n-3)*30:0)+(isChain?this.chain*50:0);
+      this.score+=gained;
       this.stop=Math.max(this.stop,40+n*6+(isChain?this.chain*25:0));
       let cx=0,cy=0;arr.forEach(t=>{const [r,c]=pos.get(t);cx+=c+.5;cy+=r+.5});cx/=n;cy/=n;
       if(isChain)this.pop(`${this.chain} chain!`,cx,cy,'#F7C548',1.2);
       else if(n>=4)this.pop(`${n} combo`,cx,cy,'#EEF0FA',1);
       if(isChain)this.sfx('chain',this.chain);else this.sfx('match',n);
+      if(streak===2){this.score+=gained;this.pop('Double helping! ×2 points',cx,cy-1,'#F7C548',.8);this.sfx('helping')}
+      else if(streak===3){this.pop('Snack attack!',cx,cy-1,'#F7C548',.95);this.snack();this.sfx('snack')}
+      else if(streak>=4){this.pop('FEAST!',cx,cy-1.2,'#F7C548',1.4);this.feasts=(this.feasts||0)+1;this.sfx('feast')}
       if(isChain)this.towerAt={c:cx,r:cy};
-      if(n>=4)this.earn({k:'pie',cells:n-1},cx,cy);
+      if(n>=4)this.earn({k:'pie',cells:Math.min(12,n-1)},cx,cy);
       if(broke)this.earn({k:'sauce'},cx,cy-1);
       specials.forEach((k,i)=>this.earn({k},cx,cy-1.4-i*.8));
     }
@@ -273,6 +287,31 @@ class Board{
     }
     if(this===this.game.player)this.shake=8;
     this.sfx('junk');
+  }
+  // Snack attack: grab the oldest item from the cook you're aiming at, and turn 2 of your junk back into food
+  snack(){
+    let cleaned=0;
+    for(let r=ROWS-1;r>=0&&cleaned<2;r--)for(let c=0;c<COLS&&cleaned<2;c++){const u=this.g[r][c];if(u&&u.t<0&&u.clr===0){u.clr=CLR+cleaned*6;u.conv=true;cleaned++}}
+    const v=this.pickTarget();
+    if(!v||v.dead||!v.rack.length)return;
+    if(v.remote){if(this.game.hooks.send)this.game.hooks.send({t:'steal',from:this.id,to:v.id})}
+    else{const it=v.stealFrom(this);if(it)this.takeItem(it,v)}
+  }
+  stealFrom(thief){
+    if(this.dead||!this.rack.length)return null;
+    const it=this.rack.shift();
+    this.pop(`${thief?thief.name:'Someone'} stole your ${it.k==='pie'?'pie':it.k==='tower'?'tower':it.k==='sauce'?'hot sauce':it.k==='pin'?'rolling pin':it.k}!`,3,8,'#CC79A7',.75);
+    this.sfx('stolen');
+    if(this===this.game.player&&this.game.hooks.rack)this.game.hooks.rack();
+    return {k:it.k,cells:it.cells,at:it.at};
+  }
+  takeItem(it,from){
+    if(this.dead||!it)return;
+    const item={k:it.k,cells:it.cells|0,at:it.at||null,id:++uid};
+    this.rack.push(item);this.stolen=(this.stolen||0)+1;
+    this.pop(`Yoink! ${from?'From '+from.name:''}`,3,6,'#F7C548',.85);
+    if(this.rack.length>RACK){const i=this.rack.findIndex(x=>x.k!=='pin');this.fire(i<0?0:i)}
+    if(this===this.game.player&&this.game.hooks.rack)this.game.hooks.rack();
   }
   cream(from){if(this.dead)return;this.creamT=CREAM;this.creamSeed=Math.random();this.lastAttacker=from;this.hitFlash=24;this.pop('Whipped cream!',3,9,'#EEF0FA',1.1);this.sfx('cream')}
   freeze(from){if(this.dead)return;this.frozenT=FREEZE;this.lastAttacker=from;this.hitFlash=24;this.raising=false;this.pop('Brain freeze!',3,9,'#56B4E9',1.1);this.sfx('freeze')}
@@ -437,6 +476,19 @@ class Game{
     if(k&&!k.dead){b.killedBy=k;if(!k.remote)k.kos++}
     if(this.hooks.ko)this.hooks.ko(b,k,true);
     this.checkEnd();
+  }
+  netSteal(m){
+    const v=this.byId(m.to),th=this.byId(m.from);
+    if(!v||v.remote||v.dead||!th||this.over)return;
+    const it=v.stealFrom(th);
+    if(it&&this.hooks.send)this.hooks.send({t:'give',to:th.id,from:v.id,k:it.k,cells:it.cells|0,ac:it.at?+(+it.at.c).toFixed(2):null,ar:it.at?+(+it.at.r).toFixed(2):null});
+  }
+  netGive(m){
+    const to=this.byId(m.to),from=this.byId(m.from);
+    if(!to||to.remote||to.dead||this.over)return;
+    const kinds=['pie','tower','sauce','cream','freeze','blender','pin'];if(!kinds.includes(m.k))return;
+    const at=Number.isFinite(m.ac)&&Number.isFinite(m.ar)?{c:Math.max(0,Math.min(COLS,m.ac)),r:Math.max(0,Math.min(ROWS,m.ar))}:null;
+    to.takeItem({k:m.k,cells:JUNK_KINDS.includes(m.k)?Math.max(1,Math.min(72,m.cells|0)):0,at},from);
   }
   netLeave(ownerId){this.boards.filter(b=>b.remote&&b.owner===ownerId&&!b.dead).forEach(b=>this.netKO(b.id,null))}
   level(){return Math.min(10,1+Math.floor(this.frame/(60*20)))}
