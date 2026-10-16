@@ -11,7 +11,18 @@ const MARGIN=50,RACK=3,RUSH=180,CYCLE=180,CREAM=300,FREEZE=150,SPECIAL_RATE=.16;
 const JUNK_KINDS=['pie','tower'],ATTACK_KINDS=['pie','tower','sauce','cream','freeze','blender'],SPECIALS=['cream','freeze','blender','pin'],SPECIAL_W=[3,2,3,2];
 function pickSpecial(rng){let x=rng()*10;for(let i=0;i<SPECIALS.length;i++){x-=SPECIAL_W[i];if(x<0)return SPECIALS[i]}return SPECIALS[0]}
 function specialRow(rng){if(rng()>=SPECIAL_RATE)return null;const col=Math.floor(rng()*COLS),row=new Array(COLS).fill(null);row[col]=pickSpecial(rng);return row}
-const BOTNAMES=['Basil','Ginger','Pepper'];
+// the cast: four fighters; bots use them (and a second line-up of names past four)
+const FIGHTERS=['bun','sprinkles','crunch','slice'];
+const BOTS=[{name:'King Bun',av:'bun'},{name:'Sprinkles',av:'sprinkles'},{name:'Crunch',av:'crunch'},{name:'Slice',av:'slice'},
+            {name:'Patty',av:'bun'},{name:'Swirl',av:'sprinkles'},{name:'Salsa',av:'crunch'},{name:'Pepperoni',av:'slice'}];
+const BOTNAMES=BOTS.map(b=>b.name);
+const MAX_PLAYERS=8;
+// bots for a match: characters other than yours first, so a duel is always a real match-up
+function pickBots(n,playerAv,taken){
+  const used=new Set(taken||[]);
+  const order=BOTS.filter(b=>b.av!==playerAv&&!used.has(b.name)).concat(BOTS.filter(b=>b.av===playerAv&&!used.has(b.name)));
+  return order.slice(0,n);
+}
 const rnd=n=>Math.floor(Math.random()*n);
 function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
 let uid=0,gidc=0;
@@ -393,13 +404,15 @@ class Game{
         if(m.id===opts.myId){b=new Board(this,m.name,!!allBots,i,m.id,seed);this.player=b}
         else if(m.bot&&m.owner===opts.myId)b=new Board(this,m.name,true,i,m.id,seed);
         else b=new RemoteBoard(this,m.id,m.name,i,m.owner);
+        b.av=FIGHTERS.includes(m.av)?m.av:FIGHTERS[i%FIGHTERS.length];
         this.boards.push(b);
       });
     }else{
-      this.player=new Board(this,'You',!!allBots,0,'me',seed);
+      this.player=new Board(this,opts.name||'You',!!allBots,0,'me',seed);
+      this.player.av=FIGHTERS.includes(opts.av)?opts.av:'bun';
       this.boards.push(this.player);
-      const n=mode==='brawl'?3:1;
-      for(let i=0;i<n;i++)this.boards.push(new Board(this,BOTNAMES[i],true,i+1,'bot'+i,seed));
+      const n=mode==='brawl'?Math.max(2,Math.min(MAX_PLAYERS,opts.size||4))-1:1;
+      pickBots(n,this.player.av).forEach((bt,i)=>{const b=new Board(this,bt.name,true,i+1,'bot'+i,seed);b.av=bt.av;this.boards.push(b)});
     }
   }
   byId(id){return this.boards.find(b=>b.id===id)}
@@ -448,7 +461,7 @@ class Game{
     if(this.over||this.paused)return;
     this.frame++;
     for(const b of this.boards)if(!b.dead)b.step();
-    if(this.online&&this.hooks.send&&this.frame%12===0){const l=this.local().filter(b=>!b.dead||b.diedAt===this.frame-1);if(l.length)this.hooks.send({t:'snaps',list:l.map(b=>b.snap())})}
+    if(this.online&&this.hooks.send&&this.frame%(this.boards.length>4?20:12)===0){const l=this.local().filter(b=>!b.dead||b.diedAt===this.frame-1);if(l.length)this.hooks.send({t:'snaps',list:l.map(b=>b.snap())})}
     if(this.flights.length)this.flights=this.flights.filter(f=>{if(--f.t>0)return true;if(!f.to.dead)this.deliver(f.to,f.item,f.from);return false});
     this.checkEnd();
   }
@@ -473,4 +486,4 @@ class Game{
   }
 }
 
-if(typeof module!=='undefined')module.exports={COLS,ROWS,NT,CLR,POP,HOVER,INC_T,GRACE,FLY,DIFFS,MARGIN,RACK,RUSH,CYCLE,CREAM,FREEZE,SPECIALS,BOTNAMES,Board,RemoteBoard,Game,mulberry32};
+if(typeof module!=='undefined')module.exports={COLS,ROWS,NT,CLR,POP,HOVER,INC_T,GRACE,FLY,DIFFS,MARGIN,RACK,RUSH,CYCLE,CREAM,FREEZE,SPECIALS,BOTNAMES,BOTS,FIGHTERS,MAX_PLAYERS,pickBots,Board,RemoteBoard,Game,mulberry32};

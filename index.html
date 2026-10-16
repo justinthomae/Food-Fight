@@ -19,6 +19,7 @@
   --ink:#EEF0FA; --muted:#949BBD; --gold:#F7C548; --gold-ink:#2A1E05; --accent-text:#F7C548;
   --crust:#B48A63; --crust2:#E0A86E; --crust-ink:#2B1A0C;
   --grid:rgba(255,255,255,.025); --shade:rgba(11,13,27,.35); --scrim:rgba(9,10,22,.86);
+  --cream:#FFF4DC; --tomato:#E5392B; --depth:#C2451E; --outline:#140C1C;
   --display:'Lilita One','Arial Rounded MT Bold',system-ui,sans-serif;
   --body:'Figtree',system-ui,-apple-system,'Segoe UI',sans-serif;
   color-scheme:dark;
@@ -106,7 +107,10 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
 .overlay{position:fixed;inset:0;z-index:40;display:grid;place-items:center;background:var(--scrim);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);padding:calc(20px + env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) calc(20px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));overflow:auto}
 .card{width:min(430px,100%);background:var(--panel);border-radius:20px;padding:22px;display:flex;flex-direction:column;gap:14px;box-shadow:0 20px 60px rgba(0,0,0,.35)}
 .card h1{font-family:var(--display);font-weight:400;font-size:40px;line-height:1;margin:0;text-wrap:balance}
-.card h2{font-family:var(--display);font-weight:400;font-size:30px;line-height:1;margin:0;text-wrap:balance}
+.card h2,.chunky{font-family:var(--display);font-weight:400;font-size:30px;line-height:1.05;margin:0;text-wrap:balance;color:var(--cream);-webkit-text-stroke:4px var(--outline);paint-order:stroke fill;text-shadow:0 3px 0 var(--depth),0 4px 0 var(--outline);letter-spacing:.01em}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.logo{display:block;width:min(100%,340px);height:auto;margin:-6px auto -4px;filter:drop-shadow(0 6px 10px rgba(0,0,0,.35))}
+.brand img{height:30px;width:auto;display:block}
 .card p{margin:0;color:var(--muted);line-height:1.45;font-size:14px}
 .cardhead{display:flex;align-items:center;justify-content:space-between;gap:12px}
 .x{width:36px;height:36px;border-radius:10px;border:0;background:var(--panel2);display:grid;place-items:center;flex:none}
@@ -127,8 +131,10 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
 .seg button[aria-pressed="true"]{background:var(--panel2);color:var(--ink)}
 .lab{font-size:10px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:-6px}
 .diff{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
-.btn{border:0;border-radius:14px;padding:12px 10px;background:var(--panel2);font-weight:800}
-.btn.primary{background:var(--gold);color:var(--gold-ink)}
+.btn{border:2px solid var(--outline);border-radius:14px;padding:11px 10px;background:var(--panel2);font-weight:800;box-shadow:0 3px 0 var(--outline);transition:transform .06s,box-shadow .06s}
+.btn:active:not(:disabled){transform:translateY(2px);box-shadow:0 1px 0 var(--outline)}
+.btn.primary{background:linear-gradient(#FFD45E,var(--gold));color:var(--gold-ink);box-shadow:0 3px 0 var(--depth),0 5px 0 var(--outline)}
+.btn.primary:active:not(:disabled){box-shadow:0 1px 0 var(--depth),0 2px 0 var(--outline)}
 .btn.big{padding:15px 12px;font-size:16px}
 .btn:disabled{opacity:.45}
 .btn small{display:block;font-weight:600;font-size:11px;opacity:.75;margin-top:2px}
@@ -180,12 +186,66 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
 .seats li.bot .dot{background:var(--muted)}
 .check{display:flex;align-items:center;gap:10px;font-weight:600}
 .check input{width:20px;height:20px;accent-color:var(--gold)}
-.count{font-family:var(--display);font-size:120px;line-height:1;color:var(--ink);text-shadow:0 6px 0 rgba(0,0,0,.2)}
+/* fighters */
+.av{width:28px;height:28px;border-radius:50%;object-fit:cover;flex:none;border:2px solid var(--outline);background:var(--gold);display:block}
+.picker{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.pick{border:2px solid var(--line);background:var(--well);border-radius:16px;padding:6px 4px 8px;display:flex;flex-direction:column;align-items:center;gap:4px;font-size:12px;font-weight:800}
+.pick img{width:100%;max-width:72px;aspect-ratio:1;border-radius:50%;object-fit:cover;border:3px solid var(--outline)}
+.pick[aria-pressed="true"]{border-color:var(--gold);background:var(--panel2)}
+.pick[aria-pressed="true"] img{border-color:var(--gold)}
+.lineup{display:flex;justify-content:center;align-items:flex-end;gap:0;height:120px;margin:4px 0 -6px}
+.lineup img{height:100%;width:auto;margin:0 -10px;filter:drop-shadow(0 6px 8px rgba(0,0,0,.4))}
+.lineup img:nth-child(2),.lineup img:nth-child(3){height:88%}
+/* match-up screen */
+.vs{width:min(560px,100%);display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center}
+.duelvs{position:relative;width:100%;display:grid;grid-template-columns:1fr auto 1fr;align-items:center}
+.fighter{display:flex;flex-direction:column;align-items:center;gap:6px;min-width:0}
+.fighter img{width:100%;max-width:220px;height:auto;filter:drop-shadow(0 10px 14px rgba(0,0,0,.45))}
+.fighter.r img{transform:scaleX(-1)}
+.fighter .chunky{font-size:22px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.duelvs .fighter.l{animation:inL .45s cubic-bezier(.2,1.4,.4,1) both}
+.duelvs .fighter.r{animation:inR .45s cubic-bezier(.2,1.4,.4,1) .08s both}
+.vsword{font-size:64px;animation:slam .5s cubic-bezier(.2,1.6,.4,1) .3s both;z-index:1}
+@keyframes inL{from{transform:translateX(-60vw)}to{transform:none}}
+@keyframes inR{from{transform:translateX(60vw)}to{transform:none}}
+@keyframes slam{from{transform:scale(3) rotate(-12deg);opacity:0}to{transform:none;opacity:1}}
+.crowd{display:grid;grid-template-columns:repeat(4,1fr);gap:10px 6px;width:100%}
+.crowd .fighter img{max-width:96px;animation:pop .4s cubic-bezier(.2,1.5,.4,1) both}
+.crowd .fighter .chunky{font-size:15px;-webkit-text-stroke-width:4px}
+.crowd .fighter.me img{outline:none;filter:drop-shadow(0 0 10px rgba(247,197,72,.9)) drop-shadow(0 8px 10px rgba(0,0,0,.4))}
+@keyframes pop{from{transform:scale(.2);opacity:0}to{transform:none;opacity:1}}
+.count{font-size:72px;min-height:1em}
+/* loading */
+.loading{display:flex;flex-direction:column;align-items:center;gap:18px;width:min(420px,100%)}
+.loading .logo{width:min(100%,380px);animation:bob 1.6s ease-in-out infinite}
+@keyframes bob{50%{transform:translateY(-6px) rotate(-1deg)}}
+.bar{width:70%;height:12px;border-radius:8px;background:var(--well);border:2px solid var(--outline);overflow:hidden}
+.bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--tomato),var(--gold));transition:width .2s}
+.loadtext{font-weight:800;color:var(--muted);font-size:13px;letter-spacing:.04em}
+/* end screen hero */
+.hero{display:block;width:150px;height:auto;margin:-60px auto -6px;filter:drop-shadow(0 8px 12px rgba(0,0,0,.45));animation:pop .5s cubic-bezier(.2,1.5,.4,1) both}
+.card.endcard{margin-top:56px}
+/* big rooms: compact opponent cards */
+.opps.many{overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;padding-bottom:2px}
+.opps.many::-webkit-scrollbar{display:none}
+.opps.many .foe{flex:0 0 112px;padding:5px 6px;gap:6px}
+.opps.many .foe canvas{width:22px;height:44px}
+.opps.many .foe .nm{font-size:13px}
+.opps.many .foe .st{font-size:10px}
+.foe .nmrow{display:flex;align-items:center;gap:5px;min-width:0}
+.foe .nmrow .av{width:22px;height:22px}
+.lb .who{display:flex;align-items:center;gap:8px}
+.lb .who>div{min-width:0}
+.lb .av{width:30px;height:30px}
+.seats .av{width:26px;height:26px}
 .toast{position:fixed;left:50%;bottom:calc(16px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:35;background:var(--panel);border-radius:16px;padding:12px 14px;display:flex;align-items:center;gap:12px;box-shadow:0 10px 30px rgba(0,0,0,.35);width:min(400px,calc(100% - 32px))}
 .toast p{margin:0;flex:1;font-size:13px;line-height:1.35}
 .toast .btn{flex:none;padding:9px 12px}
 @media (max-width:380px){.stat{min-width:40px;padding:4px 6px}.brand{font-size:19px}.slot{width:56px}}
 @media (min-width:760px) and (min-aspect-ratio:1/1){
+  .opps.many{display:grid;grid-template-columns:1fr 1fr;overflow:visible;width:250px}
+  .opps.many .foe{flex:none}
+  .opps.many .foe canvas{width:36px;height:72px}
   .arena{flex-direction:row;align-items:stretch}
   .opps{flex-direction:column;width:210px;align-self:flex-start}
   .foe{flex:none;align-items:flex-start;padding:10px}
@@ -198,7 +258,7 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
 <body>
 <div class="app">
   <header class="top">
-    <div class="brand">Food Fight</div>
+    <div class="brand"><img src="assets/logo.webp" alt="Food Fight" width="45" height="30"></div>
     <div class="stats">
       <div class="stat"><b id="sTime">0:00</b><span>Time</span></div>
       <div class="stat"><b id="sScore">0</b><span>Score</span></div>
@@ -223,18 +283,32 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
   </footer>
 </div>
 
+<!-- loading -->
+<div class="overlay" id="ovLoad">
+  <div class="loading">
+    <img class="logo" src="assets/logo.webp" alt="Food Fight" width="900" height="593">
+    <div class="lineup" aria-hidden="true"><img src="assets/bun.webp" alt=""><img src="assets/sprinkles.webp" alt=""><img src="assets/crunch.webp" alt=""><img src="assets/slice.webp" alt=""></div>
+    <div class="bar"><i id="loadBar"></i></div>
+    <div class="loadtext" id="loadText">Heating up the kitchen…</div>
+  </div>
+</div>
+
 <!-- start -->
-<div class="overlay" id="ovStart">
+<div class="overlay" id="ovStart" hidden>
   <div class="card">
-    <h1>Food Fight</h1>
+    <h1 class="sr">Food Fight</h1>
+    <img class="logo" src="assets/logo.webp" alt="" width="900" height="593">
     <p>Match food, chain clears, and splat pies on the other cooks. Last kitchen standing wins.</p>
+    <div class="lab">Your fighter</div>
+    <div class="picker" id="picker"></div>
     <div class="legend" id="legend"></div>
     <div class="field"><label class="lab" for="nameIn">Your name · shown on leaderboards</label><input id="nameIn" maxlength="14" autocomplete="nickname" spellcheck="false"></div>
     <button class="btn primary big" id="bOnline">Play online<small id="onlineNote">Invite friends with a room code</small></button>
     <div class="lab">Practice vs bots</div>
-    <div class="seg" id="mode">
-      <button aria-pressed="true" data-m="duel">Duel<small>You vs 1 cook</small></button>
-      <button aria-pressed="false" data-m="brawl">Brawl<small>4-cook free-for-all</small></button>
+    <div class="seg three" id="mode">
+      <button aria-pressed="true" data-m="duel" data-size="2">Duel<small>1 vs 1</small></button>
+      <button aria-pressed="false" data-m="brawl" data-size="4">Brawl<small>4 cooks</small></button>
+      <button aria-pressed="false" data-m="brawl" data-size="8">Big Brawl<small>8 cooks</small></button>
     </div>
     <div class="diff">
       <button class="btn" data-d="0">Easy<small>Slow hands</small></button>
@@ -300,7 +374,7 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
 <div class="overlay" id="ovBoard" hidden>
   <div class="card">
     <div class="cardhead"><h2>Leaderboards</h2><button class="x" data-close aria-label="Close"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
-    <div class="seg three" id="lbMode"><button data-v="duel">Duel</button><button data-v="brawl">Brawl</button><button data-v="online">Online</button></div>
+    <div class="seg" id="lbMode" style="grid-template-columns:repeat(4,1fr)"><button data-v="duel">Duel</button><button data-v="brawl">Brawl</button><button data-v="brawl8">Big</button><button data-v="online">Online</button></div>
     <div class="seg three" id="lbDiff"><button data-v="0">Easy</button><button data-v="1">Normal</button><button data-v="2">Hard</button></div>
     <div class="seg three" id="lbPeriod"><button data-v="day">Today</button><button data-v="week">This week</button><button data-v="all">All time</button></div>
     <div class="lbsrc"><span id="lbSrc">Everyone · best score per cook</span><span id="lbNote"></span></div>
@@ -328,7 +402,10 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
     <div class="lab">Cooks <span id="seatCount"></span></div>
     <ul class="seats" id="seats"></ul>
     <div id="hostBox" class="field">
-      <label class="check"><input type="checkbox" id="fillBots" checked> Fill empty seats with bots</label>
+      <div class="lab">Bots</div>
+      <div class="seg three" id="fill">
+        <button data-f="0">No bots</button><button data-f="4" aria-pressed="true">Fill to 4</button><button data-f="8">Fill to 8</button>
+      </div>
       <div class="seg three" id="botSkill">
         <button data-d="0">Easy</button><button data-d="1" aria-pressed="true">Normal</button><button data-d="2">Hard</button>
       </div>
@@ -338,8 +415,13 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
   </div>
 </div>
 
-<!-- countdown -->
-<div class="overlay" id="ovCount" hidden><div class="count" id="countNum">3</div></div>
+<!-- match-up screen + countdown -->
+<div class="overlay" id="ovVs" hidden>
+  <div class="vs">
+    <div id="vsStage"></div>
+    <div class="chunky count" id="countNum"></div>
+  </div>
+</div>
 
 <!-- pause / leave -->
 <div class="overlay" id="ovPause" hidden>
@@ -356,7 +438,8 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
 
 <!-- end -->
 <div class="overlay" id="ovEnd" hidden>
-  <div class="card">
+  <div class="card endcard">
+    <img class="hero" id="eHero" alt="" width="150" height="150">
     <h2 id="eTitle">You win</h2>
     <p id="eSub"></p>
     <div class="rankline" id="eRank"></div>

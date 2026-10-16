@@ -59,3 +59,23 @@ lb=(await asAnon(`select * from ff_leaderboard('online',0,'all','device-zzz9',5)
 ok(lb.length===6&&lb[5].mine&&lb[5].rank===13,'top 5 plus your own row at #13');
 ok((await asAnon(`select * from ff_leaderboard('online',2,'all',null,5)`)).rows.length===5,'online ignores difficulty');
 console.log('done');
+
+// ---- v2 migration: avatars, Big Brawl board, 8-player limits; existing rows keep working
+const v2=fs.readFileSync(new URL('../supabase/migrations/20261016000002_ff_leaderboard_v2.sql',import.meta.url),'utf8');
+const before=(await db.query('select count(*)::int n from ff_scores')).rows[0].n;
+await db.exec(v2);await db.exec(v2);
+ok((await db.query('select count(*)::int n from ff_scores')).rows[0].n===before,'v2 applies twice and keeps existing scores');
+denied=false;try{await asAnon('select * from ff_scores')}catch(e){denied=true}
+ok(denied,'table still locked after v2');
+const submit2=(dev,name,mode,diff,score,av,kos=0,place=1)=>asAnon(`select ff_submit_score(p_device_id=>$1,p_name=>$2,p_mode=>$3,p_difficulty=>$4,p_score=>$5,p_max_chain=>2,p_kos=>$7,p_won=>false,p_place=>$8,p_duration_s=>200,p_version=>'0.4.0',p_avatar=>$6) r`,[dev,name,mode,diff,score,av,kos,place]).then(x=>x.rows[0].r);
+r=await submit2('device-big1','Brawler','brawl8',1,7000,'crunch',7,8);
+ok(r.ok&&r.rank_all===1,'Big Brawl score with 7 KOs and 8th place accepted');
+r=await submit2('device-av02','Hacker','duel',1,200,'<script>');
+lb=(await asAnon(`select * from ff_leaderboard('duel',1,'all','device-av02',50)`)).rows;
+ok(lb.find(x=>x.mine).avatar==='','unknown avatar stored as blank');
+lb=(await asAnon(`select * from ff_leaderboard('brawl8',1,'all',null,50)`)).rows;
+ok(lb.length===1&&lb[0].avatar==='crunch','board returns the avatar');
+// an old client (no p_avatar) still works
+r=await asAnon(`select ff_submit_score(p_device_id=>'device-old1',p_name=>'Old',p_mode=>'duel',p_difficulty=>1,p_score=>100,p_max_chain=>1,p_kos=>0,p_won=>false,p_place=>2,p_duration_s=>60,p_version=>'0.3.1') r`).then(x=>x.rows[0].r);
+ok(r.ok,'v0.3 call shape without avatar still accepted');
+console.log('v2 done');

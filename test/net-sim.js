@@ -26,3 +26,5 @@ function match(nHumans,nBots,seed){
 for(let i=0;i<3;i++)console.log(JSON.stringify(match(2,0,100+i)));
 for(let i=0;i<3;i++)console.log(JSON.stringify(match(3,1,200+i)));
 console.log(JSON.stringify(match(4,0,300)));
+console.log(JSON.stringify(match(8,0,400)));
+console.log(JSON.stringify(match(3,5,500)));

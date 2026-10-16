@@ -19,6 +19,12 @@ html = html.replace('</body>', '<script>\n' + '\n;\n'.join(blocks) + '\n</script
 for pat in [r'<!doctype html>\s*', r'<html[^>]*>\s*', r'</html>\s*', r'<head>\s*', r'</head>\s*', r'<body>\s*', r'</body>\s*',
             r'<meta charset[^>]*>\s*', r'<meta name="viewport"[^>]*>\s*']:
     html = re.sub(pat, '', html, flags=re.I)
+# art: inline every assets/*.webp reference as a data URI so the single file is self-contained
+import base64
+def data_uri(m):
+    f = root / m.group(0)
+    return 'data:image/webp;base64,' + base64.b64encode(f.read_bytes()).decode()
+html = re.sub(r'assets/[\w-]+\.webp', data_uri, html)
 out = pathlib.Path(sys.argv[1] if len(sys.argv) > 1 else root / 'dist' / 'food-fight-artifact.html')
 out.parent.mkdir(parents=True, exist_ok=True)
 out.write_text(html)

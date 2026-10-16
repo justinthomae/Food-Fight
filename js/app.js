@@ -1,6 +1,6 @@
 // Food Fight UI: drawing, input, settings, practice mode and the online lobby.
 (function(){
-const VERSION='0.3.1';
+const VERSION='0.4.0';
 const $=s=>document.querySelector(s);
 const $$=s=>[...document.querySelectorAll(s)];
 const cv=$('#board'),ctx=cv.getContext('2d');
@@ -18,10 +18,20 @@ const PALETTES={
 };
 const FOOD_NAMES=['Tomato','Cheese','Donut','Avocado','Grapes'],SHAPE_NAMES=['Circle','Triangle','Diamond','Drop','Star'];
 const names=()=>prefs.art==='shapes'?SHAPE_NAMES:FOOD_NAMES;
-let prefs={palette:'classic',theme:'night',muted:false,name:'',art:'food'};
+let prefs={palette:'classic',theme:'night',muted:false,name:'',art:'food',av:'bun'};
+const ART={
+  logo:'assets/logo.webp',
+  bun:'assets/bun.webp',sprinkles:'assets/sprinkles.webp',crunch:'assets/crunch.webp',slice:'assets/slice.webp',
+  'bun-face':'assets/bun-face.webp','sprinkles-face':'assets/sprinkles-face.webp','crunch-face':'assets/crunch-face.webp','slice-face':'assets/slice-face.webp'
+};
+const FIGHTER_INFO={bun:{name:'King Bun',tag:'Burger brawler'},sprinkles:{name:'Sprinkles',tag:'Sweet and savage'},crunch:{name:'Crunch',tag:'Shell-shocker'},slice:{name:'Slice',tag:'Hot and cheesy'}};
+const face=av=>ART[(FIGHTERS.includes(av)?av:'bun')+'-face'];
+const body=av=>ART[FIGHTERS.includes(av)?av:'bun'];
+const avImg=(av,cls)=>`<img class="${cls||'av'}" src="${face(av)}" alt="" width="64" height="64">`;
 try{const s=JSON.parse(localStorage.getItem('ff-prefs')||'null');if(s)prefs=Object.assign(prefs,s)}catch(e){}
 if(!PALETTES[prefs.palette])prefs.palette='classic';
 if(!['food','shapes'].includes(prefs.art))prefs.art='food';
+if(!FIGHTERS.includes(prefs.av))prefs.av='bun';
 if(!['night','day','auto'].includes(prefs.theme))prefs.theme='night';
 function savePrefs(){try{localStorage.setItem('ff-prefs',JSON.stringify(prefs))}catch(e){}}
 let PAL=PALETTES[prefs.palette],TOK={};
@@ -334,10 +344,10 @@ function renderRack(){
 const multi=()=>G&&G.boards.length>2;
 const esc=s=>String(s).replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
 function buildOpps(){
-  const box=$('#opps');box.innerHTML='';box.classList.toggle('duel',!multi());
+  const box=$('#opps');box.innerHTML='';box.classList.toggle('duel',!multi());box.classList.toggle('many',G.boards.length>4);
   minis=G.boards.filter(b=>b!==G.player).map(b=>{
     const el=document.createElement('div');el.className='foe';
-    el.innerHTML=`<canvas></canvas><div class="who"><div class="nm">${esc(b.name)}</div><div class="st">Cooking</div><div class="tag" hidden>Aim</div></div>`;
+    el.innerHTML=`<canvas></canvas><div class="who"><div class="nmrow">${avImg(b.av)}<div class="nm">${esc(b.name)}</div></div><div class="st">Cooking</div><div class="tag" hidden>Aim</div></div>`;
     box.appendChild(el);
     const cvm=el.querySelector('canvas');
     return {board:b,el,cv:cvm,ctx:cvm.getContext('2d'),st:el.querySelector('.st'),tag:el.querySelector('.tag')};
@@ -355,9 +365,13 @@ function updateAim(){
     m.el.classList.toggle('dead',m.board.dead);
   });
   const n=a?a.name:'nobody';
-  if(n!==aimName){aimName=n;$('#aimline').innerHTML=`Tap to throw at <b>${esc(n)}</b>`}
+  if(n!==aimName){
+    aimName=n;$('#aimline').innerHTML=`Tap to throw at <b>${esc(n)}</b>`;
+    const box=$('#opps'),m=minis.find(x=>x.board===a);
+    if(m&&box.classList.contains('many')&&box.scrollWidth>box.clientWidth){try{box.scrollTo({left:m.el.offsetLeft-box.offsetLeft-box.clientWidth/2+m.el.offsetWidth/2,behavior:'smooth'})}catch(e){}}
+  }
 }
-const placeName=p=>['','1st','2nd','3rd','4th'][p]||p+'th';
+const placeName=p=>p===1?'1st':p===2?'2nd':p===3?'3rd':p+'th';
 function updateOpps(){
   minis.forEach(m=>{
     const b=m.board;renderMini(m);
@@ -480,7 +494,7 @@ document.addEventListener('keyup',e=>{if(G&&(e.key==='Shift'||e.key==='z'||e.key
 if(matchMedia('(pointer:fine)').matches)$('#kbd').hidden=false;
 
 /* ---------- overlays ---------- */
-const OVS=['#ovStart','#ovHow','#ovLook','#ovBoard','#ovOnline','#ovLobby','#ovCount','#ovPause','#ovEnd'];
+const OVS=['#ovLoad','#ovStart','#ovHow','#ovLook','#ovBoard','#ovOnline','#ovLobby','#ovVs','#ovPause','#ovEnd'];
 let backTo='#ovStart';
 function show(id){OVS.forEach(s=>$(s).hidden=s!==id);if(id!=='#ovEnd')$('#outToast').hidden=true}
 function hideAll(){OVS.forEach(s=>$(s).hidden=true)}
@@ -507,6 +521,9 @@ const baseHooks={
     if(won)best.wins++;
     best.score=Math.max(best.score,B.score);best.chain=Math.max(best.chain,B.maxChain);saveBest();
     $('#eTitle').textContent=won?'You win':(n>2?`${placeName(res.place)} of ${n}`:'Topped out');
+    const champ=won?B:(res.winner||G.boards.find(b=>!b.dead&&b!==B)||B.killedBy||B);
+    $('#eHero').src=body(champ.av);$('#eHero').alt=won?'Your fighter celebrates':`${champ.name} wins`;
+    $('#eHero').style.animation='none';void $('#eHero').offsetWidth;$('#eHero').style.animation='';
     if(G.online){
       const w=res.winner;
       $('#eSub').textContent=won?`Last kitchen standing. Nice cooking.`:(w?`${w.name} wins the match.`:'Match over.');
@@ -541,10 +558,10 @@ function saveLocal(key,row){
 }
 let lastBoard={mode:'duel',d:1};
 function recordScore(res){
-  const B=G.player,mode=G.online?'online':G.mode,d=G.online?1:G.d,key=boardKey(mode,d);
+  const B=G.player,mode=G.online?'online':(G.mode==='brawl'&&G.boards.length>4?'brawl8':G.mode),d=G.online?1:G.d,key=boardKey(mode,d);
   lastBoard={mode,d};
   const prevBest=(localScores[key]||[])[0];
-  const row={name:ME.name,score:B.score,chain:B.maxChain,won:!!res.won,place:res.place||1,at:Date.now()};
+  const row={name:ME.name,av:prefs.av,score:B.score,chain:B.maxChain,won:!!res.won,place:res.place||1,at:Date.now()};
   const list=saveLocal(key,row);
   const pb=!prevBest||row.score>prevBest.score;
   const el=$('#eRank');
@@ -553,7 +570,7 @@ function recordScore(res){
   const duration=Math.round(G.frame/60);
   if(!SCORES||B.score<=0||duration<10)return;
   el.textContent='Saving your score…';
-  SCORES.submit({deviceId,name:ME.name,mode,difficulty:d,score:B.score,maxChain:B.maxChain,kos:B.kos,won:!!res.won,place:res.place||1,duration,version:VERSION})
+  SCORES.submit({deviceId,name:ME.name,avatar:prefs.av,mode,difficulty:d,score:B.score,maxChain:B.maxChain,kos:B.kos,won:!!res.won,place:res.place||1,duration,version:VERSION})
     .then(r=>{
       if(!r||!r.ok){el.textContent=localLine+(r&&r.reason==='too_fast'?'':' · Leaderboard unavailable right now');return}
       el.textContent=`#${r.rank_day} today · #${r.rank_all} all time`+(r.personal_best?' · New personal best!':'');
@@ -571,11 +588,11 @@ async function loadBoard(){
   $('#lbDiff').hidden=lb.mode==='online';$('#lbPeriod').hidden=!SCORES;
   const list=$('#lbList'),req=++lb.req;
   const meta=r=>`${r.max_chain||r.chain||1}-chain · ${r.won?'Won':placeName(r.place||2)}`;
-  const row=(rank,name,score,sub,mine)=>`<li${mine?' class="mine"':''}><span class="rk">${rank}</span><div class="who"><b>${esc(name)}</b><span>${sub}</span></div><span class="sc">${score}</span></li>`;
+  const row=(rank,name,score,sub,mine,av)=>`<li${mine?' class="mine"':''}><span class="rk">${rank}</span><div class="who">${av?avImg(av):''}<div><b>${esc(name)}</b><span>${sub}</span></div></div><span class="sc">${score}</span></li>`;
   if(!SCORES){
     $('#lbSrc').textContent='Your games on this device';$('#lbNote').textContent='';
     const rows=localScores[boardKey(lb.mode,lb.d)]||[];
-    list.innerHTML=rows.length?rows.slice(0,10).map((r,i)=>row(i+1,r.name,r.score,meta(r)+' · '+dateFmt(r.at),false)).join(''):'<li class="lbempty">No games here yet. Finish one to set a score.</li>';
+    list.innerHTML=rows.length?rows.slice(0,10).map((r,i)=>row(i+1,r.name,r.score,meta(r)+' · '+dateFmt(r.at),false,r.av)).join(''):'<li class="lbempty">No games here yet. Finish one to set a score.</li>';
     return;
   }
   $('#lbSrc').textContent='Everyone · best score per cook';$('#lbNote').textContent=lb.period==='day'?'Last 24 hours':'';
@@ -584,7 +601,7 @@ async function loadBoard(){
     const rows=await SCORES.board(lb.mode,lb.d,lb.period,deviceId,50);
     if(req!==lb.req)return;
     let html='',prev=0;
-    rows.forEach(r=>{if(r.rank>prev+1&&prev)html+='<li class="gap">⋯</li>';prev=r.rank;html+=row(r.rank,r.name,r.score,meta(r)+' · '+dateFmt(r.created_at),r.mine)});
+    rows.forEach(r=>{if(r.rank>prev+1&&prev)html+='<li class="gap">⋯</li>';prev=r.rank;html+=row(r.rank,r.name,r.score,meta(r)+' · '+dateFmt(r.created_at),r.mine,r.avatar)});
     list.innerHTML=html||'<li class="lbempty">No scores yet. Be the first!</li>';
   }catch(e){
     if(req!==lb.req)return;
@@ -598,18 +615,40 @@ $('#bBoard').addEventListener('click',()=>openBoard());
 $('#bBoardEnd').addEventListener('click',()=>openBoard(lastBoard.mode,lastBoard.d));
 
 /* ---------- practice ---------- */
-function startPractice(d,mode){
+function startPractice(d,mode,size){
   wakeAudio();
-  lastDiff=d;lastMode=mode;
-  G=new Game(mode,d,baseHooks);
+  lastDiff=d;lastMode=mode;lastSize=size;
+  G=new Game(mode,d,baseHooks,false,{av:prefs.av,name:ME.name,size});
+  G.paused=true;G.waiting=true;
   rackIds='~';trayKey='~';
-  hideAll();buildOpps();renderRack();resize();
+  buildOpps();renderRack();resize();
+  showMatchup(1,()=>{if(G){G.paused=false;G.waiting=false}});
 }
-let pickMode='duel';
+let pickMode='duel',pickSize=2,lastSize=2;
 $$('#mode button').forEach(b=>b.addEventListener('click',()=>{
-  pickMode=b.dataset.m;$$('#mode button').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));
+  pickMode=b.dataset.m;pickSize=+b.dataset.size;$$('#mode button').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));
 }));
-$$('.diff [data-d]').forEach(b=>b.addEventListener('click',()=>startPractice(+b.dataset.d,pickMode)));
+$$('.diff [data-d]').forEach(b=>b.addEventListener('click',()=>startPractice(+b.dataset.d,pickMode,pickSize)));
+/* match-up screen: duel = face-off, more cooks = line-up; then a count-in */
+let vsTimer=null;
+function showMatchup(seconds,go){
+  clearInterval(vsTimer);
+  const st=$('#vsStage'),me=G.player,others=G.boards.filter(b=>b!==me);
+  if(others.length===1){
+    const o=others[0];
+    st.innerHTML=`<div class="duelvs"><div class="fighter l"><img src="${body(me.av)}" alt=""><div class="chunky">${esc(me.name)}</div></div><div class="chunky vsword">VS</div><div class="fighter r"><img src="${body(o.av)}" alt=""><div class="chunky">${esc(o.name)}</div></div></div>`;
+  }else{
+    st.innerHTML=`<div class="chunky" style="font-size:40px;margin-bottom:10px">${G.boards.length}-cook brawl!</div><div class="crowd">${G.boards.map((b,i)=>`<div class="fighter${b===me?' me':''}" style="animation-delay:${i*.06}s"><img src="${body(b.av)}" alt="" style="animation-delay:${i*.06}s"><div class="chunky">${esc(b.name)}</div></div>`).join('')}</div>`;
+  }
+  let n=seconds;
+  $('#countNum').textContent=seconds>1?n:'';show('#ovVs');tone(330,.15,'square',.04);
+  vsTimer=setInterval(()=>{
+    n--;
+    if(n>0){$('#countNum').textContent=n;tone(440,.12)}
+    else if(n===0){$('#countNum').textContent='Fight!';tone(880,.2)}
+    else{clearInterval(vsTimer);hideAll();go()}
+  },seconds>1?1000:900);
+}
 function openPause(){
   if(!G||G.over)return;
   const on=G.online;
@@ -619,16 +658,16 @@ function openPause(){
   if(G.player)G.player.raising=false;drag=null;
   show('#ovPause');
 }
-function closePause(){if(G&&!G.online)G.paused=false;hideAll()}
+function closePause(){if(G&&!G.online&&!G.waiting)G.paused=false;hideAll()}
 $('#bPause').addEventListener('click',()=>{if(!$('#ovPause').hidden)closePause();else if(!anyOverlay())openPause()});
 $('#bResume').addEventListener('click',closePause);
 $('#bQuit').addEventListener('click',()=>{if(G&&G.online){leaveRoom()}else{if(G)G.over=true;toMenu()}});
-$('#bAgain').addEventListener('click',()=>{if(G&&G.online)backToLobby();else startPractice(lastDiff,lastMode)});
+$('#bAgain').addEventListener('click',()=>{if(G&&G.online)backToLobby();else startPractice(lastDiff,lastMode,lastSize)});
 $('#bMenu').addEventListener('click',()=>{if(G&&G.online)leaveRoom();else toMenu()});
 $('#bSound').addEventListener('click',()=>{prefs.muted=!prefs.muted;savePrefs();showMute();wakeAudio()});
 document.addEventListener('visibilitychange',()=>{if(document.hidden&&G&&!G.over&&!G.online&&!G.paused&&!anyOverlay())openPause()});
 function toMenu(){showBest();demo();show('#ovStart')}
-function demo(){G=new Game('duel',1,baseHooks);G.paused=true;rackIds='~';trayKey='~';buildOpps();renderRack()}
+function demo(){G=new Game('duel',1,baseHooks,false,{av:prefs.av,name:ME.name});G.paused=true;rackIds='~';trayKey='~';buildOpps();renderRack()}
 
 /* ---------- profile ---------- */
 const ME={id:(crypto.randomUUID?crypto.randomUUID():'u'+Math.random().toString(36).slice(2)+Date.now().toString(36)),name:''};
@@ -636,9 +675,20 @@ const nameIn=$('#nameIn');
 ME.name=prefs.name||('Cook '+(100+Math.floor(Math.random()*900)));
 nameIn.value=prefs.name||'';nameIn.placeholder=ME.name;
 nameIn.addEventListener('input',()=>{const v=nameIn.value.trim().slice(0,14);prefs.name=v;savePrefs();ME.name=v||nameIn.placeholder});
+function renderPicker(){
+  const box=$('#picker');
+  if(!box.children.length)FIGHTERS.forEach(av=>{
+    const b=document.createElement('button');b.type='button';b.className='pick';b.dataset.av=av;
+    b.innerHTML=`${avImg(av,'')}<span>${FIGHTER_INFO[av].name}</span>`;
+    b.setAttribute('aria-label',`${FIGHTER_INFO[av].name}, ${FIGHTER_INFO[av].tag}`);
+    b.addEventListener('click',()=>{prefs.av=av;savePrefs();renderPicker();tone(620,.06);if(NET&&inRoom)NET.setProfile({av});if(G&&G.paused&&!G.online&&G.player)G.player.av=av});
+    box.appendChild(b);
+  });
+  $$('.pick').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.av===prefs.av)));
+}
 
 /* ---------- online ---------- */
-let lobbyMembers=[],fillBots=true,botSkill=1,countTimer=null,inRoom=false;
+let lobbyMembers=[],fillTo=4,botSkill=1,inRoom=false;
 const onlineMsg=t=>{$('#onlineMsg').textContent=t||''};
 const lobbyMsg=t=>{$('#lobbyMsg').textContent=t||''};
 if(!NET){
@@ -649,7 +699,7 @@ $('#bOnline').addEventListener('click',()=>{if(!NET)return;wakeAudio();onlineMsg
 async function enterRoom(code){
   onlineMsg('Connecting…');$('#bCreate').disabled=$('#bJoin').disabled=true;
   try{
-    await NET.join(code,{id:ME.id,name:ME.name});
+    await NET.join(code,{id:ME.id,name:ME.name,av:prefs.av});
     inRoom=true;
     try{history.replaceState(null,'','?room='+code)}catch(e){}
     $('#roomCode').textContent=code;lobbyMsg('');
@@ -665,7 +715,7 @@ function tryJoin(){const c=codeIn.value;if(c.length!==4){onlineMsg('Room codes a
 $('#bJoin').addEventListener('click',tryJoin);
 codeIn.addEventListener('keydown',e=>{if(e.key==='Enter')tryJoin()});
 async function leaveRoom(){
-  inRoom=false;clearInterval(countTimer);
+  inRoom=false;clearInterval(vsTimer);
   if(NET)await NET.leave();
   try{history.replaceState(null,'',location.pathname)}catch(e){}
   toMenu();
@@ -683,65 +733,55 @@ $('#bInvite').addEventListener('click',async()=>{
   try{if(navigator.share){await navigator.share({title:'Food Fight',text,url});return}}catch(e){if(e&&e.name==='AbortError')return}
   try{await navigator.clipboard.writeText(url);lobbyMsg('Invite link copied.')}catch(e){lobbyMsg(url)}
 });
-$('#fillBots').addEventListener('change',e=>{fillBots=e.target.checked;renderLobby()});
+$$('#fill button').forEach(b=>b.addEventListener('click',()=>{fillTo=+b.dataset.f;$$('#fill button').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));renderLobby()}));
 $$('#botSkill button').forEach(b=>b.addEventListener('click',()=>{botSkill=+b.dataset.d;$$('#botSkill button').forEach(x=>x.setAttribute('aria-pressed',String(x===b)))}));
 function isHost(){return lobbyMembers.length&&lobbyMembers[0].id===ME.id}
 function renderLobby(){
   if(!inRoom)return;
   const me=lobbyMembers.findIndex(m=>m.id===ME.id),host=lobbyMembers[0];
   const playing=lobbyMembers.filter(m=>m.state==='playing');
-  const seated=lobbyMembers.slice(0,4);
+  const seated=lobbyMembers.slice(0,MAX_PLAYERS);
   const ul=$('#seats');ul.innerHTML='';
   seated.forEach((m,i)=>{
     const li=document.createElement('li');
     const tag=m.state==='playing'?'In a match':i===0?'Host':m.id===ME.id?'You':'';
-    li.innerHTML=`<i class="dot"></i>${esc(m.name)}${m.id===ME.id&&i===0?' (you)':''}<span>${tag}</span>`;
+    li.innerHTML=`${avImg(m.id===ME.id?prefs.av:m.av)}${esc(m.name)}${m.id===ME.id&&i===0?' (you)':''}<span>${tag}</span>`;
     ul.appendChild(li);
   });
-  const hostView=isHost();
-  for(let i=seated.length;i<4;i++){
-    const li=document.createElement('li');
-    if(hostView&&fillBots){li.className='bot';li.innerHTML=`<i class="dot"></i>${BOTNAMES[i-seated.length]||'Bot'}<span>Bot</span>`}
-    else{li.className='empty';li.textContent='Open seat'}
-    ul.appendChild(li);
-  }
-  $('#seatCount').textContent=`· ${seated.length} of 4`;
+  const hostView=isHost(),target=Math.max(4,seated.length);
+  const bots=hostView&&fillTo>seated.length?pickBots(fillTo-seated.length,null,[]):[];
+  bots.forEach(bt=>{const li=document.createElement('li');li.className='bot';li.innerHTML=`${avImg(bt.av)}${bt.name}<span>Bot</span>`;ul.appendChild(li)});
+  for(let i=seated.length+bots.length;i<target;i++){const li=document.createElement('li');li.className='empty';li.textContent='Open seat';ul.appendChild(li)}
+  $('#seatCount').textContent=`· ${seated.length} of ${MAX_PLAYERS}`;
   $('#hostBox').hidden=!hostView;$('#bStart').hidden=!hostView;
-  if(me>=4)lobbyMsg('This room is full. You can wait here for an open seat.');
+  if(me>=MAX_PLAYERS)lobbyMsg('This room is full. You can wait here for an open seat.');
   else if(playing.length)lobbyMsg(playing.some(m=>m.id===ME.id)?'':'A match is in progress. You will be in the next one.');
   else if(!hostView&&host)lobbyMsg(`Waiting for ${host.name} to start.`);
-  else if(hostView&&seated.length<2&&!fillBots)lobbyMsg('Share the code, or turn on bots to play now.');
+  else if(hostView&&seated.length<2&&fillTo<2)lobbyMsg('Share the code, or add bots to play now.');
   else lobbyMsg('');
-  $('#bStart').disabled=!!playing.length||(seated.length<2&&!fillBots);
+  $('#bStart').disabled=!!playing.length||(seated.length<2&&fillTo<2);
 }
 $('#bStart').addEventListener('click',()=>{
   if(!isHost())return;
-  const humans=lobbyMembers.filter(m=>m.state!=='playing').slice(0,4);
-  const roster=humans.map(h=>({id:h.id,name:h.name}));
-  if(fillBots)for(let i=0;roster.length<4;i++)roster.push({id:`bot:${ME.id}:${i}`,name:BOTNAMES[i],bot:true,owner:ME.id});
+  const humans=lobbyMembers.filter(m=>m.state!=='playing').slice(0,MAX_PLAYERS);
+  const roster=humans.map(h=>({id:h.id,name:h.name,av:h.id===ME.id?prefs.av:h.av}));
+  if(fillTo>roster.length)pickBots(fillTo-roster.length,null,[]).forEach((bt,i)=>roster.push({id:`bot:${ME.id}:${i}`,name:bt.name,av:bt.av,bot:true,owner:ME.id}));
   if(roster.length<2){lobbyMsg('Need at least one more cook. Share the code or turn on bots.');return}
   const m={t:'start',mid:Math.random().toString(36).slice(2,10),seed:Math.floor(Math.random()*2**31),roster,diff:botSkill,delay:3000};
   NET.send(m);onStart(m);
 });
 function onStart(m){
-  if(!inRoom||!m||!Array.isArray(m.roster)||m.roster.length<2||m.roster.length>4)return;
+  if(!inRoom||!m||!Array.isArray(m.roster)||m.roster.length<2||m.roster.length>MAX_PLAYERS)return;
   if(!m.roster.some(r=>r.id===ME.id)){if(!$('#ovLobby').hidden)lobbyMsg('A match just started. You will be in the next one.');return}
   wakeAudio();NET.setState('playing');
-  clearInterval(countTimer);
   // build the match now so everyone sees boards during the countdown
   G=new Game('online',Math.max(0,Math.min(2,m.diff|0)),Object.assign({},baseHooks,{
     send:x=>{x.mid=m.mid;NET.send(x)},
     out:place=>{$('#outText').textContent=`You placed ${placeName(place)}. Watching the rest of the match.`;$('#outToast').hidden=false}
-  }),false,{roster:m.roster.map(r=>({id:String(r.id),name:String(r.name||'Cook').slice(0,14),bot:!!r.bot,owner:r.owner?String(r.owner):undefined})),myId:ME.id,seed:m.seed>>>0});
+  }),false,{roster:m.roster.map(r=>({id:String(r.id),name:String(r.name||'Cook').slice(0,14),av:String(r.av||''),bot:!!r.bot,owner:r.owner?String(r.owner):undefined})),myId:ME.id,seed:m.seed>>>0});
   G.mid=m.mid;G.paused=true;G.waiting=true;
   rackIds='~';trayKey='~';buildOpps();renderRack();resize();
-  let n=Math.max(1,Math.round((m.delay||3000)/1000));
-  $('#countNum').textContent=n;show('#ovCount');tone(440,.12);
-  countTimer=setInterval(()=>{
-    n--;
-    if(n>0){$('#countNum').textContent=n;tone(440,.12)}
-    else{clearInterval(countTimer);hideAll();tone(880,.18);if(G&&G.mid===m.mid){G.paused=false;G.waiting=false}}
-  },1000);
+  showMatchup(Math.max(1,Math.round((m.delay||3000)/1000)),()=>{if(G&&G.mid===m.mid){G.paused=false;G.waiting=false}});
 }
 if(NET){
   NET.on({
@@ -761,14 +801,24 @@ if(NET){
     },
     left(id){if(G&&G.online&&!G.over)G.netLeave(id)}
   });
-  const q=new URLSearchParams(location.search).get('room');
-  if(q&&/^[A-Za-z]{4}$/.test(q)){codeIn.value=q.toUpperCase();openSub('#ovOnline');enterRoom(q.toUpperCase())}
+}
+function afterLoad(){
+  const q=NET?new URLSearchParams(location.search).get('room'):null;
+  if(q&&/^[A-Za-z]{4}$/.test(q)){show('#ovStart');codeIn.value=q.toUpperCase();openSub('#ovOnline');enterRoom(q.toUpperCase())}
+  else show('#ovStart');
+}
+function preload(){
+  const urls=Object.values(ART),bar=$('#loadBar'),lines=['Heating up the kitchen…','Sharpening the spatulas…','Lacing up the sneakers…','Whipping the cream…'];
+  let done=0;$('#loadText').textContent=lines[Math.floor(Math.random()*lines.length)];
+  const one=u=>new Promise(res=>{const im=new Image();im.onload=im.onerror=()=>{done++;bar.style.width=(done/urls.length*100)+'%';res()};im.src=u});
+  const min=new Promise(r=>setTimeout(r,900)),cap=new Promise(r=>setTimeout(r,2000)); // slow network: carry on, art keeps loading
+  Promise.all([Promise.race([Promise.all(urls.map(one)),cap]),min]).then(()=>{bar.style.width='100%';setTimeout(afterLoad,150)});
 }
 
 /* ---------- boot ---------- */
 document.querySelectorAll('[data-icon]').forEach(e=>e.innerHTML=ICONS[e.dataset.icon]);
-showMute();showBest();
-demo();applyLook();
+showMute();showBest();renderPicker();
+demo();applyLook();show('#ovLoad');preload();
 window.__ff={get game(){return G}}; // handy for debugging in the console
 
 let acc=0,last=performance.now(),hf=0,lastMargin=1,lastG=null;

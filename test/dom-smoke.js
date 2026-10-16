@@ -61,7 +61,12 @@ const check=(cond,msg)=>{console.log((cond?'PASS ':'FAIL ')+msg);if(!cond)proces
   // practice smoke
   const solo=page('https://foodfight.grudgematchgames.com/');
   solo.errors.forEach(e=>console.log('ERR',e.slice(0,400)));
-  check(vis(solo,'#ovStart'),'start screen shows');
+  check(vis(solo,'#ovLoad'),'loading screen shows first');
+  await sleep(2400);
+  check(vis(solo,'#ovStart'),'start screen shows after loading');
+  check(solo.w.document.querySelectorAll('#picker .pick').length===4,'fighter picker offers 4 fighters');
+  solo.$('#picker [data-av="crunch"]').click();
+  check(JSON.parse(solo.w.localStorage.getItem('ff-prefs')).av==='crunch','picked fighter is saved');
   check(!solo.$('#bOnline').disabled,'online button enabled when configured');
   solo.$('.pal[data-p="redgreen"]').click();
   check(solo.$('.pal[data-p="redgreen"]').getAttribute('aria-pressed')==='true','palette picker selects red-green');
@@ -71,10 +76,15 @@ const check=(cond,msg)=>{console.log((cond?'PASS ':'FAIL ')+msg);if(!cond)proces
   check(JSON.parse(solo.w.localStorage.getItem('ff-prefs')).art===undefined||solo.$('#art [data-a="food"]').getAttribute('aria-pressed')==='true','food art is the default');
   solo.$('#art [data-a="shapes"]').click();
   check(JSON.parse(solo.w.localStorage.getItem('ff-prefs')).art==='shapes','tile art switches to shapes');
-  solo.$('#mode [data-m="brawl"]').click();solo.$('.diff [data-d="1"]').click();
+  solo.$('#mode [data-size="4"]').click();solo.$('.diff [data-d="1"]').click();
+  await sleep(50);
+  check(vis(solo,'#ovVs')&&solo.w.document.querySelectorAll('#vsStage .crowd .fighter').length===4,'brawl opens with a 4-cook line-up');
+  check(solo.w.__ff.game.player.av==='crunch'&&!solo.w.__ff.game.boards.slice(1).some(b=>b.name==='Crunch'),'you play your fighter; bots use the others first');
   await sleep(1500);
   check(solo.w.document.querySelectorAll('.foe').length===3,'brawl shows 3 opponents');
   // finish a game -> score recorded locally and submitted, end screen shows ranks
+  await sleep(2000); // match-up screen, then the game starts
+  check(!vis(solo,'#ovVs')&&!solo.w.__ff.game.paused,'game starts after the match-up screen');
   {const SG=solo.w.__ff.game;SG.frame=60*40;SG.player.score=4321;SG.player.die();}
   await sleep(900);
   check(vis(solo,'#ovEnd'),'end screen after topping out');
@@ -94,6 +104,7 @@ const check=(cond,msg)=>{console.log((cond?'PASS ':'FAIL ')+msg);if(!cond)proces
 
   // online: host creates, guest joins via link
   const host=page('https://foodfight.grudgematchgames.com/');
+  await sleep(2400);
   host.$('#nameIn').value='Justin';host.$('#nameIn').dispatchEvent(new host.w.Event('input'));
   host.$('#bOnline').click();host.$('#bCreate').click();
   await sleep(100);
@@ -101,17 +112,17 @@ const check=(cond,msg)=>{console.log((cond?'PASS ':'FAIL ')+msg);if(!cond)proces
   const code=host.$('#roomCode').textContent;
   check(/^[A-Z]{4}$/.test(code),'room code '+code);
   const guest=page('https://foodfight.grudgematchgames.com/?room='+code);
-  await sleep(150);
+  await sleep(2500);
   check(vis(guest,'#ovLobby'),'guest auto-joins from invite link');
   check(host.w.document.querySelectorAll('#seats li:not(.empty):not(.bot)').length===2,'host sees 2 humans seated');
   check(host.$('#bStart').hidden===false&&guest.$('#bStart').hidden===true,'only host has Start');
   check(/Waiting for Justin/.test(guest.$('#lobbyMsg').textContent),'guest sees waiting message');
-  host.$('#fillBots').checked=false;host.$('#fillBots').dispatchEvent(new host.w.Event('change'));
+  host.$('#fill [data-f="0"]').click();
   host.$('#bStart').click();
   await sleep(100);
-  check(vis(host,'#ovCount')&&vis(guest,'#ovCount'),'both see countdown');
-  await sleep(3300);
-  check(!vis(host,'#ovCount')&&!vis(guest,'#ovCount'),'countdown finished');
+  check(vis(host,'#ovVs')&&vis(guest,'#ovVs')&&host.w.document.querySelectorAll('#vsStage .duelvs').length===1,'both see the duel match-up screen');
+  await sleep(4300);
+  check(!vis(host,'#ovVs')&&!vis(guest,'#ovVs'),'count-in finished');
   await sleep(800);
   const HG=host.w.__ff.game,GG=guest.w.__ff.game;
   check(HG.online&&GG.online&&HG.mid===GG.mid,'both in the same online match');
@@ -141,11 +152,12 @@ const check=(cond,msg)=>{console.log((cond?'PASS ':'FAIL ')+msg);if(!cond)proces
   check(vis(host,'#ovLobby'),'host back in lobby');
   check(vis(guest,'#ovStart'),'guest back at start screen');
   // host alone, seats filled with bots
-  host.$('#fillBots').checked=true;host.$('#fillBots').dispatchEvent(new host.w.Event('change'));
-  check(host.w.document.querySelectorAll('#seats li.bot').length===3,'lobby previews 3 bot seats');
-  host.$('#bStart').click();await sleep(3600);
+  host.$('#fill [data-f="8"]').click();
+  check(host.w.document.querySelectorAll('#seats li.bot').length===7,'lobby previews 7 bots for an 8-cook room');
+  host.$('#bStart').click();await sleep(4600);
   const BG=host.w.__ff.game;
-  check(BG.boards.length===4&&BG.boards.filter(b=>b.isBot&&!b.remote).length===3,'host runs 3 local bots online');
+  check(BG.boards.length===8&&BG.boards.filter(b=>b.isBot&&!b.remote).length===7,'host runs 7 local bots online');
+  check(host.$('#opps').classList.contains('many')&&host.w.document.querySelectorAll('#opps .foe').length===7,'compact strip shows all 7 opponents');
   const f0=BG.frame;await sleep(500);
   check(BG.frame>f0&&!BG.paused,'bot match is running');
   console.log('host errors',host.errors.length,'guest errors',guest.errors.length);
