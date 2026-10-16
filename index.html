@@ -1,0 +1,383 @@
+<!doctype html>
+<html lang="en" data-ff-theme="night">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#131627">
+<meta name="description" content="Food Fight — a fast multiplayer food-matching battle from Grudge Match Games.">
+<title>Food Fight</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lilita+One&family=Figtree:wght@400;600;800&display=swap">
+<style>
+/* Layout: one-screen arcade app — header stats, opponent strip, incoming tray, board, then rack in thumb reach. Opponents move to a side column on wide screens. */
+:root{
+  --bg:#131627; --panel:#1C2038; --panel2:#262B4A; --well:#0B0D1B; --line:#2E3458; --hit:#3A2A4A;
+  --ink:#EEF0FA; --muted:#949BBD; --gold:#F7C548; --gold-ink:#2A1E05; --accent-text:#F7C548;
+  --crust:#B48A63; --crust2:#E0A86E; --crust-ink:#2B1A0C;
+  --grid:rgba(255,255,255,.025); --shade:rgba(11,13,27,.35); --scrim:rgba(9,10,22,.86);
+  --display:'Lilita One','Arial Rounded MT Bold',system-ui,sans-serif;
+  --body:'Figtree',system-ui,-apple-system,'Segoe UI',sans-serif;
+  color-scheme:dark;
+}
+:root[data-ff-theme="day"]{
+  --bg:#E6EAF3; --panel:#FFFFFF; --panel2:#DAE0EC; --well:#C7CFE0; --line:#AEB8CF; --hit:#F4D9E3;
+  --ink:#191E31; --muted:#596284; --gold:#F2B92E; --gold-ink:#2A1E05; --accent-text:#8A5A00;
+  --grid:rgba(255,255,255,.4); --shade:rgba(199,207,224,.5); --scrim:rgba(230,234,243,.9);
+  color-scheme:light;
+}
+@media (prefers-color-scheme:light){
+  :root[data-ff-theme="auto"]{
+    --bg:#E6EAF3; --panel:#FFFFFF; --panel2:#DAE0EC; --well:#C7CFE0; --line:#AEB8CF; --hit:#F4D9E3;
+    --ink:#191E31; --muted:#596284; --gold:#F2B92E; --gold-ink:#2A1E05; --accent-text:#8A5A00;
+    --grid:rgba(255,255,255,.4); --shade:rgba(199,207,224,.5); --scrim:rgba(230,234,243,.9);
+    color-scheme:light;
+  }
+}
+html{height:100%;box-sizing:border-box;background:var(--bg);padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+*,*::before,*::after{box-sizing:inherit}
+body{height:100%;margin:0;background:var(--bg);color:var(--ink);font-family:var(--body);font-size:14px;overflow:hidden;overscroll-behavior:none;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
+[hidden]{display:none!important}
+button{font:inherit;color:inherit;cursor:pointer}
+button:disabled{cursor:default}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+.app{height:100%;max-width:1040px;margin:0 auto;display:flex;flex-direction:column;gap:8px;padding-block:8px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.top{display:flex;align-items:center;gap:8px}
+.brand{font-family:var(--display);font-size:22px;letter-spacing:.02em;line-height:1;margin-right:auto;white-space:nowrap}
+.stats{display:flex;gap:6px}
+.stat{background:var(--panel);border-radius:10px;padding:4px 8px;min-width:46px;text-align:center}
+.stat b{display:block;font-family:var(--display);font-size:16px;font-weight:400;font-variant-numeric:tabular-nums;line-height:1.1}
+.stat span{font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.icon{width:36px;height:36px;border-radius:10px;border:0;background:var(--panel);display:grid;place-items:center;flex:none}
+.icon svg{width:18px;height:18px}
+.arena{flex:1;min-height:0;display:flex;flex-direction:column;gap:8px}
+.opps{display:flex;gap:8px;flex:none}
+.foe{flex:1;min-width:0;display:flex;align-items:center;gap:8px;background:var(--panel);border:2px solid transparent;border-radius:14px;padding:6px 8px;text-align:left;transition:background .15s,border-color .15s,opacity .3s}
+.foe canvas{width:30px;height:60px;border-radius:4px;flex:none;background:var(--well);display:block}
+.foe .who{min-width:0;flex:1;display:flex;flex-direction:column;gap:2px}
+.foe .nm{font-family:var(--display);font-size:15px;line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.foe .st{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.foe .tag{align-self:flex-start;font-size:9px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;border-radius:6px;padding:2px 5px;background:var(--gold);color:var(--gold-ink)}
+.foe.aim{border-color:var(--gold);background:var(--panel2)}
+.foe.hit{background:var(--hit)}
+.foe.dead{opacity:.4}
+.duel .foe canvas{width:36px;height:72px}
+.duel .foe .nm{font-size:17px}
+.play{flex:1;min-height:0;display:flex;flex-direction:column;align-items:center;gap:6px}
+.tray{width:var(--bw,300px);max-width:100%;height:38px;display:flex;align-items:center;gap:6px;padding:0 8px;background:var(--panel);border-radius:12px;flex:none;transition:background .2s;overflow:hidden}
+.tray .lbl{font-size:10px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-right:auto}
+.tray.alarm{background:var(--hit)}
+.pie{display:flex;flex-direction:column;align-items:center;gap:2px;flex:none}
+.pie .disc{height:20px;min-width:20px;padding:0 6px;border-radius:10px;background:var(--crust);color:var(--crust-ink);font-family:var(--display);font-size:13px;line-height:20px;text-align:center;box-shadow:inset 0 -3px 0 rgba(0,0,0,.25);white-space:nowrap}
+.pie .disc small{font-family:var(--body);font-weight:800;font-size:9px;opacity:.7;margin-left:3px}
+.pie.big .disc{background:var(--crust2)}
+.pie .tick{width:100%;height:3px;border-radius:2px;background:var(--well);overflow:hidden}
+.pie .tick i{display:block;height:100%;background:var(--ink)}
+.tray .none{font-size:12px;color:var(--muted)}
+.boardwrap{flex:1;min-height:0;width:100%;display:flex;justify-content:center;align-items:flex-start}
+#board{display:block;border-radius:12px;touch-action:none;box-shadow:0 0 0 2px var(--line),0 12px 30px rgba(0,0,0,.25)}
+.controls{display:flex;align-items:flex-end;gap:10px;justify-content:center;flex:none}
+.raise{border:0;border-radius:14px;background:var(--panel2);padding:10px 16px;font-weight:800;letter-spacing:.04em;display:flex;align-items:center;gap:8px;touch-action:none;flex:none;height:52px}
+.raise:active,.raise.on{background:var(--gold);color:var(--gold-ink)}
+.rack{display:flex;flex-direction:column;gap:4px;min-width:0}
+.aimline{font-size:11px;color:var(--muted);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.aimline b{color:var(--accent-text);font-weight:800}
+.slots{display:flex;gap:6px}
+.slot{width:62px;height:52px;border-radius:14px;border:2px dashed var(--line);background:transparent;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;padding:0;touch-action:manipulation}
+.slot.full{border:2px solid var(--line);background:var(--panel2)}
+.slot.full:active{background:var(--gold);color:var(--gold-ink);transform:scale(.95)}
+.slot.new{animation:pulse .5s ease-out}
+@keyframes pulse{0%{transform:scale(1.18);border-color:var(--gold)}100%{transform:scale(1)}}
+.slot svg{width:22px;height:22px}
+.slot b{font-family:var(--display);font-weight:400;font-size:14px;line-height:1}
+.slot span{font-size:8px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.slot.full:active span{color:inherit}
+.fly{position:fixed;left:0;top:0;width:20px;height:20px;margin:-10px 0 0 -10px;border-radius:50%;background:var(--crust2);box-shadow:inset 0 -4px 0 rgba(0,0,0,.25),0 0 0 2px var(--crust-ink);pointer-events:none;z-index:30;transition:transform .55s cubic-bezier(.3,.1,.3,1)}
+.fly.big{width:28px;height:28px;margin:-14px 0 0 -14px}
+.fly.sauce{border-radius:6px 6px 9px 9px;width:14px;height:24px;margin:-12px 0 0 -7px;background:#E5682A}
+.fly.cream{background:#FFF6E8;width:26px;height:26px;margin:-13px 0 0 -13px}
+.fly.freeze{background:#9BE3FF;border-radius:5px}
+.fly.blender{background:#E7A6D1;border-radius:4px 4px 8px 8px}
+
+/* overlays */
+.overlay{position:fixed;inset:0;z-index:40;display:grid;place-items:center;background:var(--scrim);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);padding:calc(20px + env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) calc(20px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));overflow:auto}
+.card{width:min(430px,100%);background:var(--panel);border-radius:20px;padding:22px;display:flex;flex-direction:column;gap:14px;box-shadow:0 20px 60px rgba(0,0,0,.35)}
+.card h1{font-family:var(--display);font-weight:400;font-size:40px;line-height:1;margin:0;text-wrap:balance}
+.card h2{font-family:var(--display);font-weight:400;font-size:30px;line-height:1;margin:0;text-wrap:balance}
+.card p{margin:0;color:var(--muted);line-height:1.45;font-size:14px}
+.cardhead{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.x{width:36px;height:36px;border-radius:10px;border:0;background:var(--panel2);display:grid;place-items:center;flex:none}
+.legend{display:flex;gap:8px;flex-wrap:wrap}
+.legend canvas{width:36px;height:36px}
+.rules{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:8px;font-size:14px;line-height:1.4}
+.rules li{display:flex;gap:10px}
+.rules b{color:var(--accent-text);font-family:var(--display);font-weight:400;min-width:14px}
+.earn{display:flex;flex-direction:column;gap:8px}
+.earn div{display:grid;grid-template-columns:28px 1fr;gap:10px;align-items:center;font-size:13px;line-height:1.35;color:var(--muted)}
+.earn svg{width:26px;height:26px}
+.earn b{color:var(--ink)}
+.kbd{font-size:12px;color:var(--muted)}
+.seg{display:grid;grid-template-columns:1fr 1fr;gap:4px;background:var(--well);border-radius:14px;padding:4px}
+.seg.three{grid-template-columns:repeat(3,1fr)}
+.seg button{border:0;border-radius:10px;background:transparent;padding:10px 8px;font-weight:800;color:var(--muted)}
+.seg button small{display:block;font-weight:600;font-size:11px;margin-top:2px}
+.seg button[aria-pressed="true"]{background:var(--panel2);color:var(--ink)}
+.lab{font-size:10px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:-6px}
+.diff{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.btn{border:0;border-radius:14px;padding:12px 10px;background:var(--panel2);font-weight:800}
+.btn.primary{background:var(--gold);color:var(--gold-ink)}
+.btn.big{padding:15px 12px;font-size:16px}
+.btn:disabled{opacity:.45}
+.btn small{display:block;font-weight:600;font-size:11px;opacity:.75;margin-top:2px}
+.row{display:flex;gap:8px}.row .btn{flex:1}
+.links{display:flex;gap:8px}
+.links .btn{flex:1;background:transparent;border:2px solid var(--line);padding:9px 8px}
+.best{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+.field{display:flex;flex-direction:column;gap:6px}
+.field input{width:100%;border:2px solid var(--line);background:var(--well);color:var(--ink);border-radius:12px;padding:11px 12px;font:inherit;font-size:16px;-webkit-user-select:text;user-select:text}
+.join{display:flex;gap:8px}
+.join input{flex:1;min-width:0;text-transform:uppercase;letter-spacing:.3em;font-family:var(--display);font-size:20px;text-align:center}
+.join .btn{flex:none;padding-inline:18px}
+.msg{font-size:13px;color:var(--accent-text);min-height:1em}
+.results{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.results div{background:var(--well);border-radius:12px;padding:8px;text-align:center}
+.results b{display:block;font-family:var(--display);font-weight:400;font-size:22px;font-variant-numeric:tabular-nums}
+.results span{font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);font-weight:600}
+/* settings */
+.pals{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.pal{border:2px solid var(--line);background:transparent;border-radius:14px;padding:10px;text-align:left;display:flex;flex-direction:column;gap:6px}
+.pal[aria-pressed="true"]{border-color:var(--gold);background:var(--panel2)}
+.pal canvas{width:100%;height:auto;aspect-ratio:5/1;display:block}
+.pal b{font-size:13px}
+.pal span{font-size:11px;color:var(--muted);line-height:1.3}
+/* leaderboard */
+.links.three{display:grid;grid-template-columns:repeat(3,1fr)}
+.links.three .btn{padding-inline:6px;font-size:13px}
+.lbsrc{font-size:12px;color:var(--muted);display:flex;justify-content:space-between;gap:8px}
+.lb{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:4px;max-height:min(44vh,420px);overflow:auto;-webkit-overflow-scrolling:touch}
+.lb li{display:grid;grid-template-columns:34px 1fr auto;align-items:center;gap:10px;background:var(--well);border-radius:12px;padding:9px 12px}
+.lb li.mine{outline:2px solid var(--gold);outline-offset:-2px}
+.lb li.gap{background:transparent;padding:0;justify-content:center;display:flex;color:var(--muted);font-size:12px}
+.lb .rk{font-family:var(--display);font-size:18px;color:var(--muted);font-variant-numeric:tabular-nums;text-align:center}
+.lb li:nth-child(1) .rk,.lb li:nth-child(2) .rk,.lb li:nth-child(3) .rk{color:var(--accent-text)}
+.lb .who{min-width:0}
+.lb .who b{display:block;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lb .who span{font-size:11px;color:var(--muted)}
+.lb .sc{font-family:var(--display);font-size:20px;font-variant-numeric:tabular-nums}
+.lbempty{padding:22px 8px;text-align:center;color:var(--muted);font-size:13px}
+.rankline{font-weight:800;color:var(--accent-text);font-size:14px;min-height:1.2em}
+
+/* lobby */
+.code{font-family:var(--display);font-size:48px;letter-spacing:.18em;line-height:1;text-align:center;background:var(--well);border-radius:16px;padding:14px 8px 10px;-webkit-user-select:text;user-select:text}
+.seats{display:flex;flex-direction:column;gap:6px;margin:0;padding:0;list-style:none}
+.seats li{display:flex;align-items:center;gap:10px;background:var(--well);border-radius:12px;padding:10px 12px;font-weight:700}
+.seats li span{margin-left:auto;font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.seats li.empty{background:transparent;border:2px dashed var(--line);color:var(--muted);font-weight:600}
+.seats .dot{width:10px;height:10px;border-radius:50%;background:var(--gold);flex:none}
+.seats li.bot .dot{background:var(--muted)}
+.check{display:flex;align-items:center;gap:10px;font-weight:600}
+.check input{width:20px;height:20px;accent-color:var(--gold)}
+.count{font-family:var(--display);font-size:120px;line-height:1;color:var(--ink);text-shadow:0 6px 0 rgba(0,0,0,.2)}
+.toast{position:fixed;left:50%;bottom:calc(16px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:35;background:var(--panel);border-radius:16px;padding:12px 14px;display:flex;align-items:center;gap:12px;box-shadow:0 10px 30px rgba(0,0,0,.35);width:min(400px,calc(100% - 32px))}
+.toast p{margin:0;flex:1;font-size:13px;line-height:1.35}
+.toast .btn{flex:none;padding:9px 12px}
+@media (max-width:380px){.stat{min-width:40px;padding:4px 6px}.brand{font-size:19px}.slot{width:56px}}
+@media (min-width:760px) and (min-aspect-ratio:1/1){
+  .arena{flex-direction:row;align-items:stretch}
+  .opps{flex-direction:column;width:210px;align-self:flex-start}
+  .foe{flex:none;align-items:flex-start;padding:10px}
+  .foe canvas,.duel .foe canvas{width:60px;height:120px}
+  .brand{font-size:28px}
+}
+@media (prefers-reduced-motion:reduce){.fly{transition:none}.slot.new{animation:none}}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <div class="brand">Food Fight</div>
+    <div class="stats">
+      <div class="stat"><b id="sTime">0:00</b><span>Time</span></div>
+      <div class="stat"><b id="sScore">0</b><span>Score</span></div>
+      <div class="stat"><b id="sThird">1</b><span id="sThirdL">Heat</span></div>
+    </div>
+    <button class="icon" id="bSound" aria-label="Sound on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9v6h4l5 4V5L8 9H4z"/><path id="wave" d="M16.5 8.5a5 5 0 0 1 0 7"/></svg></button>
+    <button class="icon" id="bPause" aria-label="Pause"><svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg></button>
+  </header>
+  <section class="arena">
+    <aside class="opps" id="opps"></aside>
+    <div class="play">
+      <div class="tray" id="tray"><span class="lbl">Incoming</span><span class="none">Nothing yet</span></div>
+      <div class="boardwrap" id="wrap"><canvas id="board"></canvas></div>
+    </div>
+  </section>
+  <footer class="controls">
+    <button class="raise" id="bRaise"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 4l8 10h-5v6H9v-6H4z"/></svg>Raise</button>
+    <div class="rack">
+      <div class="aimline" id="aimline">Tap to throw at <b>—</b></div>
+      <div class="slots" id="slots"></div>
+    </div>
+  </footer>
+</div>
+
+<!-- start -->
+<div class="overlay" id="ovStart">
+  <div class="card">
+    <h1>Food Fight</h1>
+    <p>Match food, chain clears, and splat pies on the other cooks. Last kitchen standing wins.</p>
+    <div class="legend" id="legend"></div>
+    <div class="field"><label class="lab" for="nameIn">Your name · shown on leaderboards</label><input id="nameIn" maxlength="14" autocomplete="nickname" spellcheck="false"></div>
+    <button class="btn primary big" id="bOnline">Play online<small id="onlineNote">Invite friends with a room code</small></button>
+    <div class="lab">Practice vs bots</div>
+    <div class="seg" id="mode">
+      <button aria-pressed="true" data-m="duel">Duel<small>You vs 1 cook</small></button>
+      <button aria-pressed="false" data-m="brawl">Brawl<small>4-cook free-for-all</small></button>
+    </div>
+    <div class="diff">
+      <button class="btn" data-d="0">Easy<small>Slow hands</small></button>
+      <button class="btn" data-d="1">Normal<small>Fair fight</small></button>
+      <button class="btn" data-d="2">Hard<small>Quick hands</small></button>
+    </div>
+    <div class="links three"><button class="btn" id="bHow">How to play</button><button class="btn" id="bBoard">Leaderboards</button><button class="btn" id="bLook">Colors &amp; look</button></div>
+    <div class="best" id="best"></div>
+  </div>
+</div>
+
+<!-- how to play -->
+<div class="overlay" id="ovHow" hidden>
+  <div class="card">
+    <div class="cardhead"><h2>How to play</h2><button class="x" data-close aria-label="Close"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+    <ul class="rules">
+      <li><b>1</b><span>Drag a tile left, right, up or down to swap it. Line up 3 of the same shape.</span></li>
+      <li><b>2</b><span>Big plays earn items for your rack, which holds 3. Tap one to throw it at the cook in the gold Aim box. Aim moves to the next cook every 3 seconds, so time your tap.</span></li>
+      <li><b>3</b><span>Pies thrown at you wait in the tray. Anything you earn during the countdown blocks them first.</span></li>
+      <li><b>4</b><span>Break junk by matching next to it. Hold Raise for more tiles. Don't hit the top.</span></li>
+    </ul>
+    <div class="lab">How to earn attacks</div>
+    <div class="earn">
+      <div><span data-icon="pie"></span><span><b>Pie</b> · Match 4 or more at once. Drops junk on them equal to tiles matched, minus one.</span></div>
+      <div><span data-icon="tower"></span><span><b>Pie tower</b> · Set off a chain. One full row of junk per chain step, thrown as a single tower.</span></div>
+      <div><span data-icon="sauce"></span><span><b>Hot sauce</b> · Break junk. Their stack rises fast for 3 seconds, unless they keep clearing.</span></div>
+    </div>
+    <div class="lab">Special tiles</div>
+    <p>Some new rows bring up a tile with a gold badge. Clear it in any match to grab its item.</p>
+    <div class="earn">
+      <div><span data-icon="cream"></span><span><b>Whipped cream</b> · Covers their board in cream for 5 seconds.</span></div>
+      <div><span data-icon="freeze"></span><span><b>Brain freeze</b> · They can't move tiles for 2½ seconds.</span></div>
+      <div><span data-icon="blender"></span><span><b>Blender</b> · Scrambles the top 3 rows of their stack.</span></div>
+      <div><span data-icon="pin"></span><span><b>Rolling pin</b> · Use it on yourself: flattens your top 3 rows. Great when you're near the top.</span></div>
+    </div>
+    <p>After 50 seconds, overtime makes every throw hit harder. Knocking a cook out powers up your throws by 25%.</p>
+    <div class="kbd" id="kbd" hidden>Keyboard: arrows move, Space swaps sideways, C swaps down, Shift raises, 1–3 throws.</div>
+  </div>
+</div>
+
+<!-- look settings -->
+<div class="overlay" id="ovLook" hidden>
+  <div class="card">
+    <div class="cardhead"><h2>Colors &amp; look</h2><button class="x" data-close aria-label="Close"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+    <div class="lab">Tile art</div>
+    <div class="seg" id="art">
+      <button data-a="food">Food<small>Tomato, cheese, donut…</small></button>
+      <button data-a="shapes">Shapes<small>Simple bold symbols</small></button>
+    </div>
+    <div class="lab">Tile colors</div>
+    <div class="pals" id="pals"></div>
+    <div class="lab">Theme</div>
+    <div class="seg three" id="theme">
+      <button data-t="night">Night</button>
+      <button data-t="day">Day</button>
+      <button data-t="auto">Device</button>
+    </div>
+    <p>Every food and every symbol has its own outline, so you can play by shape in any color set. In Food art the colors tint the plate behind each food. Saved on this device.</p>
+  </div>
+</div>
+
+<!-- leaderboards -->
+<div class="overlay" id="ovBoard" hidden>
+  <div class="card">
+    <div class="cardhead"><h2>Leaderboards</h2><button class="x" data-close aria-label="Close"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+    <div class="seg three" id="lbMode"><button data-v="duel">Duel</button><button data-v="brawl">Brawl</button><button data-v="online">Online</button></div>
+    <div class="seg three" id="lbDiff"><button data-v="0">Easy</button><button data-v="1">Normal</button><button data-v="2">Hard</button></div>
+    <div class="seg three" id="lbPeriod"><button data-v="day">Today</button><button data-v="week">This week</button><button data-v="all">All time</button></div>
+    <div class="lbsrc"><span id="lbSrc">Everyone · best score per cook</span><span id="lbNote"></span></div>
+    <ol class="lb" id="lbList"></ol>
+  </div>
+</div>
+
+<!-- online: create / join -->
+<div class="overlay" id="ovOnline" hidden>
+  <div class="card">
+    <div class="cardhead"><h2>Play online</h2><button class="x" data-close aria-label="Close"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+    <button class="btn primary big" id="bCreate">Create a room<small>Get a code to share with up to 3 friends</small></button>
+    <div class="lab">Or join with a code</div>
+    <div class="join"><input id="codeIn" maxlength="4" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-label="Room code" placeholder="ABCD"><button class="btn" id="bJoin">Join</button></div>
+    <div class="msg" id="onlineMsg"></div>
+  </div>
+</div>
+
+<!-- lobby -->
+<div class="overlay" id="ovLobby" hidden>
+  <div class="card">
+    <div class="cardhead"><h2>Room</h2><button class="btn" id="bLeave">Leave</button></div>
+    <div class="code" id="roomCode">----</div>
+    <button class="btn" id="bInvite">Share invite link</button>
+    <div class="lab">Cooks <span id="seatCount"></span></div>
+    <ul class="seats" id="seats"></ul>
+    <div id="hostBox" class="field">
+      <label class="check"><input type="checkbox" id="fillBots" checked> Fill empty seats with bots</label>
+      <div class="seg three" id="botSkill">
+        <button data-d="0">Easy</button><button data-d="1" aria-pressed="true">Normal</button><button data-d="2">Hard</button>
+      </div>
+    </div>
+    <button class="btn primary big" id="bStart">Start match</button>
+    <div class="msg" id="lobbyMsg"></div>
+  </div>
+</div>
+
+<!-- countdown -->
+<div class="overlay" id="ovCount" hidden><div class="count" id="countNum">3</div></div>
+
+<!-- pause / leave -->
+<div class="overlay" id="ovPause" hidden>
+  <div class="card">
+    <h2 id="pTitle">Paused</h2>
+    <p id="pSub" hidden>Online matches keep running. Leaving counts as a knockout.</p>
+    <div class="row"><button class="btn primary" id="bResume">Resume</button><button class="btn" id="bQuit">Quit</button></div>
+    <button class="btn" id="bLook2">Colors &amp; look</button>
+  </div>
+</div>
+
+<!-- knocked out while others play -->
+<div class="toast" id="outToast" hidden><p id="outText">You placed 3rd. Watching the rest of the match.</p><button class="btn" id="bOutLeave">Lobby</button></div>
+
+<!-- end -->
+<div class="overlay" id="ovEnd" hidden>
+  <div class="card">
+    <h2 id="eTitle">You win</h2>
+    <p id="eSub"></p>
+    <div class="rankline" id="eRank"></div>
+    <div class="results">
+      <div><b id="eTime">0:00</b><span>Time</span></div>
+      <div><b id="eChain">1</b><span>Best chain</span></div>
+      <div><b id="eScore">0</b><span>Score</span></div>
+      <div><b id="eSent">0</b><span>Junk sent</span></div>
+      <div><b id="eBlock">0</b><span>Blocked</span></div>
+      <div><b id="eKO">0</b><span>KOs</span></div>
+    </div>
+    <div class="row"><button class="btn primary" id="bAgain">Play again</button><button class="btn" id="bMenu">Change mode</button></div>
+    <button class="btn" id="bBoardEnd">See leaderboard</button>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js" data-site-only></script>
+<script src="js/config.js" data-site-only></script>
+<script src="js/engine.js"></script>
+<script src="js/net.js" data-site-only></script>
+<script src="js/scores.js" data-site-only></script>
+<script src="js/app.js"></script>
+</body>
+</html>
