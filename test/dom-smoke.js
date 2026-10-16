@@ -64,7 +64,7 @@ const check=(cond,msg)=>{console.log((cond?'PASS ':'FAIL ')+msg);if(!cond)proces
   check(vis(solo,'#ovLoad'),'loading screen shows first');
   await sleep(2400);
   check(vis(solo,'#ovStart'),'start screen shows after loading');
-  check(solo.w.document.querySelectorAll('#picker .pick').length===4,'fighter picker offers 4 fighters');
+  check(solo.w.document.querySelectorAll('#picker .pick').length===8,'fighter picker offers 8 fighters');
   solo.$('#picker [data-av="crunch"]').click();
   check(JSON.parse(solo.w.localStorage.getItem('ff-prefs')).av==='crunch','picked fighter is saved');
   check(!solo.$('#bOnline').disabled,'online button enabled when configured');
