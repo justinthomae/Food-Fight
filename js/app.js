@@ -1,6 +1,6 @@
 // Food Fight UI: drawing, input, settings, practice mode and the online lobby.
 (function(){
-const VERSION='0.7.1';
+const VERSION='0.8.0';
 const $=s=>document.querySelector(s);
 const $$=s=>[...document.querySelectorAll(s)];
 const cv=$('#board'),ctx=cv.getContext('2d');
@@ -270,15 +270,24 @@ function drawEffects(c,B,W,H,f){
       c.beginPath();c.moveTo(x,y);c.lineTo(x+Math.cos(ang)*len,y+Math.sin(ang)*len);c.stroke()}
     drawBadgeIcon(c,'freeze',W/2,H*.45,S*1.1*a);
   }
-  if(B.creamT>0){
-    if(B._cream!==B.creamSeed){B._cream=B.creamSeed;let sd=Math.floor((B.creamSeed||.5)*1e6)||7;const r=()=>(sd=(sd*16807)%2147483647)/2147483647;
-      B._blobs=Array.from({length:10},()=>({x:r()*W,y:r()*H*.72,r:S*(.9+r()*1.1),p:r()*6}))}
-    const a=Math.min(1,B.creamT/40,(CREAM-B.creamT)/10+.2);
-    c.globalAlpha=.95*a;
-    B._blobs.forEach(b=>{
-      const wob=Math.sin(f*.05+b.p)*S*.06;
-      c.fillStyle='#E9D9C2';[[0,0,1],[.6,.3,.7],[-.55,.35,.65]].forEach(([dx,dy,k])=>{c.beginPath();c.arc(b.x+dx*b.r,b.y+dy*b.r+S*.08+wob,b.r*k,0,Math.PI*2);c.fill()});
-      c.fillStyle='#FFF6E8';[[0,0,1],[.6,.3,.7],[-.55,.35,.65]].forEach(([dx,dy,k])=>{c.beginPath();c.arc(b.x+dx*b.r,b.y+dy*b.r+wob,b.r*k,0,Math.PI*2);c.fill()});
+  if(B.creamT>0||(B._blobs&&B._blobs.some(b=>b.amt>.08))){
+    // whipped cream: blobs stay until the player rubs them off (or they melt after 15s)
+    if(B.creamT>0&&B._cream!==B.creamSeed){
+      B._cream=B.creamSeed;B._creamAt=G.frame;let sd=Math.floor((B.creamSeed||.5)*1e6)||7;const r=()=>(sd=(sd*16807)%2147483647)/2147483647;
+      B._blobs=Array.from({length:9},()=>({x:.4+r()*(COLS-.8),y:.6+r()*ROWS*.66,r:.95+r()*.9,p:r()*6,amt:1}));
+      if(B===G.player)B.pops.push({text:'Rub to wipe it off!',x:3,y:10,col:'#FFF6E8',size:.8,life:90});
+    }
+    const age=G.frame-(B._creamAt||0),melt=age>60*15?Math.max(0,1-(age-60*15)/60):1;
+    const left=B._blobs?B._blobs.filter(b=>b.amt*melt>.08).length:0;
+    if(left&&B===G.player&&B.creamT<3)B.creamT=3;   // keep the effect (and the opponent's view of it) alive until wiped
+    if(!left){B.creamT=0;B._blobs=null}
+    else B._blobs.forEach(b=>{
+      const a=Math.max(0,Math.min(1,b.amt*melt));if(a<.08)return;
+      const wob=Math.sin(f*.05+b.p)*S*.06,R=b.r*S*(.55+.45*a),X=b.x*S,Y=b.y*S;
+      c.globalAlpha=.96*Math.min(1,a*1.4);
+      c.fillStyle='#E9D9C2';[[0,0,1],[.6,.3,.7],[-.55,.35,.65]].forEach(([dx,dy,k])=>{c.beginPath();c.arc(X+dx*R,Y+dy*R+S*.08+wob,R*k,0,Math.PI*2);c.fill()});
+      c.fillStyle='#FFF6E8';[[0,0,1],[.6,.3,.7],[-.55,.35,.65]].forEach(([dx,dy,k])=>{c.beginPath();c.arc(X+dx*R,Y+dy*R+wob,R*k,0,Math.PI*2);c.fill()});
+      c.fillStyle='rgba(255,255,255,.7)';c.beginPath();c.arc(X-R*.3,Y-R*.35+wob,R*.18,0,Math.PI*2);c.fill();
     });
     c.globalAlpha=1;
   }
@@ -449,6 +458,22 @@ new ResizeObserver(resize).observe($('#wrap'));
 window.addEventListener('resize',resize);
 
 /* ---------- input ---------- */
+function creamAt(x,y){
+  const B=G&&G.player;if(!B||!B._blobs)return false;
+  return B._blobs.some(b=>b.amt>.08&&Math.hypot(x-b.x*S,y-b.y*S)<b.r*S*1.15);
+}
+let wipeSnd=0;
+function wipe(x0,y0,x1,y1){
+  const B=G.player;if(!B._blobs)return;
+  const d=Math.hypot(x1-x0,y1-y0);if(!d)return;
+  let hit=false;
+  B._blobs.forEach(b=>{
+    if(b.amt<=.08)return;
+    if(Math.hypot(x1-b.x*S,y1-b.y*S)<b.r*S*1.25){b.amt-=d/(b.r*S*5.5);hit=true;if(b.amt<=.08){b.amt=0;B.parts.push(...Array.from({length:5},()=>({x:b.x,y:b.y+B.rise,vx:(Math.random()-.5)*.12,vy:-Math.random()*.1,kind:-1,life:20})))}}
+  });
+  if(hit&&performance.now()-wipeSnd>140){wipeSnd=performance.now();sfx('wipe')}
+}
+
 const kb={on:false,r:8,c:2};
 function bp(e){const r=cv.getBoundingClientRect();return{x:e.clientX-r.left,y:e.clientY-r.top}}
 function canPlay(){return G&&!G.over&&!G.paused&&!G.player.dead&&!G.waiting}
@@ -458,12 +483,13 @@ cv.addEventListener('pointerdown',e=>{
   try{cv.setPointerCapture(e.pointerId)}catch(_){}
   const B=G.player,p=bp(e),c=Math.floor(p.x/S),r=Math.floor((p.y+B.rise*S)/S);
   const t=r>=0&&r<ROWS&&c>=0&&c<COLS?B.g[r][c]:null;
-  drag={id:e.pointerId,x0:p.x,y0:p.y,r:t?r:null,c,mode:null};
+  drag={id:e.pointerId,x0:p.x,y0:p.y,r:t?r:null,c,mode:creamAt(p.x,p.y)?'wipe':null,lx:p.x,ly:p.y};
   kb.on=false;
 });
 cv.addEventListener('pointermove',e=>{
   if(!drag||e.pointerId!==drag.id||!canPlay())return;
   const B=G.player,p=bp(e),dx=p.x-drag.x0,dy=p.y-drag.y0,ax=Math.abs(dx),ay=Math.abs(dy);
+  if(drag.mode==='wipe'){wipe(drag.lx,drag.ly,p.x,p.y);drag.lx=p.x;drag.ly=p.y;return}
   if(!drag.mode){
     if(drag.r==null){if(dy<-S*.4&&ay>ax){drag.mode='raise';B.raising=true;$('#bRaise').classList.add('on')}}
     else if(ax>S*.18||ay>S*.18)drag.mode=ax>=ay?'h':'v';
@@ -537,12 +563,15 @@ const baseHooks={
     if(G.online){
       const w=res.winner;
       $('#eSub').textContent=won?`Last kitchen standing. Nice cooking.`:(w?`${w.name} wins the match.`:'Match over.');
-      $('#bAgain').textContent='Back to lobby';$('#bMenu').textContent='Leave room';
+      if(lastMatch&&lastMatch.mid===G.mid)lastMatch.champ=res.winner?res.winner.id:null;
+      setAgain('Grudge Match',`Rematch everyone who taps in${lastMatch&&lastMatch.bots?` · ${lastMatch.bots} bot${lastMatch.bots>1?'s':''}`:''}`,false);
+      $('#bMenu').textContent='Leave room';$('#bLobby').hidden=false;$('#gmPanel').hidden=true;
     }else{
       $('#eSub').textContent=won
         ?(n>2?`Last kitchen standing on ${D}.`:`${G.boards[1].name}'s stack overflowed on ${D}.`)
         :(B.killedBy?`${B.killedBy.name} knocked you out on ${D}.`:`Your stack hit the top on ${D}.`);
-      $('#bAgain').textContent='Play again';$('#bMenu').textContent='Change mode';
+      setAgain('Grudge Match','Same cooks, run it back',false);
+      $('#bMenu').textContent='Change mode';$('#bLobby').hidden=true;$('#gmPanel').hidden=true;
     }
     recordScore(res);
     $('#eTime').textContent=fmt(G.frame);$('#eChain').textContent=B.maxChain;$('#eScore').textContent=B.score;
@@ -641,14 +670,15 @@ $$('#mode button').forEach(b=>b.addEventListener('click',()=>{
 $$('.diff [data-d]').forEach(b=>b.addEventListener('click',()=>startPractice(+b.dataset.d,pickMode,pickSize)));
 /* match-up screen: duel = face-off, more cooks = line-up; then a count-in */
 let vsTimer=null;
+const champTag=b=>G&&G.champId&&b.id===G.champId?'<div class="champ">Champ</div>':'';
 function showMatchup(seconds,go){
   clearInterval(vsTimer);
   const st=$('#vsStage'),me=G.player,others=G.boards.filter(b=>b!==me);
   if(others.length===1){
     const o=others[0];
-    st.innerHTML=`<div class="duelvs"><div class="fighter l"><img src="${body(me.av)}" alt=""><div class="chunky">${esc(me.name)}</div></div><div class="chunky vsword">VS</div><div class="fighter r"><img src="${body(o.av)}" alt=""><div class="chunky">${esc(o.name)}</div></div></div>`;
+    st.innerHTML=`<div class="duelvs"><div class="fighter l"><img src="${body(me.av)}" alt=""><div class="chunky">${esc(me.name)}</div>${champTag(me)}</div><div class="chunky vsword">VS</div><div class="fighter r"><img src="${body(o.av)}" alt=""><div class="chunky">${esc(o.name)}</div>${champTag(o)}</div></div>`;
   }else{
-    st.innerHTML=`<div class="chunky" style="font-size:40px;margin-bottom:10px">${G.boards.length}-cook brawl!</div><div class="crowd">${G.boards.map((b,i)=>`<div class="fighter${b===me?' me':''}" style="animation-delay:${i*.06}s"><img src="${body(b.av)}" alt="" style="animation-delay:${i*.06}s"><div class="chunky">${esc(b.name)}</div></div>`).join('')}</div>`;
+    st.innerHTML=`<div class="chunky" style="font-size:40px;margin-bottom:10px">${G.boards.length}-cook brawl!</div><div class="crowd">${G.boards.map((b,i)=>`<div class="fighter${b===me?' me':''}" style="animation-delay:${i*.06}s"><img src="${body(b.av)}" alt="" style="animation-delay:${i*.06}s"><div class="chunky">${esc(b.name)}</div>${champTag(b)}</div>`).join('')}</div>`;
   }
   let n=seconds;
   $('#countNum').textContent=seconds>1?n:'';show('#ovVs');sfx('slam');
@@ -672,7 +702,8 @@ function closePause(){if(G&&!G.online&&!G.waiting)G.paused=false;hideAll()}
 $('#bPause').addEventListener('click',()=>{if(!$('#ovPause').hidden)closePause();else if(!anyOverlay())openPause()});
 $('#bResume').addEventListener('click',closePause);
 $('#bQuit').addEventListener('click',()=>{if(G&&G.online){leaveRoom()}else{if(G)G.over=true;toMenu()}});
-$('#bAgain').addEventListener('click',()=>{if(G&&G.online)backToLobby();else startPractice(lastDiff,lastMode,lastSize)});
+$('#bAgain').addEventListener('click',()=>{if(G&&G.online){if(lastMatch)joinGrudge(gmState(lastMatch.mid,lastMatch.bots,lastMatch.diff))}else startPractice(lastDiff,lastMode,lastSize)});
+$('#bLobby').addEventListener('click',backToLobby);
 $('#bMenu').addEventListener('click',()=>{if(G&&G.online)leaveRoom();else toMenu()});
 $('#bSound').addEventListener('click',()=>{prefs.muted=!prefs.muted;savePrefs();wakeAudio();showMute()});
 document.addEventListener('visibilitychange',()=>{if(document.hidden&&G&&!G.over&&!G.online&&!G.paused&&!anyOverlay())openPause()});
@@ -725,7 +756,7 @@ function tryJoin(){const c=codeIn.value;if(c.length!==4){onlineMsg('Room codes a
 $('#bJoin').addEventListener('click',tryJoin);
 codeIn.addEventListener('keydown',e=>{if(e.key==='Enter')tryJoin()});
 async function leaveRoom(){
-  inRoom=false;clearInterval(vsTimer);
+  inRoom=false;clearInterval(vsTimer);cancelGrudge();
   if(NET)await NET.leave();
   try{history.replaceState(null,'',location.pathname)}catch(e){}
   toMenu();
@@ -734,7 +765,7 @@ $('#bLeave').addEventListener('click',leaveRoom);
 $('#bOutLeave').addEventListener('click',backToLobby);
 function backToLobby(){
   if(!inRoom){toMenu();return}
-  NET.setState('lobby');$('#outToast').hidden=true;
+  cancelGrudge();NET.setState('lobby');$('#outToast').hidden=true;
   show('#ovLobby');renderLobby();
 }
 $('#bInvite').addEventListener('click',async()=>{
@@ -770,7 +801,12 @@ function renderLobby(){
   else if(hostView&&seated.length<2&&fillTo<2)lobbyMsg('Share the code, or add bots to play now.');
   else lobbyMsg('');
   $('#bStart').disabled=!!playing.length||(seated.length<2&&fillTo<2);
+  const forming=lobbyMembers.filter(m=>m.state.startsWith('gm:')&&m.id!==ME.id);
+  const gj=$('#gmJoin');gj.hidden=!forming.length&&!gmMid;gj.disabled=!!gmMid;
+  if(gmMid)gj.innerHTML=`You're in!<small>${esc($('#gmMsg').textContent||'Waiting for the grudge match')}</small>`;
+  else if(forming.length){gj.innerHTML=`Join the grudge match<small>${forming.length} cook${forming.length>1?'s':''} in · ${esc(forming.map(m=>m.name).join(', '))}</small>`;gj.dataset.state=forming[0].state}
 }
+$('#gmJoin').addEventListener('click',e=>{const st=e.currentTarget.dataset.state;if(st&&!gmMid)joinGrudge(st)});
 $('#bStart').addEventListener('click',()=>{
   if(!isHost())return;
   const humans=lobbyMembers.filter(m=>m.state!=='playing').slice(0,MAX_PLAYERS);
@@ -783,16 +819,80 @@ $('#bStart').addEventListener('click',()=>{
 function onStart(m){
   if(!inRoom||!m||!Array.isArray(m.roster)||m.roster.length<2||m.roster.length>MAX_PLAYERS)return;
   if(!m.roster.some(r=>r.id===ME.id)){if(!$('#ovLobby').hidden)lobbyMsg('A match just started. You will be in the next one.');return}
-  wakeAudio();NET.setState('playing');
+  wakeAudio();cancelGrudge();NET.setState('playing');
+  lastMatch={mid:m.mid,roster:m.roster,bots:m.roster.filter(r=>r.bot).length,diff:Math.max(0,Math.min(2,m.diff|0)),champ:null};
   // build the match now so everyone sees boards during the countdown
   G=new Game('online',Math.max(0,Math.min(2,m.diff|0)),Object.assign({},baseHooks,{
     send:x=>{x.mid=m.mid;NET.send(x)},
     out:place=>{$('#outText').textContent=`You placed ${placeName(place)}. Watching the rest of the match.`;$('#outToast').hidden=false}
   }),false,{roster:m.roster.map(r=>({id:String(r.id),name:String(r.name||'Cook').slice(0,14),av:String(r.av||''),bot:!!r.bot,owner:r.owner?String(r.owner):undefined})),myId:ME.id,seed:m.seed>>>0});
-  G.mid=m.mid;G.paused=true;G.waiting=true;
+  G.mid=m.mid;G.champId=m.champ||null;G.paused=true;G.waiting=true;
   rackIds='~';trayKey='~';buildOpps();renderRack();resize();
   showMatchup(Math.max(1,Math.round((m.delay||3000)/1000)),()=>{if(G&&G.mid===m.mid){G.paused=false;G.waiting=false}});
 }
+/* ---------- Grudge Match: rematch whoever taps in, with the same number of bots ---------- */
+// presence state while waiting: "gm:<last match id>:<bots>:<bot skill>"
+let lastMatch=null,gmMid=null,gmTimer=null,gmDeadline=0,gmTick=null;
+const gmState=(mid,bots,diff)=>`gm:${mid}:${bots|0}:${diff|0}`;
+const gmKey=st=>st.split(':').slice(0,2).join(':');
+function setAgain(title,sub,disabled){$('#bAgain').innerHTML=`${esc(title)}<small id="againSub">${esc(sub)}</small>`;$('#bAgain').disabled=!!disabled}
+function joinGrudge(state){
+  if(!inRoom||!NET)return;
+  gmMid=gmKey(state);myGm=state;NET.setState(state);
+  setAgain("You're in!",'Waiting for at least one more cook',true);
+  $('#gmPanel').hidden=false;clearInterval(gmTick);gmTick=setInterval(renderGm,250);
+  wakeAudio();sfx('tap');renderGm();setTimeout(gmCheck,300);
+}
+let myGm='';
+function cancelGrudge(){clearTimeout(gmTimer);gmTimer=null;clearInterval(gmTick);gmTick=null;gmMid=null;myGm='';gmDeadline=0;$('#gmPanel').hidden=true}
+const gmIns=()=>gmMid?lobbyMembers.filter(m=>gmKey(m.state)===gmMid):[];
+function renderGm(){
+  if(!gmMid)return;
+  const ins=gmIns(),inIds=new Set(ins.map(m=>m.id));
+  const prev=lastMatch&&('gm:'+lastMatch.mid)===gmMid?lastMatch.roster.filter(r=>!r.bot):[];
+  const people=prev.concat(ins.filter(m=>!prev.some(p=>p.id===m.id)));
+  $('#gmList').innerHTML=people.map(p=>{
+    const here=lobbyMembers.some(m=>m.id===p.id),isIn=inIds.has(p.id);
+    return `<li class="${isIn?'in':here?'':'gone'}">${avImg(p.id===ME.id?prefs.av:p.av)}${esc(p.id===ME.id?'You':p.name)} <span>${isIn?'In':here?'Deciding…':'Left'}</span></li>`;
+  }).join('');
+  const bots=+(myGm.split(':')[2]||0);
+  const secs=gmDeadline?Math.max(0,Math.ceil((gmDeadline-Date.now())/1000)):0;
+  $('#gmMsg').textContent=ins.length<2?'Waiting for at least one more cook to tap Grudge Match…'
+    :gmDeadline?`Grudge match in ${secs}…${bots?` (+${bots} bot${bots>1?'s':''})`:''}`:`${ins.length} cooks in. Starting…`;
+  if(!$('#ovLobby').hidden){const gj=$('#gmJoin');gj.hidden=false;gj.disabled=true;gj.innerHTML=`You're in!<small>${esc($('#gmMsg').textContent)}</small>`}
+}
+function gmCheck(){
+  if(!gmMid||!NET)return;
+  renderGm();
+  const ins=gmIns(),leader=ins[0];
+  if(!leader||leader.id!==ME.id||ins.length<2){
+    if(gmTimer){clearTimeout(gmTimer);gmTimer=null;gmDeadline=0;NET.send({t:'gmsoon',gm:gmMid,ms:0})}
+    return;
+  }
+  // everyone from last round who is still in the room is in -> go now; otherwise give stragglers 8 seconds
+  const prevHumans=lastMatch&&('gm:'+lastMatch.mid)===gmMid?lastMatch.roster.filter(r=>!r.bot&&lobbyMembers.some(m=>m.id===r.id)).map(r=>r.id):[];
+  const allIn=prevHumans.length>0&&prevHumans.every(id=>ins.some(m=>m.id===id));
+  const ms=allIn?1500:8000,at=Date.now()+ms;
+  if(gmTimer&&gmDeadline<=at)return;
+  clearTimeout(gmTimer);gmDeadline=at;NET.send({t:'gmsoon',gm:gmMid,ms});
+  gmTimer=setTimeout(startGrudge,ms);
+}
+function startGrudge(){
+  gmTimer=null;
+  const ins=gmIns();
+  if(ins.length<2||!gmMid||ins[0].id!==ME.id){gmDeadline=0;renderGm();return}
+  const [,,b,d]=(ins[0].state||myGm).split(':');
+  const humans=ins.slice(0,MAX_PLAYERS);
+  const roster=humans.map(h=>({id:h.id,name:h.name,av:h.id===ME.id?prefs.av:h.av}));
+  const used=new Set(roster.map(r=>r.av));
+  const want=Math.min(+b||0,MAX_PLAYERS-roster.length);
+  BOTS.filter(x=>!used.has(x.av)).concat(BOTS.filter(x=>used.has(x.av))).slice(0,want)
+    .forEach((bt,i)=>roster.push({id:`bot:${ME.id}:${i}`,name:bt.name,av:bt.av,bot:true,owner:ME.id}));
+  const champ=lastMatch&&('gm:'+lastMatch.mid)===gmMid?lastMatch.champ:null;
+  const m={t:'start',mid:Math.random().toString(36).slice(2,10),seed:Math.floor(Math.random()*2**31),roster,diff:+d||1,delay:3000,champ,grudge:true};
+  NET.send(m);onStart(m);
+}
+
 const goneTimers={};
 function maybeGone(id){
   if(goneTimers[id])return;
@@ -807,6 +907,7 @@ if(NET){
   NET.on({
     message(m){
       if(m.t==='start'){onStart(m);return}
+      if(m.t==='gmsoon'){if(gmMid&&m.gm===gmMid){gmDeadline=m.ms>0?Date.now()+m.ms:0;renderGm()}return}
       if(!G||!G.online||m.mid!==G.mid)return;
       if(m.t==='snaps')G.netSnaps(m.list);
       else if(m.t==='atk')G.netAttack(m);
@@ -815,7 +916,7 @@ if(NET){
       else if(m.t==='give')G.netGive(m);
     },
     members(list){
-      lobbyMembers=list;renderLobby();
+      lobbyMembers=list;renderLobby();gmCheck();
       if(G&&G.online&&!G.over)G.boards.forEach(b=>{if(b.remote&&!b.dead&&!list.some(x=>x.id===b.owner))maybeGone(b.owner)});
     },
     // Supabase also reports a 'leave' when someone merely updates their status (lobby -> playing),

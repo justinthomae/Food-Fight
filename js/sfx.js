@@ -152,6 +152,9 @@ window.FFSound=(function(){
     stolen(){ // hey!
       tone({type:'triangle',f:880,to:330,d:.3,v:.12,wet:.3});noise({type:'bandpass',f:2500,to:500,q:2,d:.2,v:.12});
     },
+    wipe(){ // finger squeaking through cream
+      noise({type:'bandpass',f:900+Math.random()*700,q:3,d:.09,v:.12,a:.02});
+    },
     heart(){ // danger: your stack is near the top
       tone({type:'sine',f:70,to:45,d:.12,v:.5});
       tone({type:'sine',f:65,to:42,d:.14,v:.4,t:.18});

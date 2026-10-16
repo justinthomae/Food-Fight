@@ -187,6 +187,16 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
 .lb .who span{font-size:11px;color:var(--muted)}
 .lb .sc{font-family:var(--display);font-size:20px;font-variant-numeric:tabular-nums}
 .lbempty{padding:22px 8px;text-align:center;color:var(--muted);font-size:13px}
+.gm{background:var(--well);border-radius:14px;padding:10px 12px;display:flex;flex-direction:column;gap:8px}
+.gmlist{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:6px}
+.gmlist li{display:flex;align-items:center;gap:6px;background:var(--panel);border-radius:999px;padding:3px 10px 3px 3px;font-size:12px;font-weight:800}
+.gmlist li span{font-weight:700;color:var(--muted)}
+.gmlist li.in{outline:2px solid var(--gold);outline-offset:-2px}
+.gmlist li.in span{color:var(--accent-text)}
+.gmlist li.gone{opacity:.45}
+.gmlist .av{width:24px;height:24px}
+.gm .msg{margin:0;font-weight:800}
+.champ{display:inline-block;background:var(--gold);color:var(--gold-ink);font-family:var(--body);font-weight:800;font-size:10px;letter-spacing:.1em;text-transform:uppercase;border-radius:6px;padding:2px 6px;margin-top:2px;-webkit-text-stroke:0;text-shadow:none}
 .rankline{font-weight:800;color:var(--accent-text);font-size:14px;min-height:1.2em}
 
 /* lobby */
@@ -357,7 +367,7 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
     <div class="lab">Special tiles</div>
     <p>Some new rows bring up a tile with a gold badge. Clear it in any match to grab its item.</p>
     <div class="earn">
-      <div><span data-icon="cream"></span><span><b>Whipped cream</b> · Covers their board in cream for 5 seconds.</span></div>
+      <div><span data-icon="cream"></span><span><b>Whipped cream</b> · Splats cream across their board. They have to rub it off with a finger before they can see or move the pieces underneath. It melts on its own after 15 seconds.</span></div>
       <div><span data-icon="freeze"></span><span><b>Brain freeze</b> · They can't move tiles for 2½ seconds.</span></div>
       <div><span data-icon="blender"></span><span><b>Blender</b> · Scrambles the top 3 rows of their stack.</span></div>
       <div><span data-icon="pin"></span><span><b>Rolling pin</b> · Use it on yourself: flattens your top 3 rows. Great when you're near the top.</span></div>
@@ -428,6 +438,7 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
         <button data-d="0">Easy</button><button data-d="1" aria-pressed="true">Normal</button><button data-d="2">Hard</button>
       </div>
     </div>
+    <button class="btn primary big" id="gmJoin" hidden>Join the grudge match</button>
     <button class="btn primary big" id="bStart">Start match</button>
     <div class="msg" id="lobbyMsg"></div>
   </div>
@@ -469,8 +480,12 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
       <div><b id="eBlock">0</b><span>Blocked</span></div>
       <div><b id="eKO">0</b><span>KOs</span></div>
     </div>
-    <div class="row"><button class="btn primary" id="bAgain">Play again</button><button class="btn" id="bMenu">Change mode</button></div>
-    <button class="btn" id="bBoardEnd">See leaderboard</button>
+    <button class="btn primary big" id="bAgain">Grudge Match<small id="againSub">Same cooks, run it back</small></button>
+    <div class="gm" id="gmPanel" hidden>
+      <ul class="gmlist" id="gmList"></ul>
+      <div class="msg" id="gmMsg"></div>
+    </div>
+    <div class="row"><button class="btn" id="bLobby" hidden>Lobby</button><button class="btn" id="bMenu">Change mode</button><button class="btn" id="bBoardEnd">Leaderboard</button></div>
   </div>
 </div>
 

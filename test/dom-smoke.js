@@ -153,8 +153,8 @@ const check=(cond,msg)=>{console.log((cond?'PASS ':'FAIL ')+msg);if(!cond)proces
   guest.$('#bPause').click();guest.$('#bQuit').click();
   await sleep(5200); // a real leave is confirmed after 4s
   check(HG.over&&HG.result.won,'host wins when guest leaves');
-  check(vis(host,'#ovEnd')&&host.$('#bAgain').textContent==='Back to lobby','host sees end screen with Back to lobby');
-  host.$('#bAgain').click();await sleep(50);
+  check(vis(host,'#ovEnd')&&/Grudge Match/.test(host.$('#bAgain').textContent)&&!host.$('#bLobby').hidden,'host sees end screen with Grudge Match and Lobby');
+  host.$('#bLobby').click();await sleep(50);
   check(vis(host,'#ovLobby'),'host back in lobby');
   check(vis(guest,'#ovStart'),'guest back at start screen');
   // host alone, seats filled with bots
@@ -167,6 +167,49 @@ const check=(cond,msg)=>{console.log((cond?'PASS ':'FAIL ')+msg);if(!cond)proces
   const f0=BG.frame;await sleep(500);
   check(BG.frame>f0&&!BG.paused,'bot match is running');
   console.log('host errors',host.errors.length,'guest errors',guest.errors.length);
+  // ---- whipped cream has to be rubbed off ----
+  {
+    const cp=page('https://foodfight.grudgematchgames.com/');await sleep(2400);
+    cp.$('#mode [data-size="2"]').click();cp.$('.diff [data-d="0"]').click();await sleep(2200);
+    const CG=cp.w.__ff.game,P=CG.player;
+    P.cream(null);await sleep(200);
+    check(P._blobs&&P._blobs.length>0&&P.creamT>0,'cream splats onto your board');
+    const S=parseFloat(cp.$('#board').style.width)/6;
+    const ev=(type,x,y)=>cp.$('#board').dispatchEvent(new cp.w.MouseEvent(type,{clientX:x,clientY:y,bubbles:true}));
+    const grid0=JSON.stringify(P.g.map(r=>r.map(t=>t?t.t:'.')));
+    const b0=P._blobs[0];ev('pointerdown',b0.x*S,b0.y*S);ev('pointermove',b0.x*S+S*.6,b0.y*S);ev('pointerup',b0.x*S+S*.6,b0.y*S);
+    check(JSON.stringify(P.g.map(r=>r.map(t=>t?t.t:'.')))===grid0,'dragging on cream wipes instead of moving pieces');
+    check(P._blobs[0].amt<1,'rubbing thins the cream');
+    for(const b of P._blobs.slice()){ev('pointerdown',b.x*S,b.y*S);for(let i=0;i<14;i++)ev('pointermove',b.x*S+(i%2?S*.9:-S*.9),b.y*S+(i%3-1)*S*.3);ev('pointerup',b.x*S,b.y*S)}
+    await sleep(100);
+    check(!P._blobs&&P.creamT===0,'rub every blob and the cream is gone');
+    check(cp.errors.length===0,'no script errors while wiping');
+  }
+  // ---- Grudge Match: both tap in after a match -> rematch with the same number of bots, champ tagged ----
+  const h2=page('https://foodfight.grudgematchgames.com/');await sleep(2400);
+  h2.$('#nameIn').value='Champ';h2.$('#nameIn').dispatchEvent(new h2.w.Event('input'));
+  h2.$('#bOnline').click();h2.$('#bCreate').click();await sleep(120);
+  const code2=h2.$('#roomCode').textContent;
+  const g2=page('https://foodfight.grudgematchgames.com/?room='+code2);await sleep(2500);
+  h2.$('#fill [data-f="4"]').click();h2.$('#bStart').click();await sleep(4600);
+  const M1=h2.w.__ff.game,M1g=g2.w.__ff.game;
+  check(M1.boards.length===4&&M1.boards.filter(b=>b.isBot).length===2,'first match: 2 humans + 2 bots');
+  M1g.player.die();await sleep(300);
+  M1.boards.filter(b=>b.isBot).forEach(b=>b.die());await sleep(1600);
+  check(M1.over&&M1g.over&&vis(h2,'#ovEnd')&&vis(g2,'#ovEnd'),'match over on both phones');
+  check(/Grudge Match/.test(h2.$('#bAgain').textContent)&&/Grudge Match/.test(g2.$('#bAgain').textContent),'both see a Grudge Match button');
+  h2.$('#bAgain').click();await sleep(400);
+  check(!h2.$('#gmPanel').hidden&&/at least one more/.test(h2.$('#gmMsg').textContent),'one cook in: waiting for another');
+  g2.$('#bAgain').click();await sleep(800);
+  check(/Grudge match in/.test(g2.$('#gmMsg').textContent),'two in: countdown shown to the other player');
+  await sleep(2000);
+  const M2=h2.w.__ff.game,M2g=g2.w.__ff.game;
+  check(M2!==M1&&M2.online&&M2g.mid===M2.mid&&M2.mid!==M1.mid,'grudge match started for both');
+  check(M2.boards.length===4&&M2.boards.filter(b=>b.isBot).length===2,'rematch keeps the same number of bots (2)');
+  check(M2g.champId===M1.player.id&&M2.champId===M1.player.id,'last winner carries the Champ tag');
+  check(vis(g2,'#ovVs')&&/Champ/.test(g2.$('#vsStage').textContent),'VS screen shows the Champ tag');
+  h2.errors.concat(g2.errors).slice(0,3).forEach(e=>console.log('  ',e));
+  check(h2.errors.length===0&&g2.errors.length===0,'no script errors in the grudge match');
   host.errors.concat(guest.errors,solo.errors).slice(0,5).forEach(e=>console.log('  ',e));
   check(host.errors.length===0&&guest.errors.length===0&&solo.errors.length===0,'no script errors');
   process.exit();
