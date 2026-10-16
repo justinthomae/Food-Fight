@@ -53,7 +53,7 @@ begin
   v_diff := case when p_mode = 'online' then 1 else greatest(0, least(2, coalesce(p_difficulty,1))) end;
   v_av := case when p_avatar in ('bun','sprinkles','crunch','slice') then p_avatar else '' end;
 
-  v_name := regexp_replace(coalesce(p_name,''), '[[:cntrl:]​-‏‪-‮⁠-⁯]', '', 'g');
+  v_name := regexp_replace(coalesce(p_name,''), '[[:cntrl:]\u200B-\u200F\u202A-\u202E\u2060-\u206F]', '', 'g');
   v_name := btrim(regexp_replace(v_name, '\s+', ' ', 'g'));
   v_name := left(v_name, 14);
   if v_name = '' then v_name := 'Cook'; end if;
