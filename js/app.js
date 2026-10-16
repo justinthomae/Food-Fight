@@ -1,6 +1,6 @@
 // Food Fight UI: drawing, input, settings, practice mode and the online lobby.
 (function(){
-const VERSION='0.8.0';
+const VERSION='0.8.1';
 const $=s=>document.querySelector(s);
 const $$=s=>[...document.querySelectorAll(s)];
 const cv=$('#board'),ctx=cv.getContext('2d');
@@ -411,6 +411,7 @@ function pointFor(b,isTarget,slot){
   const r=m.cv.getBoundingClientRect();return[r.left+r.width/2,r.top+r.height*(isTarget?.3:.6)];
 }
 function fly(src,tgt,it,slot){
+  if(G&&G.ffMode)return;
   const [x,y]=pointFor(src,false,slot),[tx,ty]=pointFor(tgt,true);
   const d=document.createElement('div');d.className='fly'+(JUNK_KINDS.includes(it.k)?(it.cells>=6?' big':''):' '+it.k);document.body.appendChild(d);
   d.style.transform=`translate(${x}px,${y}px)`;
@@ -763,6 +764,11 @@ async function leaveRoom(){
 }
 $('#bLeave').addEventListener('click',leaveRoom);
 $('#bOutLeave').addEventListener('click',backToLobby);
+$('#bFF').addEventListener('click',()=>{
+  if(!G||!G.online||!G.onlyBotsLeft())return;
+  NET.send({t:'ff',mid:G.mid});startFF();
+});
+function startFF(){if(!G||G.ffMode||!G.onlyBotsLeft())return;G.ffMode=true;G.ffStart=G.frame;$('#bFF').hidden=true;$('#outText').textContent='Fast-forwarding to the final standings…';sfx('throw')}
 function backToLobby(){
   if(!inRoom){toMenu();return}
   cancelGrudge();NET.setState('lobby');$('#outToast').hidden=true;
@@ -913,6 +919,7 @@ if(NET){
       else if(m.t==='atk')G.netAttack(m);
       else if(m.t==='ko')G.netKO(m.id,m.by);
       else if(m.t==='steal')G.netSteal(m);
+      else if(m.t==='ff')startFF();
       else if(m.t==='give')G.netGive(m);
     },
     members(list){
@@ -948,11 +955,21 @@ let acc=0,last=performance.now(),hf=0,lastMargin=1,lastG=null;
 function loop(now){
   acc+=Math.min(100,now-last);last=now;
   while(acc>=1000/60){if(G)G.step();acc-=1000/60}
+  if(G&&G.ffMode&&!G.over&&G.local().some(b=>b.isBot&&!b.dead)){
+    for(let i=0;i<60&&!G.over;i++)G.step();
+    if(!G.over&&G.frame-G.ffStart>60*600)G.resolveByHeight();
+  }
   if(G!==lastG){lastG=G;lastMargin=1}
   if(G&&!G.over&&!G.paused&&!G.player.dead){const m=G.margin();if(m>lastMargin){lastMargin=m;G.player.pops.push({text:`Overtime · throws ×${m.toFixed(1)}`,x:3,y:4,col:'#F7C548',size:.85,life:90});sfx('overtime')}}
   if(G&&!G.over&&!G.paused&&!G.player.dead&&hf%48===0&&(G.player.g[0].some(Boolean)||G.player.g[1].some(Boolean)))sfx('heart');
   render();
   if(++hf%3===0&&G){updateOpps();renderTray();hud();updateAim()}
+  if(hf%15===0&&G&&G.online&&!$('#outToast').hidden){
+    const can=G.playerOut&&G.onlyBotsLeft();
+    $('#bFF').hidden=!can||!!G.ffMode;
+    if(G.ffMode&&!G.over)$('#outText').textContent='Fast-forwarding to the final standings…';
+    else if(can)$('#outText').textContent=`You placed ${placeName(G.player.place)}. Only bots are left.`;
+  }
   requestAnimationFrame(loop);
 }
 requestAnimationFrame(loop);

@@ -185,6 +185,24 @@ const check=(cond,msg)=>{console.log((cond?'PASS ':'FAIL ')+msg);if(!cond)proces
     check(!P._blobs&&P.creamT===0,'rub every blob and the cream is gone');
     check(cp.errors.length===0,'no script errors while wiping');
   }
+  // ---- fast forward: only offered once every human is out ----
+  {
+    const fh=page('https://foodfight.grudgematchgames.com/');await sleep(2400);
+    fh.$('#bOnline').click();fh.$('#bCreate').click();await sleep(120);
+    const fg=page('https://foodfight.grudgematchgames.com/?room='+fh.$('#roomCode').textContent);await sleep(2500);
+    fh.$('#fill [data-f="4"]').click();fh.$('#bStart').click();await sleep(4600);
+    const FH=fh.w.__ff.game,FGg=fg.w.__ff.game;
+    FGg.player.die();await sleep(800);
+    check(!fg.$('#outToast').hidden&&fg.$('#bFF').hidden,'guest out while host still plays: no fast forward');
+    FH.player.die();await sleep(900);
+    check(FGg.onlyBotsLeft()&&!fg.$('#bFF').hidden,'all humans out: Fast forward offered');
+    fg.$('#bFF').click();
+    let t=0;while(!(FH.over&&FGg.over)&&t<40){await sleep(250);t++}
+    check(FH.over&&FGg.over,'fast forward finishes the bot match on both phones ('+(t*0.25).toFixed(1)+'s)');
+    await sleep(900);
+    check(vis(fg,'#ovEnd')&&/Grudge Match/.test(fg.$('#bAgain').textContent),'final standings with Grudge Match offered');
+    check(fh.errors.length===0&&fg.errors.length===0,'no script errors in fast forward');
+  }
   // ---- Grudge Match: both tap in after a match -> rematch with the same number of bots, champ tagged ----
   const h2=page('https://foodfight.grudgematchgames.com/');await sleep(2400);
   h2.$('#nameIn').value='Champ';h2.$('#nameIn').dispatchEvent(new h2.w.Event('input'));

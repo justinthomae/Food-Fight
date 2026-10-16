@@ -444,6 +444,7 @@ class Game{
         else if(m.bot&&m.owner===opts.myId)b=new Board(this,m.name,true,i,m.id,seed);
         else b=new RemoteBoard(this,m.id,m.name,i,m.owner);
         b.av=FIGHTERS.includes(m.av)?m.av:FIGHTERS[i%FIGHTERS.length];
+        if(b.remote)b.isBot=!!m.bot;
         this.boards.push(b);
       });
     }else{
@@ -455,6 +456,13 @@ class Game{
     }
   }
   byId(id){return this.boards.find(b=>b.id===id)}
+  // only bots are still cooking: the humans are all out, so the rest can be fast-forwarded
+  onlyBotsLeft(){const a=this.alive();return !this.over&&a.length>1&&a.every(b=>b.isBot)}
+  // stalled fast-forward safety net: rank the remaining bots by stack height (lowest stack wins)
+  resolveByHeight(){
+    const a=this.alive().filter(b=>!b.remote).sort((x,y)=>y.height()-x.height()||y.score-x.score);
+    for(let i=0;i<a.length-1&&!this.over;i++)a[i].die();
+  }
   local(){return this.boards.filter(b=>!b.remote)}
   // ---- network inbound ----
   netSnaps(list){(list||[]).forEach(s=>{const b=this.byId(s&&s.id);if(b&&b.remote&&!b.dead){b.apply(s);if(s.d)this.netKO(b.id,null)}})}
@@ -513,7 +521,7 @@ class Game{
     if(this.over||this.paused)return;
     this.frame++;
     for(const b of this.boards)if(!b.dead)b.step();
-    if(this.online&&this.hooks.send&&this.frame%(this.boards.length>4?20:12)===0){const l=this.local().filter(b=>!b.dead||b.diedAt===this.frame-1);if(l.length)this.hooks.send({t:'snaps',list:l.map(b=>b.snap())})}
+    if(this.online&&this.hooks.send&&this.frame%(this.ffMode?240:this.boards.length>4?20:12)===0){const l=this.local().filter(b=>!b.dead||b.diedAt===this.frame-1);if(l.length)this.hooks.send({t:'snaps',list:l.map(b=>b.snap())})}
     if(this.flights.length)this.flights=this.flights.filter(f=>{if(--f.t>0)return true;if(!f.to.dead)this.deliver(f.to,f.item,f.from);return false});
     this.checkEnd();
   }
