@@ -1,6 +1,6 @@
 // Food Fight UI: drawing, input, settings, practice mode and the online lobby.
 (function(){
-const VERSION='0.7.0';
+const VERSION='0.7.1';
 const $=s=>document.querySelector(s);
 const $$=s=>[...document.querySelectorAll(s)];
 const cv=$('#board'),ctx=cv.getContext('2d');
@@ -793,6 +793,16 @@ function onStart(m){
   rackIds='~';trayKey='~';buildOpps();renderRack();resize();
   showMatchup(Math.max(1,Math.round((m.delay||3000)/1000)),()=>{if(G&&G.mid===m.mid){G.paused=false;G.waiting=false}});
 }
+const goneTimers={};
+function maybeGone(id){
+  if(goneTimers[id])return;
+  goneTimers[id]=setTimeout(()=>{
+    delete goneTimers[id];
+    if(!G||!G.online||G.over)return;
+    if(NET.members.some(x=>x.id===id))return; // still here: it was only a status update
+    G.netLeave(id);
+  },4000);
+}
 if(NET){
   NET.on({
     message(m){
@@ -806,12 +816,11 @@ if(NET){
     },
     members(list){
       lobbyMembers=list;renderLobby();
-      if(G&&G.online&&!G.over){
-        const here=new Set(list.map(x=>x.id));
-        G.boards.forEach(b=>{if(b.remote&&!b.dead&&!here.has(b.owner))G.netLeave(b.owner)});
-      }
+      if(G&&G.online&&!G.over)G.boards.forEach(b=>{if(b.remote&&!b.dead&&!list.some(x=>x.id===b.owner))maybeGone(b.owner)});
     },
-    left(id){if(G&&G.online&&!G.over)G.netLeave(id)}
+    // Supabase also reports a 'leave' when someone merely updates their status (lobby -> playing),
+    // so a player only counts as gone if they are still missing from the room a few seconds later
+    left(id){maybeGone(id)}
   });
 }
 function afterLoad(){

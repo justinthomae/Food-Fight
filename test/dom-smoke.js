@@ -16,7 +16,8 @@ function fakeSupabase(){
       const ch={
         on(type,f,cb){if(type==='broadcast')h.broadcast.push(cb);else h[f.event].push(cb);return ch},
         subscribe(cb){bus.chans.add(ch);setTimeout(()=>cb('SUBSCRIBED'),5);return ch},
-        async track(p){bus.members.set(key,p);bus.chans.forEach(c=>c._sync())},
+        // like real Supabase: updating your presence (e.g. lobby -> playing) also emits a 'leave' for your old state
+        async track(p){const old=bus.members.get(key);bus.members.set(key,p);if(old)bus.chans.forEach(c=>{if(c!==ch)c._leave(old)});bus.chans.forEach(c=>c._sync())},
         async untrack(){const p=bus.members.get(key);bus.members.delete(key);bus.chans.forEach(c=>{if(c!==ch)c._leave(p);c._sync()})},
         presenceState(){const o={};bus.members.forEach((p,k)=>o[k]=[p]);return o},
         send({payload}){const copy=JSON.parse(JSON.stringify(payload));bus.chans.forEach(c=>{if(c!==ch)setTimeout(()=>c._msg(copy),3)});return Promise.resolve('ok')},
@@ -123,6 +124,11 @@ const check=(cond,msg)=>{console.log((cond?'PASS ':'FAIL ')+msg);if(!cond)proces
   check(vis(host,'#ovVs')&&vis(guest,'#ovVs')&&host.w.document.querySelectorAll('#vsStage .duelvs').length===1,'both see the duel match-up screen');
   await sleep(4300);
   check(!vis(host,'#ovVs')&&!vis(guest,'#ovVs'),'count-in finished');
+  {const GG0=guest.w.__ff.game,HG0=host.w.__ff.game;
+   check(!GG0.over&&!GG0.player.dead&&!GG0.paused&&!GG0.waiting,'guest match is live after the count-in (not ended by a presence update)');
+   check(!HG0.over&&!HG0.player.dead,'host match is live too');
+   const g0=GG0.player.g,row=11;let swapped=false;for(let c=0;c<5&&!swapped;c++){swapped=GG0.player.trySwap(row,c,1)}
+   check(swapped,'guest can move pieces');}
   await sleep(800);
   const HG=host.w.__ff.game,GG=guest.w.__ff.game;
   check(HG.online&&GG.online&&HG.mid===GG.mid,'both in the same online match');
@@ -145,7 +151,7 @@ const check=(cond,msg)=>{console.log((cond?'PASS ':'FAIL ')+msg);if(!cond)proces
   check(GG.byId(HG.player.id)&&HG.byId(GG.player.id).frozenT>0,'host sees guest frozen via snapshot');
   // guest leaves mid-match -> host wins
   guest.$('#bPause').click();guest.$('#bQuit').click();
-  await sleep(1200);
+  await sleep(5200); // a real leave is confirmed after 4s
   check(HG.over&&HG.result.won,'host wins when guest leaves');
   check(vis(host,'#ovEnd')&&host.$('#bAgain').textContent==='Back to lobby','host sees end screen with Back to lobby');
   host.$('#bAgain').click();await sleep(50);
