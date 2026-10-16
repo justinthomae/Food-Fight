@@ -1,6 +1,6 @@
 // Food Fight UI: drawing, input, settings, practice mode and the online lobby.
 (function(){
-const VERSION='0.4.0';
+const VERSION='0.4.1';
 const $=s=>document.querySelector(s);
 const $$=s=>[...document.querySelectorAll(s)];
 const cv=$('#board'),ctx=cv.getContext('2d');
@@ -679,7 +679,7 @@ function renderPicker(){
   const box=$('#picker');
   if(!box.children.length)FIGHTERS.forEach(av=>{
     const b=document.createElement('button');b.type='button';b.className='pick';b.dataset.av=av;
-    b.innerHTML=`${avImg(av,'')}<span>${FIGHTER_INFO[av].name}</span>`;
+    b.innerHTML=`<img src="${body(av)}" alt="" width="120" height="120"><span>${FIGHTER_INFO[av].name}</span>`;
     b.setAttribute('aria-label',`${FIGHTER_INFO[av].name}, ${FIGHTER_INFO[av].tag}`);
     b.addEventListener('click',()=>{prefs.av=av;savePrefs();renderPicker();tone(620,.06);if(NET&&inRoom)NET.setProfile({av});if(G&&G.paused&&!G.online&&G.player)G.player.av=av});
     box.appendChild(b);
