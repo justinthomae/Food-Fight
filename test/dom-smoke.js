@@ -86,10 +86,24 @@ const check=(cond,msg)=>{console.log((cond?'PASS ':'FAIL ')+msg);if(!cond)proces
   // finish a game -> score recorded locally and submitted, end screen shows ranks
   await sleep(2000); // match-up screen, then the game starts
   check(!vis(solo,'#ovVs')&&!solo.w.__ff.game.paused,'game starts after the match-up screen');
-  {const SG=solo.w.__ff.game;SG.frame=60*40;SG.player.score=4321;SG.player.die();}
+  {const SG=solo.w.__ff.game;SG.frame=60*40;SG.player.score=4321;SG.player.lastAttacker=SG.boards[2];SG.player.die();
+   await sleep(300);
+   check(!SG.over&&!solo.$('#outToast').hidden,'practice brawl keeps going after you are out');
+   check(new RegExp(SG.boards[2].name+'</b> knocked you out').test(solo.$('#outText').innerHTML),'out bar names who knocked you out');
+   check(solo.$('#bOutLeave').textContent==='Menu'&&!solo.$('#bFF').hidden,'offline: Menu and Fast forward offered');
+   const cards=solo.w.document.querySelectorAll('#opps .foe');
+   check(cards[0].classList.contains('watchable'),'opponent cards become tappable');
+   cards[1].click();await sleep(100);
+   check(solo.w.__ff.game&&!solo.$('#specBar').hidden&&solo.$('#specName').textContent==='Watching '+SG.boards[2].name&&cards[1].classList.contains('watching'),'tap a card to spectate that board full screen');
+   solo.$('#bSpecOff').click();await sleep(50);
+   check(solo.$('#specBar').hidden,'My board returns to your own board');
+   cards[0].click();await sleep(50);
+   solo.$('#bFF').click();
+   let t=0;while(!SG.over&&t<40){await sleep(250);t++}
+   check(SG.over&&solo.$('#specBar').hidden,'fast forward ends the practice brawl and stops spectating');}
   await sleep(900);
   check(vis(solo,'#ovEnd'),'end screen after topping out');
-  check(rpcLog.length===1&&rpcLog[0].p_score===4321&&rpcLog[0].p_mode==='brawl'&&rpcLog[0].p_duration_s===40,'score submitted with mode and duration');
+  check(rpcLog.length===1&&rpcLog[0].p_score===4321&&rpcLog[0].p_mode==='brawl'&&rpcLog[0].p_duration_s>=40,'score submitted with mode and duration');
   check(/#2 today · #2 all time/.test(solo.$('#eRank').textContent),'end screen shows today and all-time rank');
   check(JSON.parse(solo.w.localStorage.getItem('ff-scores'))['brawl-1'][0].score===4321,'score kept on device too');
   solo.$('#bBoardEnd').click();await sleep(50);
@@ -111,7 +125,7 @@ const check=(cond,msg)=>{console.log((cond?'PASS ':'FAIL ')+msg);if(!cond)proces
   await sleep(100);
   check(vis(host,'#ovLobby'),'host lands in lobby');
   const code=host.$('#roomCode').textContent;
-  check(/^[A-Z]{4}$/.test(code),'room code '+code);
+  check(/^\d{5}$/.test(code),'room code is 5 numbers: '+code);
   const guest=page('https://foodfight.grudgematchgames.com/?room='+code);
   await sleep(2500);
   check(vis(guest,'#ovLobby'),'guest auto-joins from invite link');
@@ -194,6 +208,13 @@ const check=(cond,msg)=>{console.log((cond?'PASS ':'FAIL ')+msg);if(!cond)proces
     const FH=fh.w.__ff.game,FGg=fg.w.__ff.game;
     FGg.player.die();await sleep(800);
     check(!fg.$('#outToast').hidden&&fg.$('#bFF').hidden,'guest out while host still plays: no fast forward');
+    // guest spectates the host: host gets a "watching you" pill and sends that board faster
+    const hostCard=[...fg.w.document.querySelectorAll('#opps .foe')].find(e=>e.title===FH.player.name);
+    hostCard.click();await sleep(400);
+    check(!fg.$('#specBar').hidden,'guest spectates the host');
+    check(!fh.$('#watchPill').hidden&&/watching you/.test(fh.$('#watchText').textContent)&&FH.watched.has(FH.player.id),'host is told someone is watching');
+    fg.$('#bSpecOff').click();await sleep(400);
+    check(fh.$('#watchPill').hidden,'pill goes away when they stop watching');
     FH.player.die();await sleep(900);
     check(FGg.onlyBotsLeft()&&!fg.$('#bFF').hidden,'all humans out: Fast forward offered');
     fg.$('#bFF').click();

@@ -66,17 +66,28 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
 .icon svg{width:18px;height:18px}
 .arena{flex:1;min-height:0;display:flex;flex-direction:column;gap:8px}
 .opps{display:flex;gap:8px;flex:none}
-.foe{flex:1;min-width:0;display:flex;align-items:center;gap:8px;background:var(--panel);border:2px solid transparent;border-radius:14px;padding:6px 8px;text-align:left;transition:background .15s,border-color .15s,opacity .3s}
+.foe{flex:1;min-width:0;display:flex;flex-direction:column;align-items:stretch;gap:5px;background:var(--panel);border:2px solid transparent;border-radius:14px;padding:6px 8px;text-align:left;transition:background .15s,border-color .15s,opacity .3s}
 .foe canvas{width:30px;height:60px;border-radius:4px;flex:none;background:var(--well);display:block}
+/* name gets the full card width on top; the avatar sits on the corner of the mini board */
+.foe .nm{font-family:var(--display);font-size:16px;line-height:1.1;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;letter-spacing:.01em}
+.foe .body{display:flex;align-items:center;gap:11px;min-width:0}
+.foe .mb{position:relative;flex:none}
+.foe .mb .av{position:absolute;right:-8px;bottom:-6px;width:22px;height:22px;border-radius:50%;box-shadow:0 0 0 2px var(--panel)}
 .foe .who{min-width:0;flex:1;display:flex;flex-direction:column;gap:2px}
-.foe .nm{font-family:var(--display);font-size:15px;line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.foe .st{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.foe .st{font-size:11px;font-weight:700;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.foe .meta{font-size:10px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.foe.watchable{cursor:pointer}
+.foe.watching{border-color:#56B4E9;background:var(--panel2)}
+.foe .eye{display:none;align-self:flex-start;font-size:9px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;border-radius:6px;padding:2px 5px;background:#56B4E9;color:#08131C}
+.foe.watching .eye{display:inline-block}
 .foe .tag{align-self:flex-start;font-size:9px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;border-radius:6px;padding:2px 5px;background:var(--gold);color:var(--gold-ink)}
 .foe.aim{border-color:var(--gold);background:var(--panel2)}
 .foe.hit{background:var(--hit)}
 .foe.dead{opacity:.4}
 .duel .foe canvas{width:36px;height:72px}
-.duel .foe .nm{font-size:17px}
+.duel .foe{flex-direction:row;align-items:center;gap:10px}
+.duel .foe .nm{font-size:18px;flex:1}
+.duel .foe .body{order:-1;flex:none}
 .play{flex:1;min-height:0;display:flex;flex-direction:column;align-items:center;gap:6px}
 .tray{width:var(--bw,300px);max-width:100%;height:38px;display:flex;align-items:center;gap:6px;padding:0 8px;background:var(--panel);border-radius:12px;flex:none;transition:background .2s;overflow:hidden}
 .tray .lbl{font-size:10px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-right:auto}
@@ -88,7 +99,15 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
 .pie .tick{width:100%;height:3px;border-radius:2px;background:var(--well);overflow:hidden}
 .pie .tick i{display:block;height:100%;background:var(--ink)}
 .tray .none{font-size:12px;color:var(--muted)}
-.boardwrap{flex:1;min-height:0;width:100%;display:flex;justify-content:center;align-items:flex-start}
+.boardwrap{flex:1;min-height:0;width:100%;display:flex;justify-content:center;align-items:flex-start;position:relative}
+.specbar,.watchpill{position:absolute;top:8px;left:50%;transform:translateX(-50%);z-index:5;display:flex;align-items:center;gap:8px;border-radius:999px;white-space:nowrap;max-width:calc(var(--bw,300px) - 16px);box-shadow:0 4px 14px rgba(0,0,0,.35)}
+.specbar{background:#56B4E9;color:#08131C;padding:4px 4px 4px 12px;font-weight:800;font-size:13px}
+.specbar span{overflow:hidden;text-overflow:ellipsis}
+.specbar button{border:0;border-radius:999px;background:rgba(0,0,0,.25);color:inherit;font:inherit;font-size:12px;padding:5px 10px}
+.watchpill{background:rgba(11,13,27,.8);color:#EEF0FA;padding:4px 11px;font-size:12px;font-weight:700;pointer-events:none;animation:wp 2.4s ease-in-out infinite}
+.watchpill span{overflow:hidden;text-overflow:ellipsis}
+.specbar svg,.watchpill svg{width:16px;height:16px;flex:none}
+@keyframes wp{50%{opacity:.75}}
 #board{display:block;border-radius:12px;touch-action:none;box-shadow:0 0 0 2px var(--line),0 12px 30px rgba(0,0,0,.25)}
 .controls{display:flex;align-items:flex-end;gap:10px;justify-content:center;flex:none}
 .raise{border:0;border-radius:14px;background:var(--panel2);padding:10px 16px;font-weight:800;letter-spacing:.04em;display:flex;align-items:center;gap:8px;touch-action:none;flex:none;height:52px}
@@ -253,7 +272,7 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
 .opps.many::-webkit-scrollbar{display:none}
 .opps.many .foe{flex:0 0 112px;padding:5px 6px;gap:6px}
 .opps.many .foe canvas{width:22px;height:44px}
-.opps.many .foe .nm{font-size:13px}
+.opps.many .foe .nm{font-size:14px}
 .opps.many .foe .st{font-size:10px}
 .foe .nmrow{display:flex;align-items:center;gap:5px;min-width:0}
 .foe .nmrow .av{width:22px;height:22px}
@@ -264,6 +283,8 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
 .toast{position:fixed;left:50%;bottom:calc(16px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:35;background:var(--panel);border-radius:16px;padding:12px 14px;display:flex;align-items:center;gap:12px;box-shadow:0 10px 30px rgba(0,0,0,.35);width:min(400px,calc(100% - 32px))}
 .toast p{margin:0;flex:1;font-size:13px;line-height:1.35}
 .toast .btn{flex:none;padding:9px 12px}
+.toast .av{width:22px;height:22px;border-radius:50%;vertical-align:-6px;margin-right:2px}
+.toast p small{display:block;color:var(--muted);font-size:12px;margin-top:2px}
 @media (max-width:380px){.stat{min-width:40px;padding:4px 6px}.brand{font-size:19px}.slot{width:56px}}
 @media (min-width:760px) and (min-aspect-ratio:1/1){
   .opps.many{display:grid;grid-template-columns:1fr 1fr;overflow:visible;width:250px}
@@ -271,7 +292,8 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
   .opps.many .foe canvas{width:36px;height:72px}
   .arena{flex-direction:row;align-items:stretch}
   .opps{flex-direction:column;width:210px;align-self:flex-start}
-  .foe{flex:none;align-items:flex-start;padding:10px}
+  .foe{flex:none;align-items:stretch;padding:10px}
+  .duel .foe{align-items:flex-start}
   .foe canvas,.duel .foe canvas{width:60px;height:120px}
   .brand{font-size:28px}
 }
@@ -294,7 +316,10 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
     <aside class="opps" id="opps"></aside>
     <div class="play">
       <div class="tray" id="tray"><span class="lbl">Incoming</span><span class="none">Nothing yet</span></div>
-      <div class="boardwrap" id="wrap"><canvas id="board"></canvas></div>
+      <div class="boardwrap" id="wrap"><canvas id="board"></canvas>
+        <div class="specbar" id="specBar" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg><span id="specName">Watching</span><button id="bSpecOff" type="button">My board</button></div>
+        <div class="watchpill" id="watchPill" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg><span id="watchText">Someone is watching</span></div>
+      </div>
     </div>
   </section>
   <footer class="controls">
@@ -416,7 +441,7 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
     <div class="cardhead"><h2>Play online</h2><button class="x" data-close aria-label="Close"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
     <button class="btn primary big" id="bCreate">Create a room<small>Get a code to share with up to 3 friends</small></button>
     <div class="lab">Or join with a code</div>
-    <div class="join"><input id="codeIn" maxlength="4" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-label="Room code" placeholder="ABCD"><button class="btn" id="bJoin">Join</button></div>
+    <div class="join"><input id="codeIn" maxlength="5" inputmode="numeric" pattern="[0-9]*" autocomplete="off" spellcheck="false" aria-label="Room code" placeholder="12345"><button class="btn" id="bJoin">Join</button></div>
     <div class="msg" id="onlineMsg"></div>
   </div>
 </div>

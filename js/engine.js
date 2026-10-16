@@ -435,7 +435,7 @@ class Game{
   constructor(mode,d,hooks,allBots,opts){
     opts=opts||{};
     const seed=opts.seed!=null?opts.seed:Math.floor(Math.random()*2**31);
-    Object.assign(this,{mode,d,hooks:hooks||{},frame:0,over:false,paused:false,flights:[],boards:[],result:null,
+    Object.assign(this,{mode,d,hooks:hooks||{},frame:0,over:false,paused:false,flights:[],boards:[],result:null,watched:new Set(),
       online:!!opts.roster,myId:opts.myId||'me',seed});
     if(opts.roster){
       opts.roster.forEach((m,i)=>{
@@ -521,7 +521,13 @@ class Game{
     if(this.over||this.paused)return;
     this.frame++;
     for(const b of this.boards)if(!b.dead)b.step();
-    if(this.online&&this.hooks.send&&this.frame%(this.ffMode?240:this.boards.length>4?20:12)===0){const l=this.local().filter(b=>!b.dead||b.diedAt===this.frame-1);if(l.length)this.hooks.send({t:'snaps',list:l.map(b=>b.snap())})}
+    if(this.online&&this.hooks.send){
+      // everyone's boards ~5x a second; a board someone is spectating full screen goes out 10x a second
+      const f=this.frame,base=this.ffMode?240:this.boards.length>4?20:12;let l=null;
+      if(f%base===0)l=this.local().filter(b=>!b.dead||b.diedAt===f-1);
+      else if(!this.ffMode&&this.watched.size&&f%6===0)l=this.local().filter(b=>!b.dead&&this.watched.has(b.id));
+      if(l&&l.length)this.hooks.send({t:'snaps',list:l.map(b=>b.snap())});
+    }
     if(this.flights.length)this.flights=this.flights.filter(f=>{if(--f.t>0)return true;if(!f.to.dead)this.deliver(f.to,f.item,f.from);return false});
     this.checkEnd();
   }
@@ -535,8 +541,8 @@ class Game{
   checkEnd(){
     if(this.over)return;
     const p=this.player,alive=this.alive();
-    if(this.online){
-      // keep simulating after you're out: the host's bots and everyone's view must run to the end
+    if(this.online||this.boards.length>2){
+      // keep simulating after you're out (online, and practice brawls) so you can spectate: the host's bots and everyone's view must run to the end
       if(p.dead&&!this.playerOut){this.playerOut=true;if(this.hooks.out)this.hooks.out(p.place)}
       if(alive.length<=1){if(!p.dead)p.place=1;this.over=true;this.result={won:!p.dead,place:p.place,winner:alive[0]||null}}
     }

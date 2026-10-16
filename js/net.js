@@ -5,14 +5,13 @@ window.FFNet=(function(){
   const enabled=!!(cfg.supabaseUrl&&cfg.supabaseAnonKey&&window.supabase&&window.supabase.createClient);
   let client=null,ch=null,me=null,code=null,joinedAt=0,state='lobby',members=[];
   const handlers={};
-  const ALPHA='ABCDEFGHJKLMNPQRSTUVWXYZ';
 
   function init(){
     if(!client)client=window.supabase.createClient(cfg.supabaseUrl,cfg.supabaseAnonKey,{
       auth:{persistSession:false},realtime:{params:{eventsPerSecond:30}}
     });
   }
-  function makeCode(){let s='';for(let i=0;i<4;i++)s+=ALPHA[Math.floor(Math.random()*ALPHA.length)];return s}
+  function makeCode(){return String(10000+Math.floor(Math.random()*90000))}  // 5 digits, easy to type on a number pad
   function readMembers(){
     if(!ch)return[];
     const st=ch.presenceState(),list=[];

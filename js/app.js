@@ -1,6 +1,7 @@
 // Food Fight UI: drawing, input, settings, practice mode and the online lobby.
 (function(){
-const VERSION='0.8.1';
+const VERSION='0.9.0';
+let spec=null; // board being spectated after you're knocked out
 const $=s=>document.querySelector(s);
 const $$=s=>[...document.querySelectorAll(s)];
 const cv=$('#board'),ctx=cv.getContext('2d');
@@ -203,7 +204,7 @@ function render(){
   const W=S*COLS,H=S*ROWS;
   ctx.fillStyle=TOK.well;ctx.fillRect(0,0,W,H);
   if(!G)return;
-  const B=G.player,ro=B.rise*S,f=G.frame;
+  const B=spec||G.player,mine=B===G.player,ro=B.rise*S,f=G.frame;
   ctx.fillStyle=TOK.grid;
   for(let r=-1;r<=ROWS;r++)for(let c=0;c<COLS;c++)if((r+c+400)%2===0)ctx.fillRect(c*S,r*S-ro,S,S);
   const danger=[];for(let c=0;c<COLS;c++)danger[c]=!!(B.g[0][c]||B.g[1][c]);
@@ -229,11 +230,11 @@ function render(){
   }
   for(let c=0;c<COLS;c++)drawTile(ctx,{t:B.preview[c],clr:0,sp:B.previewSp&&B.previewSp[c]},c*S,ROWS*S-ro+shakeY,S,.45,f);
   ctx.fillStyle=TOK.shade;ctx.fillRect(0,H-ro,W,ro);
-  if(drag&&(drag.mode==='h'||drag.mode==='v')&&drag.r!=null&&drag.r>=0){
+  if(mine&&drag&&(drag.mode==='h'||drag.mode==='v')&&drag.r!=null&&drag.r>=0){
     const t=B.g[drag.r]&&B.g[drag.r][drag.c];
     if(t){ctx.strokeStyle='rgba(255,255,255,.9)';ctx.lineWidth=2.5;rr(ctx,drag.c*S+t.xo*S+1.5,drag.r*S-ro+t.yo*S+1.5,S-3,S-3,S*.2);ctx.stroke()}
   }
-  if(kb.on){ctx.strokeStyle='#F7C548';ctx.lineWidth=3;rr(ctx,kb.c*S+1.5,kb.r*S-ro+1.5,S*2-3,S-3,S*.22);ctx.stroke()}
+  if(mine&&kb.on){ctx.strokeStyle='#F7C548';ctx.lineWidth=3;rr(ctx,kb.c*S+1.5,kb.r*S-ro+1.5,S*2-3,S-3,S*.22);ctx.stroke()}
   drawEffects(ctx,B,W,H,f);
   if(B.streak>=1&&B.streakType!=null&&!B.dead){
     const k=B.streak,next=k===1?'Double':k===2?'Snack':'FEAST',sz=S*.62,x=S*.12,y=S*.38;
@@ -248,17 +249,35 @@ function render(){
     ctx.fillText(label,x+sz+S*.2,y+(sz+S*.16)/2+1);
     ctx.globalAlpha=1;ctx.textAlign='center';
   }
-  B.parts.forEach(p=>{ctx.globalAlpha=Math.min(1,p.life/14);ctx.fillStyle=p.kind<0?'#E0A86E':PAL.c[p.kind];ctx.beginPath();ctx.arc(p.x*S,p.y*S-ro,S*.07,0,Math.PI*2);ctx.fill()});
+  (B.parts||[]).forEach(p=>{ctx.globalAlpha=Math.min(1,p.life/14);ctx.fillStyle=p.kind<0?'#E0A86E':PAL.c[p.kind];ctx.beginPath();ctx.arc(p.x*S,p.y*S-ro,S*.07,0,Math.PI*2);ctx.fill()});
   ctx.globalAlpha=1;
   ctx.textAlign='center';ctx.textBaseline='middle';
-  B.pops.forEach(p=>{
+  (B.pops||[]).forEach(p=>{
     const a=Math.min(1,p.life/20),yy=(p.y-(60-p.life)*.012)*S-ro,xx=Math.min(Math.max(p.x*S,S*1.6),W-S*1.6);
     ctx.globalAlpha=a;ctx.font=`${Math.round(S*.62*p.size)}px 'Lilita One','Arial Rounded MT Bold',sans-serif`;
     ctx.lineWidth=S*.14;ctx.strokeStyle='#0B0D1B';ctx.strokeText(p.text,xx,yy);
     ctx.fillStyle=p.col;ctx.fillText(p.text,xx,yy);
   });
   ctx.globalAlpha=1;
+  if(B.dead&&G.playerOut&&!G.over)drawKO(B,W,H);
 }
+// knocked out: say who did it, and point at the spectate cards
+function drawKO(B,W,H){
+  ctx.fillStyle='rgba(11,13,27,.62)';ctx.fillRect(0,0,W,H);
+  const k=B.killedBy,mine=B===G.player,F=n=>`${Math.round(S*n)}px 'Lilita One','Arial Rounded MT Bold',sans-serif`;
+  ctx.textAlign='center';ctx.textBaseline='middle';ctx.lineWidth=S*.14;ctx.strokeStyle='#0B0D1B';
+  const line=(t,y,size,col)=>{ctx.font=F(size);const tw=ctx.measureText(t).width;if(tw>W*.88)ctx.font=F(size*W*.88/tw);ctx.strokeText(t,W/2,y);ctx.fillStyle=col;ctx.fillText(t,W/2,y)};
+  line(B.place?placeName(B.place)+' place':'Knocked out',H*.36,.5,'#949BBD');
+  line(mine?'KNOCKED OUT':`${B.name} is out`,H*.44,.8,'#EEF0FA');
+  if(k){
+    const im=faceImg(k.av),sz=S*1.5;
+    if(im&&im.complete&&im.naturalWidth){ctx.save();ctx.beginPath();ctx.arc(W/2,H*.56,sz/2,0,Math.PI*2);ctx.clip();ctx.drawImage(im,W/2-sz/2,H*.56-sz/2,sz,sz);ctx.restore()}
+    line(`by ${k===G.player?'you':k.name}`,H*.56+sz*.75,.62,'#F7C548');
+  }
+  if(mine)line(G.over?'':'Tap any board above to watch',H*.8,.4,'#EEF0FA');
+}
+const faceCache={};
+function faceImg(av){if(!faceCache[av]){const im=new Image();im.src=face(av);faceCache[av]=im}return faceCache[av]}
 function drawEffects(c,B,W,H,f){
   if(B.frozenT>0){
     const a=Math.min(1,B.frozenT/20);
@@ -278,6 +297,7 @@ function drawEffects(c,B,W,H,f){
       if(B===G.player)B.pops.push({text:'Rub to wipe it off!',x:3,y:10,col:'#FFF6E8',size:.8,life:90});
     }
     const age=G.frame-(B._creamAt||0),melt=age>60*15?Math.max(0,1-(age-60*15)/60):1;
+    if(B!==G.player&&!(B.creamT>0))B._blobs=null;   // other boards: show cream only while it's actually on
     const left=B._blobs?B._blobs.filter(b=>b.amt*melt>.08).length:0;
     if(left&&B===G.player&&B.creamT<3)B.creamT=3;   // keep the effect (and the opponent's view of it) alive until wiped
     if(!left){B.creamT=0;B._blobs=null}
@@ -366,11 +386,12 @@ const esc=s=>String(s).replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;
 function buildOpps(){
   const box=$('#opps');box.innerHTML='';box.classList.toggle('duel',!multi());box.classList.toggle('many',G.boards.length>4);
   minis=G.boards.filter(b=>b!==G.player).map(b=>{
-    const el=document.createElement('div');el.className='foe';
-    el.innerHTML=`<canvas></canvas><div class="who"><div class="nmrow">${avImg(b.av)}<div class="nm">${esc(b.name)}</div></div><div class="st">Cooking</div><div class="tag" hidden>Aim</div></div>`;
+    const el=document.createElement('div');el.className='foe';el.title=b.name;
+    el.innerHTML=`<div class="nm">${esc(b.name)}</div><div class="body"><div class="mb"><canvas></canvas>${avImg(b.av)}</div><div class="who"><div class="st">Cooking</div><div class="meta"></div><div class="tag" hidden>Aim</div><div class="eye">Watching</div></div></div>`;
+    el.addEventListener('click',()=>watchBoard(b));
     box.appendChild(el);
     const cvm=el.querySelector('canvas');
-    return {board:b,el,cv:cvm,ctx:cvm.getContext('2d'),st:el.querySelector('.st'),tag:el.querySelector('.tag')};
+    return {board:b,el,cv:cvm,ctx:cvm.getContext('2d'),st:el.querySelector('.st'),meta:el.querySelector('.meta'),tag:el.querySelector('.tag')};
   });
   sizeMinis();updateAim();
 }
@@ -396,8 +417,14 @@ function updateOpps(){
   minis.forEach(m=>{
     const b=m.board;renderMini(m);
     m.el.classList.toggle('hit',b.hitFlash>0);
-    const h=b.height(),kos=b.kos?` · KO ${b.kos}`:'',hold=b.rack.length?` · holding ${b.rack.length}`:'';
-    m.st.textContent=b.dead?(b.place?placeName(b.place)+' place':'Out'):(b.frozenT>0?'Frozen':b.creamT>0?'Creamed':b.rushT>0?'Hot sauce!':h>=10?'In trouble':h>=8?'Stack high':'Cooking')+hold+kos;
+    const h=b.height(),bits=[];
+    if(b.rack.length)bits.push(`${b.rack.length} held`);if(b.kos)bits.push(`${b.kos} KO`);
+    const st=b.dead?(b.place?placeName(b.place)+' place':'Out'):(b.frozenT>0?'Frozen':b.creamT>0?'Creamed':b.rushT>0?'Sauced!':h>=10?'Danger!':h>=8?'Stacked':'Cooking');
+    const meta=b.dead?(b.killedBy?`by ${b.killedBy===G.player?'you':b.killedBy.name}`:'Topped out'):bits.join(' · ');
+    if(m.st.textContent!==st)m.st.textContent=st;
+    if(m.meta.textContent!==meta)m.meta.textContent=meta;
+    const can=!!(G.playerOut&&!G.over);
+    m.el.classList.toggle('watchable',can);m.el.classList.toggle('watching',spec===b);
   });
 }
 
@@ -548,6 +575,7 @@ const baseHooks={
   sfx,
   fly,
   rack:renderRack,
+  out(){spec=null;$('#bOutLeave').textContent=G.online?'Lobby':'Menu';setOut(true);$('#outToast').hidden=false;sfx('ko')},
   shift(){if(drag&&drag.r!=null)drag.r--;kb.r=Math.max(0,kb.r-1)},
   ko(b,k){
     if(b!==G.player){sfx('ko');if(k===G.player)G.player.pops.push({text:'KO! Power up',x:3,y:5,col:'#F7C548',size:1.1,life:80})}
@@ -577,6 +605,7 @@ const baseHooks={
     recordScore(res);
     $('#eTime').textContent=fmt(G.frame);$('#eChain').textContent=B.maxChain;$('#eScore').textContent=B.score;
     $('#eSent').textContent=B.sent;$('#eBlock').textContent=B.blocked;$('#eKO').textContent=B.kos;
+    stopWatching();
     sfx(won?'win':'lose');
     B.raising=false;
     setTimeout(()=>{if(G&&G.over){$('#outToast').hidden=true;show('#ovEnd')}},700);
@@ -752,8 +781,8 @@ async function enterRoom(code){
 }
 $('#bCreate').addEventListener('click',()=>enterRoom(NET.makeCode()));
 const codeIn=$('#codeIn');
-codeIn.addEventListener('input',()=>{codeIn.value=codeIn.value.toUpperCase().replace(/[^A-Z]/g,'').slice(0,4)});
-function tryJoin(){const c=codeIn.value;if(c.length!==4){onlineMsg('Room codes are 4 letters.');return}enterRoom(c)}
+codeIn.addEventListener('input',()=>{codeIn.value=codeIn.value.replace(/\D/g,'').slice(0,5);if(codeIn.value.length===5)onlineMsg('')});
+function tryJoin(){const c=codeIn.value;if(!/^\d{5}$/.test(c)){onlineMsg('Room codes are 5 numbers.');return}enterRoom(c)}
 $('#bJoin').addEventListener('click',tryJoin);
 codeIn.addEventListener('keydown',e=>{if(e.key==='Enter')tryJoin()});
 async function leaveRoom(){
@@ -765,10 +794,55 @@ async function leaveRoom(){
 $('#bLeave').addEventListener('click',leaveRoom);
 $('#bOutLeave').addEventListener('click',backToLobby);
 $('#bFF').addEventListener('click',()=>{
-  if(!G||!G.online||!G.onlyBotsLeft())return;
-  NET.send({t:'ff',mid:G.mid});startFF();
+  if(!G||!G.onlyBotsLeft())return;
+  if(G.online)NET.send({t:'ff',mid:G.mid});
+  startFF();
 });
-function startFF(){if(!G||G.ffMode||!G.onlyBotsLeft())return;G.ffMode=true;G.ffStart=G.frame;$('#bFF').hidden=true;$('#outText').textContent='Fast-forwarding to the final standings…';sfx('throw')}
+function startFF(){if(!G||G.ffMode||!G.onlyBotsLeft())return;G.ffMode=true;G.ffStart=G.frame;$('#bFF').hidden=true;setOut(true);sfx('throw')}
+/* ---------- knocked out: who did it, spectating, and "someone is watching you" ---------- */
+let outHTML='';
+function setOut(force){
+  if(!G)return;
+  const B=G.player,k=B.killedBy,can=G.playerOut&&G.onlyBotsLeft();
+  const who=k?`${avImg(k.av)}<b>${esc(k.name)}</b> knocked you out!`:'Your stack hit the top!';
+  const sub=G.ffMode&&!G.over?'Fast-forwarding to the final standings…'
+    :`You placed ${placeName(B.place)}. ${can?'Only bots are left.':spec?`Watching ${esc(spec.name)}. Tap another board to switch.`:'Tap any board to watch it.'}`;
+  const html=`${who}<small>${sub}</small>`;
+  if(force||html!==outHTML){outHTML=html;$('#outText').innerHTML=html}
+}
+function watchBoard(b){
+  if(!G||!G.playerOut||G.over||!b||b===G.player)return;
+  spec=spec===b?null:b;
+  sendWatch();updateSpec();sfx('tap');
+}
+function stopWatching(){if(spec){spec=null;sendWatch()}updateSpec()}
+function sendWatch(){if(G&&G.online&&NET)NET.send({t:'watch',mid:G.mid,id:spec?spec.id:null,by:ME.id,name:ME.name})}
+function updateSpec(){
+  const on=!!(spec&&G&&!G.over);
+  $('#specBar').hidden=!on;
+  if(on)$('#specName').textContent=`Watching ${spec.name}`;
+  if(G&&G.playerOut)setOut();
+  updateOpps&&minis.length&&updateOpps();
+}
+$('#bSpecOff').addEventListener('click',()=>{stopWatching();sfx('tap')});
+// who is watching which board: {boardId:{watcherId:{name,until}}}. Watchers re-announce every 3s; entries expire after 7s.
+let watchers={};
+function onWatch(m){
+  const by=String(m.by||'');if(!by||by===ME.id)return;
+  for(const id in watchers)delete watchers[id][by];
+  if(m.id&&G.byId(m.id)){(watchers[m.id]=watchers[m.id]||{})[by]={name:String(m.name||'Someone').slice(0,14),until:Date.now()+7000}}
+  refreshWatched();
+}
+function refreshWatched(){
+  if(!G)return;
+  const now=Date.now(),set=new Set();
+  for(const id in watchers){for(const w in watchers[id])if(watchers[id][w].until<now)delete watchers[id][w];if(Object.keys(watchers[id]).length)set.add(id)}
+  G.watched=new Set([...set].filter(id=>{const b=G.byId(id);return b&&!b.remote}));
+  const mine=Object.values(watchers[G.player.id]||{}).map(w=>w.name);
+  const show=!!(mine.length&&!G.over&&!G.player.dead&&!spec);
+  $('#watchPill').hidden=!show;
+  if(show)$('#watchText').textContent=mine.length===1?`${mine[0]} is watching you`:`${mine.length} cooks are watching you`;
+}
 function backToLobby(){
   if(!inRoom){toMenu();return}
   cancelGrudge();NET.setState('lobby');$('#outToast').hidden=true;
@@ -825,12 +899,11 @@ $('#bStart').addEventListener('click',()=>{
 function onStart(m){
   if(!inRoom||!m||!Array.isArray(m.roster)||m.roster.length<2||m.roster.length>MAX_PLAYERS)return;
   if(!m.roster.some(r=>r.id===ME.id)){if(!$('#ovLobby').hidden)lobbyMsg('A match just started. You will be in the next one.');return}
-  wakeAudio();cancelGrudge();NET.setState('playing');
+  wakeAudio();cancelGrudge();NET.setState('playing');spec=null;watchers={};
   lastMatch={mid:m.mid,roster:m.roster,bots:m.roster.filter(r=>r.bot).length,diff:Math.max(0,Math.min(2,m.diff|0)),champ:null};
   // build the match now so everyone sees boards during the countdown
   G=new Game('online',Math.max(0,Math.min(2,m.diff|0)),Object.assign({},baseHooks,{
-    send:x=>{x.mid=m.mid;NET.send(x)},
-    out:place=>{$('#outText').textContent=`You placed ${placeName(place)}. Watching the rest of the match.`;$('#outToast').hidden=false}
+    send:x=>{x.mid=m.mid;NET.send(x)}
   }),false,{roster:m.roster.map(r=>({id:String(r.id),name:String(r.name||'Cook').slice(0,14),av:String(r.av||''),bot:!!r.bot,owner:r.owner?String(r.owner):undefined})),myId:ME.id,seed:m.seed>>>0});
   G.mid=m.mid;G.champId=m.champ||null;G.paused=true;G.waiting=true;
   rackIds='~';trayKey='~';buildOpps();renderRack();resize();
@@ -920,6 +993,7 @@ if(NET){
       else if(m.t==='ko')G.netKO(m.id,m.by);
       else if(m.t==='steal')G.netSteal(m);
       else if(m.t==='ff')startFF();
+      else if(m.t==='watch')onWatch(m);
       else if(m.t==='give')G.netGive(m);
     },
     members(list){
@@ -933,7 +1007,7 @@ if(NET){
 }
 function afterLoad(){
   const q=NET?new URLSearchParams(location.search).get('room'):null;
-  if(q&&/^[A-Za-z]{4}$/.test(q)){show('#ovStart');codeIn.value=q.toUpperCase();openSub('#ovOnline');enterRoom(q.toUpperCase())}
+  if(q&&/^\d{5}$/.test(q)){show('#ovStart');codeIn.value=q;openSub('#ovOnline');enterRoom(q)}
   else show('#ovStart');
 }
 function preload(){
@@ -964,12 +1038,20 @@ function loop(now){
   if(G&&!G.over&&!G.paused&&!G.player.dead&&hf%48===0&&(G.player.g[0].some(Boolean)||G.player.g[1].some(Boolean)))sfx('heart');
   render();
   if(++hf%3===0&&G){updateOpps();renderTray();hud();updateAim()}
-  if(hf%15===0&&G&&G.online&&!$('#outToast').hidden){
+  if(hf%15===0&&G&&!$('#outToast').hidden){
     const can=G.playerOut&&G.onlyBotsLeft();
     $('#bFF').hidden=!can||!!G.ffMode;
-    if(G.ffMode&&!G.over)$('#outText').textContent='Fast-forwarding to the final standings…';
-    else if(can)$('#outText').textContent=`You placed ${placeName(G.player.place)}. Only bots are left.`;
+    setOut();
   }
+  if(hf%15===0&&G){
+    // the board you're watching got knocked out: after a beat, follow whoever did it (or anyone still cooking)
+    if(spec&&spec.dead&&!G.over&&G.frame-(spec.diedAt||0)>100){
+      const k=spec.killedBy,next=k&&!k.dead&&k!==G.player?k:G.alive().find(b=>b!==G.player);
+      if(next&&next!==spec){spec=next;sendWatch();updateSpec()}
+    }
+    if(G.online)refreshWatched();
+  }
+  if(hf%180===0&&spec&&G&&G.online&&!G.over)sendWatch();
   requestAnimationFrame(loop);
 }
 requestAnimationFrame(loop);
