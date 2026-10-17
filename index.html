@@ -120,6 +120,10 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
 .slot.full{border:2px solid var(--line);background:var(--panel2)}
 .slot.full:active{background:var(--gold);color:var(--gold-ink);transform:scale(.95)}
 .slot.new{animation:pulse .5s ease-out}
+.slot.arming{border-color:var(--gold);background:var(--gold);color:var(--gold-ink);animation:arm 1s ease-in-out infinite}
+.slot.arming span{color:inherit}
+@keyframes arm{50%{transform:scale(1.06)}}
+#board.picking{box-shadow:0 0 0 3px var(--gold),0 0 24px rgba(247,197,72,.45)}
 @keyframes pulse{0%{transform:scale(1.18);border-color:var(--gold)}100%{transform:scale(1)}}
 .slot svg{width:22px;height:22px}
 .slot b{font-family:var(--display);font-weight:400;font-size:14px;line-height:1}
@@ -395,7 +399,7 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
     <div class="lab">How to earn attacks</div>
     <div class="earn">
       <div><span data-icon="pie"></span><span><b>Pie</b> · Match 4 or more at once. Drops junk on them equal to tiles matched, minus one.</span></div>
-      <div><span data-icon="tower"></span><span><b>Pie tower</b> · Set off a chain. One full row of junk per chain step, thrown as a single tower.</span></div>
+      <div><span data-icon="tower"></span><span><b>Pie tower</b> · Make a chain: after your match clears, the tiles that fall make another match on their own. Every extra match in that chain adds a full row of junk, and the rows are thrown together as one tall stack. So your match plus 2 falling matches throws 2 rows of junk.</span></div>
       <div><span data-icon="sauce"></span><span><b>Hot sauce</b> · Break junk. Their stack rises fast for 3 seconds, unless they keep clearing.</span></div>
     </div>
     <div class="lab">Food streaks</div>
@@ -412,6 +416,7 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
       <div><span data-icon="freeze"></span><span><b>Brain freeze</b> · They can't move tiles for 2½ seconds.</span></div>
       <div><span data-icon="blender"></span><span><b>Blender</b> · Scrambles the top 3 rows of their stack.</span></div>
       <div><span data-icon="pin"></span><span><b>Rolling pin</b> · Use it on yourself: flattens your top 3 rows. Great when you're near the top.</span></div>
+      <div><span data-icon="plate"></span><span><b>Clean plate</b> · Use it on yourself: tap it, then tap any food on your board. Every tile of that food clears at once. Tap it again to cancel.</span></div>
     </div>
     <p>After 50 seconds, overtime makes every throw hit harder. Knocking a cook out powers up your throws by 25%.</p>
     <div class="kbd" id="kbd" hidden>Keyboard: arrows move, Space swaps sideways, C swaps down, Shift raises, 1–3 throws.</div>

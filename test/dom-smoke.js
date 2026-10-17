@@ -202,6 +202,18 @@ const check=(cond,msg)=>{console.log((cond?'PASS ':'FAIL ')+msg);if(!cond)proces
     for(const b of P._blobs.slice()){ev('pointerdown',b.x*S,b.y*S);for(let i=0;i<14;i++)ev('pointermove',b.x*S+(i%2?S*.9:-S*.9),b.y*S+(i%3-1)*S*.3);ev('pointerup',b.x*S,b.y*S)}
     await sleep(100);
     check(!P._blobs&&P.creamT===0,'rub every blob and the cream is gone');
+    // ---- clean plate: tap it, then tap a food ----
+    P.rack.length=0;P.earn({k:'plate'},3,5);await sleep(80);
+    cp.$('.slot.full').dispatchEvent(new cp.w.Event('pointerdown'));await sleep(80);
+    check(cp.$('.slot.arming')&&/tap a food/.test(cp.$('#aimline').textContent)&&cp.$('#board').classList.contains('picking'),'tapping the plate asks you to pick a food');
+    cp.$('.slot.arming').dispatchEvent(new cp.w.Event('pointerdown'));await sleep(80);
+    check(!cp.$('.slot.arming')&&P.rack.length===1,'tapping it again cancels');
+    cp.$('.slot.full').dispatchEvent(new cp.w.Event('pointerdown'));await sleep(80);
+    let rr=11,cc=0;const tt=P.g[rr][cc],food=tt.t;
+    const before=P.g.flat().filter(t=>t&&t.t===food&&t.clr===0).length;
+    ev('pointerdown',cc*S+S/2,rr*S+S/2-P.rise*S);ev('pointerup',cc*S+S/2,rr*S+S/2-P.rise*S);await sleep(80);
+    check(P.rack.length===0&&before>0&&P.g.flat().filter(t=>t&&t.t===food&&t.clr===0&&t.st==='idle').length===0,`tapped food clears from the whole board (${before} tiles)`);
+    check(!cp.$('#board').classList.contains('picking')&&/Tap to throw/.test(cp.$('#aimline').textContent),'board goes back to normal');
     check(cp.errors.length===0,'no script errors while wiping');
   }
   // ---- fast forward: only offered once every human is out ----

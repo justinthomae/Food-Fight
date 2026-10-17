@@ -1,6 +1,6 @@
 // Food Fight UI: drawing, input, settings, practice mode and the online lobby.
 (function(){
-const VERSION='0.9.2';
+const VERSION='0.9.3';
 let spec=null; // board being spectated after you're knocked out
 const $=s=>document.querySelector(s);
 const $$=s=>[...document.querySelectorAll(s)];
@@ -175,12 +175,13 @@ function tileSprite(t,s,pal){
   }
   return sp;
 }
-const SPECIAL_COL={cream:'#FFF6E8',freeze:'#9BE3FF',blender:'#E7A6D1',pin:'#E0A86E'};
+const SPECIAL_COL={cream:'#FFF6E8',freeze:'#9BE3FF',blender:'#E7A6D1',pin:'#E0A86E',plate:'#FFFFFF'};
 function drawBadgeIcon(c,k,cx,cy,r){
   c.save();c.lineCap='round';c.lineJoin='round';
   if(k==='cream'){c.fillStyle='#FFF6E8';[[0,.45,.62],[0,.05,.48],[0,-.32,.32]].forEach(([dx,dy,rr2])=>{c.beginPath();c.ellipse(cx+dx*r,cy+dy*r,rr2*r*1.25,rr2*r*.75,0,0,Math.PI*2);c.fill()});c.beginPath();c.moveTo(cx,cy-.55*r);c.lineTo(cx+.12*r,cy-.8*r);c.lineWidth=r*.18;c.strokeStyle='#FFF6E8';c.stroke()}
   else if(k==='freeze'){c.strokeStyle='#9BE3FF';c.lineWidth=r*.16;for(let i=0;i<3;i++){const a=i*Math.PI/3;c.beginPath();c.moveTo(cx-Math.cos(a)*r*.75,cy-Math.sin(a)*r*.75);c.lineTo(cx+Math.cos(a)*r*.75,cy+Math.sin(a)*r*.75);c.stroke()}}
   else if(k==='blender'){c.fillStyle='#E7A6D1';c.beginPath();c.moveTo(cx-r*.5,cy-r*.65);c.lineTo(cx+r*.5,cy-r*.65);c.lineTo(cx+r*.35,cy+r*.25);c.lineTo(cx-r*.35,cy+r*.25);c.closePath();c.fill();c.fillStyle='#FFFFFF';c.fillRect(cx-r*.45,cy+r*.32,r*.9,r*.38)}
+  else if(k==='plate'){c.fillStyle='#FFFFFF';c.beginPath();c.arc(cx,cy,r*.78,0,Math.PI*2);c.fill();c.strokeStyle='#B9C2D8';c.lineWidth=r*.12;c.beginPath();c.arc(cx,cy,r*.48,0,Math.PI*2);c.stroke();c.fillStyle='#F7C548';c.beginPath();c.moveTo(cx+r*.55,cy-r*.95);c.lineTo(cx+r*.66,cy-r*.66);c.lineTo(cx+r*.95,cy-r*.55);c.lineTo(cx+r*.66,cy-r*.44);c.lineTo(cx+r*.55,cy-r*.15);c.lineTo(cx+r*.44,cy-r*.44);c.lineTo(cx+r*.15,cy-r*.55);c.lineTo(cx+r*.44,cy-r*.66);c.closePath();c.fill()}
   else{c.fillStyle='#E0A86E';rr(c,cx-r*.55,cy-r*.22,r*1.1,r*.44,r*.2);c.fill();c.fillStyle='#B48A63';c.fillRect(cx-r*.85,cy-r*.1,r*.3,r*.2);c.fillRect(cx+r*.55,cy-r*.1,r*.3,r*.2)}
   c.restore();
 }
@@ -366,27 +367,39 @@ ICONS.cream='<svg viewBox="0 0 24 24"><ellipse cx="12" cy="18" rx="8" ry="4" fil
 ICONS.freeze='<svg viewBox="0 0 24 24" stroke="#56B4E9" stroke-width="2.2" stroke-linecap="round"><path d="M12 2v20M3.3 7l17.4 10M3.3 17L20.7 7"/><path d="M9.5 4L12 6.5 14.5 4M9.5 20l2.5-2.5 2.5 2.5" fill="none"/></svg>';
 ICONS.blender='<svg viewBox="0 0 24 24"><path d="M6 3h12l-2 12H8z" fill="#E7A6D1" stroke="#2A1A12" stroke-width="1.3" stroke-linejoin="round"/><path d="M9 9l6-2" stroke="#2A1A12" stroke-width="1.3" stroke-linecap="round"/><rect x="6" y="15" width="12" height="6" rx="2" fill="#7B6B8F" stroke="#2A1A12" stroke-width="1.3"/></svg>';
 ICONS.pin='<svg viewBox="0 0 24 24"><rect x="6" y="8" width="12" height="8" rx="3" fill="#E0A86E" stroke="#2A1A12" stroke-width="1.3"/><rect x="1.5" y="10.5" width="4.5" height="3" rx="1.5" fill="#B48A63" stroke="#2A1A12" stroke-width="1.1"/><rect x="18" y="10.5" width="4.5" height="3" rx="1.5" fill="#B48A63" stroke="#2A1A12" stroke-width="1.1"/></svg>';
-const LABEL={pie:'Pie',tower:'Tower',sauce:'Sauce',cream:'Cream',freeze:'Freeze',blender:'Blender',pin:'Pin'};
-const VALUE={sauce:'3s',cream:'5s',freeze:'2.5s',blender:'Mix',pin:'Self'};
+ICONS.plate='<svg viewBox="0 0 24 24"><circle cx="12" cy="13" r="9" fill="#FFFFFF" stroke="#2A1A12" stroke-width="1.3"/><circle cx="12" cy="13" r="5.5" fill="none" stroke="#B9C2D8" stroke-width="1.4"/><path d="M19 1.5l.9 2.6 2.6.9-2.6.9-.9 2.6-.9-2.6-2.6-.9 2.6-.9z" fill="#F7C548" stroke="#2A1A12" stroke-width=".8" stroke-linejoin="round"/></svg>';
+const LABEL={pie:'Pie',tower:'Tower',sauce:'Sauce',cream:'Cream',freeze:'Freeze',blender:'Blender',pin:'Pin',plate:'Plate'};
+const VALUE={sauce:'3s',cream:'5s',freeze:'2.5s',blender:'Mix',pin:'Self',plate:'Pick'};
 let rackIds='';
 function renderRack(){
   const box=$('#slots'),B=G&&G.player;
-  const items=B?B.rack:[],ids=items.map(i=>i.id).join(',');
+  const items=B?B.rack:[],ids=items.map(i=>i.id).join(',')+'|'+plating;
   if(ids===rackIds&&box.children.length===RACK)return;
-  const prev=new Set(rackIds.split(','));rackIds=ids;
+  const prev=new Set(rackIds.split('|')[0].split(','));rackIds=ids;
   box.innerHTML='';
   for(let i=0;i<RACK;i++){
     const it=items[i],b=document.createElement('button');b.type='button';
     if(it){
-      b.className='slot full'+(prev.has(String(it.id))?'':' new');
+      b.className='slot full'+(prev.has(String(it.id))?'':' new')+(plating===it.id?' arming':'');
       b.innerHTML=ICONS[it.k]+`<b>${VALUE[it.k]||it.cells}</b><span>${LABEL[it.k]}</span>`;
       b.setAttribute('aria-label',`Throw ${LABEL[it.k]}${it.cells?' '+it.cells:''}`);
-      b.addEventListener('pointerdown',e=>{e.preventDefault();if(canPlay())G.player.fire(i)});
+      b.addEventListener('pointerdown',e=>{e.preventDefault();if(!canPlay())return;if(plating===it.id){cancelPlate();return}G.player.fire(i)});
     }else{b.className='slot';b.disabled=true;b.setAttribute('aria-label','Empty rack slot')}
     box.appendChild(b);
   }
 }
 
+/* ---------- clean plate: tap it, then tap a food on your board ---------- */
+let plating=null;
+function plateIndex(){return G&&plating!=null?G.player.rack.findIndex(x=>x.id===plating):-1}
+function usePlateOn(t){
+  const i=plateIndex();
+  if(i<0){cancelPlate();return}
+  if(!t||t.t<0||t.clr>0){G.player.pops.push({text:'Tap a food to clear',x:3,y:6,col:'#EEF0FA',size:.75,life:50});return}
+  plating=null;G.player.fire(i,t.t);updatePlateHint();renderRack();
+}
+function cancelPlate(){if(plating==null)return;plating=null;updatePlateHint();renderRack()}
+function updatePlateHint(){aimName='';if(G)updateAim();$('#board').classList.toggle('picking',plating!=null)}
 /* ---------- opponents ---------- */
 const multi=()=>G&&G.boards.length>2;
 const esc=s=>String(s).replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
@@ -412,9 +425,12 @@ function updateAim(){
     m.el.classList.toggle('aim',on);m.tag.hidden=!on;
     m.el.classList.toggle('dead',m.board.dead);
   });
-  const n=a?a.name:'nobody';
+  if(plating!=null&&plateIndex()<0)plating=null;
+  const n=plating!=null?'\u0000plate':a?a.name:'nobody';
   if(n!==aimName){
-    aimName=n;$('#aimline').innerHTML=`Tap to throw at <b>${esc(n)}</b>`;
+    aimName=n;$('#aimline').innerHTML=plating!=null?'<b>Clean plate:</b> tap a food on your board':`Tap to throw at <b>${esc(n)}</b>`;
+    $('#board').classList.toggle('picking',plating!=null);
+    if(plating!=null)return;
     const box=$('#opps'),m=minis.find(x=>x.board===a);
     if(m&&box.classList.contains('many')&&box.scrollWidth>box.clientWidth){try{box.scrollTo({left:m.el.offsetLeft-box.offsetLeft-box.clientWidth/2+m.el.offsetWidth/2,behavior:'smooth'})}catch(e){}}
   }
@@ -518,6 +534,7 @@ cv.addEventListener('pointerdown',e=>{
   try{cv.setPointerCapture(e.pointerId)}catch(_){}
   const B=G.player,p=bp(e),c=Math.floor(p.x/S),r=Math.floor((p.y+B.rise*S)/S);
   const t=r>=0&&r<ROWS&&c>=0&&c<COLS?B.g[r][c]:null;
+  if(plating){usePlateOn(t);return}
   drag={id:e.pointerId,x0:p.x,y0:p.y,r:t?r:null,c,mode:creamAt(p.x,p.y)?'wipe':null,lx:p.x,ly:p.y};
   kb.on=false;
 });
@@ -557,7 +574,7 @@ document.addEventListener('keydown',e=>{
   else if(k===' '||k==='x'||k==='X'||k==='Enter')B.trySwap(kb.r,kb.c,1);
   else if(k==='c'||k==='C')B.trySwapV(kb.r,kb.c,1);
   else if(k==='Shift'||k==='z'||k==='Z')B.raising=true;
-  else if('123'.includes(k)&&k.length===1)B.fire(+k-1);
+  else if('123'.includes(k)&&k.length===1){const it=B.rack[+k-1];if(it&&it.k==='plate'){const t=B.g[kb.r]&&B.g[kb.r][kb.c];B.fire(+k-1,t&&t.t>=0?t.t:null)}else B.fire(+k-1)}
   else used=false;
   if(used){kb.on=true;e.preventDefault()}
 });
@@ -582,6 +599,7 @@ const baseHooks={
   sfx,
   fly,
   rack:renderRack,
+  pickFood(item){plating=item.id;renderRack();updatePlateHint();sfx('tap');return true},
   out(){spec=null;$('#bOutLeave').textContent=G.online?'Lobby':'Menu';setOut(true);$('#outToast').hidden=false;sfx('ko')},
   shift(){if(drag&&drag.r!=null)drag.r--;kb.r=Math.max(0,kb.r-1)},
   ko(b,k){
@@ -696,7 +714,7 @@ function startPractice(d,mode,size){
   lastDiff=d;lastMode=mode;lastSize=size;
   G=new Game(mode,d,baseHooks,false,{av:prefs.av,name:ME.name,size});
   G.paused=true;G.waiting=true;
-  rackIds='~';trayKey='~';
+  rackIds='~';trayKey='~';plating=null;
   buildOpps();renderRack();resize();
   showMatchup(1,()=>{if(G){G.paused=false;G.waiting=false}});
 }
@@ -745,7 +763,7 @@ $('#bMenu').addEventListener('click',()=>{if(G&&G.online)leaveRoom();else toMenu
 $('#bSound').addEventListener('click',()=>{prefs.muted=!prefs.muted;savePrefs();wakeAudio();showMute()});
 document.addEventListener('visibilitychange',()=>{if(document.hidden&&G&&!G.over&&!G.online&&!G.paused&&!anyOverlay())openPause()});
 function toMenu(){showBest();demo();show('#ovStart')}
-function demo(){G=new Game('duel',1,baseHooks,false,{av:prefs.av,name:ME.name});G.paused=true;rackIds='~';trayKey='~';buildOpps();renderRack()}
+function demo(){G=new Game('duel',1,baseHooks,false,{av:prefs.av,name:ME.name});G.paused=true;rackIds='~';trayKey='~';plating=null;buildOpps();renderRack()}
 
 /* ---------- profile ---------- */
 const ME={id:(crypto.randomUUID?crypto.randomUUID():'u'+Math.random().toString(36).slice(2)+Date.now().toString(36)),name:''};
@@ -939,7 +957,7 @@ function onStart(m){
     send:x=>{x.mid=m.mid;NET.send(x)}
   }),false,{roster:m.roster.map(r=>({id:String(r.id),name:String(r.name||'Cook').slice(0,14),av:String(r.av||''),bot:!!r.bot,owner:r.owner?String(r.owner):undefined})),myId:ME.id,seed:m.seed>>>0});
   G.mid=m.mid;G.champId=m.champ||null;G.paused=true;G.waiting=true;
-  rackIds='~';trayKey='~';buildOpps();renderRack();resize();
+  rackIds='~';trayKey='~';plating=null;buildOpps();renderRack();resize();
   showMatchup(Math.max(1,Math.round((m.delay||3000)/1000)),()=>{if(G&&G.mid===m.mid){G.paused=false;G.waiting=false}});
 }
 /* ---------- Grudge Match: rematch whoever taps in, with the same number of bots ---------- */
