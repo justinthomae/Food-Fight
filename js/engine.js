@@ -2,9 +2,10 @@
 // Food Fight engine — pure game logic, no DOM. Shared by the site, the artifact build and the node tests.
 const COLS=6,ROWS=12,NT=5,CLR=40,POP=9,HOVER=9,INC_T=220,GRACE=150,FLY=34;
 const DIFFS=[
-  {name:'Easy',  think:[44,66], miss:.3,  raiseH:5},
-  {name:'Normal',think:[24,38], miss:.12, raiseH:6},
-  {name:'Hard',  think:[12,20], miss:.03, raiseH:7},
+  // think = frames between moves, miss = chance to skip a turn, fire = frames between throws, noise = how sloppy move choice is, hit = size of bot throws (v0.9.4: all toned down)
+  {name:'Easy',  think:[56,84], miss:.38, raiseH:5, fire:[150,330], noise:3, hit:.82},
+  {name:'Normal',think:[30,46], miss:.2,  raiseH:6, fire:[90,220], noise:1.5, hit:.9},
+  {name:'Hard',  think:[16,25], miss:.08, raiseH:7, fire:[50,150], noise:1, hit:.76},
 ];
 const MARGIN=50,RACK=3,RUSH=180,CYCLE=180,CREAM=300,FREEZE=150,SPECIAL_RATE=.16;
 // rack items: pie/tower = junk, sauce = fast rise, cream = board covered, freeze = no swaps, blender = scramble top rows,
@@ -368,7 +369,7 @@ class Board{
   ai(){
     if(this.raiseT>0){this.raiseT--;this.raising=this.raiseT>0}
     if(this.rack.length&&--this.fireT<=0){
-      this.fireT=30+rnd(90);
+      const F=DIFFS[this.game.d].fire;this.fireT=F[0]+rnd(F[1]-F[0]);
       const pin=this.rack.findIndex(x=>x.k==='pin'),plate=this.rack.findIndex(x=>x.k==='plate'),atk=this.rack.findIndex(x=>!SELF_KINDS.includes(x.k));
       if(pin>=0&&this.height()>=8)this.fire(pin);
       else if(plate>=0&&this.height()>=7)this.fire(plate);
@@ -399,6 +400,7 @@ class Board{
     if(s){for(const [dr,dc] of [[1,0],[-1,0],[0,1],[0,-1]]){const u=g[r+dr]&&g[r+dr][c+dc];if(u&&u.t<0){s+=2;break}}}
     return s;
   }
+  noise(){return this.isBot?(DIFFS[this.game.d].noise||.2):.2}
   bestMove(){
     const g=this.g;let best=null,bs=.25;
     const okH=t=>!t||(t.clr===0&&t.t>=0&&t.st==='idle');
@@ -411,7 +413,7 @@ class Board{
           let s=this.runScore(r,c)+this.runScore(r,c+1);
           g[r][c]=a;g[r][c+1]=b;
           if(!s&&(!a||!b)){const cc=a?c+1:c;if(r<ROWS-1&&!g[r+1][cc])s=.3+r*.02}
-          s+=Math.random()*.2;
+          s+=s>=3?Math.random()*this.noise():Math.random()*.2;
           if(s>bs){bs=s;best={r,c,v:false}}
         }
       }
@@ -421,7 +423,7 @@ class Board{
           g[r][c]=b;g[r+1][c]=a;
           let s=this.runScore(r,c)+this.runScore(r+1,c);
           g[r][c]=a;g[r+1][c]=b;
-          s+=Math.random()*.2;
+          s+=s>=3?Math.random()*this.noise():Math.random()*.2;
           if(s>bs){bs=s;best={r,c,v:true}}
         }
       }
@@ -538,7 +540,7 @@ class Game{
   aim(){const o=this.alive().filter(b=>b!==this.player);return o.length?o[Math.floor(this.frame/CYCLE)%o.length]:null}
   launch(src,item,tgt,slot){
     const it={k:item.k,cells:item.cells||0,at:item.at||null};
-    if(JUNK_KINDS.includes(it.k)){it.cells=Math.round(it.cells*(1+.25*src.kos)*this.margin());src.sent+=it.cells}
+    if(JUNK_KINDS.includes(it.k)){it.cells=Math.max(1,Math.round(it.cells*(1+.25*src.kos)*this.margin()*(src.isBot?(DIFFS[this.d].hit||1):1)));src.sent+=it.cells}
     if(tgt.remote){if(this.hooks.send)this.hooks.send({t:'atk',from:src.id,to:tgt.id,k:it.k,cells:it.cells,ac:it.at?+it.at.c.toFixed(2):null,ar:it.at?+it.at.r.toFixed(2):null})}
     else this.flights.push({from:src,to:tgt,item:it,t:FLY});
     if(this.hooks.fly)this.hooks.fly(src,tgt,it,slot);
