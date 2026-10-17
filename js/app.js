@@ -1,6 +1,6 @@
 // Food Fight UI: drawing, input, settings, practice mode and the online lobby.
 (function(){
-const VERSION='0.9.0';
+const VERSION='0.9.1';
 let spec=null; // board being spectated after you're knocked out
 const $=s=>document.querySelector(s);
 const $$=s=>[...document.querySelectorAll(s)];
@@ -44,13 +44,20 @@ function savePrefs(){try{localStorage.setItem('ff-prefs',JSON.stringify(prefs))}
 let PAL=PALETTES[prefs.palette],TOK={};
 function readTokens(){
   const cs=getComputedStyle(document.documentElement),g=n=>cs.getPropertyValue(n).trim();
-  TOK={well:g('--well')||'#0B0D1B',grid:g('--grid')||'rgba(255,255,255,.025)',shade:g('--shade')||'rgba(11,13,27,.35)',bg:g('--bg')||'#131627'};
+  TOK={well:g('--well')||'#0B0D1B',grid:g('--grid')||'rgba(255,255,255,.025)',shade:g('--shade')||'rgba(11,13,27,.35)',bg:g('--bg')||'#131627',panel:g('--panel')||'#1C2038'};
+}
+// phones: while a full-screen menu is up, the page behind it and the browser bars match the sheet colour
+function sheetTint(){try{sheetTint0()}catch(e){}}
+function sheetTint0(){
+  const open=OVS.some(s=>!$(s).hidden&&$(s).classList.contains('sheet'))&&matchMedia('(max-width:600px)').matches;
+  document.documentElement.classList.toggle('sheet-open',open);
+  const tc=document.querySelector('meta[name="theme-color"]');if(tc&&TOK)tc.setAttribute('content',open?TOK.panel:TOK.bg);
 }
 function applyLook(){
   PAL=PALETTES[prefs.palette];
   document.documentElement.setAttribute('data-ff-theme',prefs.theme);
   readTokens();
-  const tc=document.querySelector('meta[name="theme-color"]');if(tc)tc.setAttribute('content',TOK.bg);
+  sheetTint();
   renderPals();
   $$('#theme button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.t===prefs.theme)));
   $$('#art button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.a===prefs.art)));
@@ -560,8 +567,8 @@ if(matchMedia('(pointer:fine)').matches)$('#kbd').hidden=false;
 /* ---------- overlays ---------- */
 const OVS=['#ovLoad','#ovStart','#ovHow','#ovLook','#ovBoard','#ovOnline','#ovLobby','#ovVs','#ovPause','#ovEnd'];
 let backTo='#ovStart';
-function show(id){OVS.forEach(s=>$(s).hidden=s!==id);if(id!=='#ovEnd')$('#outToast').hidden=true;if(SND)SND.ambience(id==='#ovLobby')}
-function hideAll(){OVS.forEach(s=>$(s).hidden=true);if(SND)SND.ambience(false)}
+function show(id){OVS.forEach(s=>$(s).hidden=s!==id);sheetTint();if(id!=='#ovEnd')$('#outToast').hidden=true;if(SND)SND.ambience(id==='#ovLobby')}
+function hideAll(){OVS.forEach(s=>$(s).hidden=true);sheetTint();if(SND)SND.ambience(false)}
 function openSub(id){backTo=OVS.find(s=>!$(s).hidden)||null;show(id)}
 $$('[data-close]').forEach(b=>b.addEventListener('click',()=>{if(backTo)show(backTo);else hideAll()}));
 $('#bHow').addEventListener('click',()=>openSub('#ovHow'));
@@ -767,8 +774,8 @@ if(!NET){
   $('#bOnline').disabled=true;
 }
 $('#bOnline').addEventListener('click',()=>{if(!NET)return;wakeAudio();onlineMsg('');openSub('#ovOnline')});
-async function enterRoom(code){
-  onlineMsg('Connecting…');$('#bCreate').disabled=$('#bJoin').disabled=true;
+async function enterRoom(code,invite,retry){
+  onlineMsg(invite?`Joining room ${code}…`:'Connecting…');$('#bCreate').disabled=$('#bJoin').disabled=true;
   try{
     await NET.join(code,{id:ME.id,name:ME.name,av:prefs.av});
     inRoom=true;
@@ -776,6 +783,7 @@ async function enterRoom(code){
     $('#roomCode').textContent=code;lobbyMsg('');
     show('#ovLobby');renderLobby();
   }catch(e){
+    if(invite&&!retry){setTimeout(()=>enterRoom(code,true,true),1500);return}   // phones waking up from a link often need a second try
     onlineMsg("Couldn't reach the game server. Check your connection and try again.");
   }finally{$('#bCreate').disabled=$('#bJoin').disabled=false}
 }
@@ -1007,7 +1015,11 @@ if(NET){
 }
 function afterLoad(){
   const q=NET?new URLSearchParams(location.search).get('room'):null;
-  if(q&&/^\d{5}$/.test(q)){show('#ovStart');codeIn.value=q;openSub('#ovOnline');enterRoom(q)}
+  // invite link: skip the menu and go straight into the room (older 4-letter links still work)
+  if(q&&(/^\d{5}$/.test(q)||/^[A-Za-z]{4}$/.test(q))){
+    const code=/^\d+$/.test(q)?q:q.toUpperCase();
+    backTo='#ovStart';codeIn.value=code;show('#ovOnline');enterRoom(code,true);
+  }
   else show('#ovStart');
 }
 function preload(){
