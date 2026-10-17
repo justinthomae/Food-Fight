@@ -129,6 +129,11 @@ const check=(cond,msg)=>{console.log((cond?'PASS ':'FAIL ')+msg);if(!cond)proces
   const guest=page('https://foodfight.grudgematchgames.com/?room='+code);
   await sleep(2500);
   check(vis(guest,'#ovLobby'),'guest auto-joins from invite link');
+  check(!guest.$('#lobbyPicker').hidden&&/pick a name/.test(guest.$('#meLab').textContent),'first-time invitee is asked for a name and fighter in the lobby');
+  guest.$('#lobbyName').value='Sam';guest.$('#lobbyName').dispatchEvent(new guest.w.Event('input'));
+  guest.$('#lobbyPicker [data-av="guac"]').click();await sleep(800);
+  check([...host.w.document.querySelectorAll('#seats li')].some(li=>/Sam/.test(li.textContent)&&/guac/.test(li.innerHTML)),'host sees the new name and fighter');
+  check(guest.$('#lobbyPicker').hidden&&guest.$('#nameIn').value==='Sam','picker closes and the menu name field matches');
   check(host.w.document.querySelectorAll('#seats li:not(.empty):not(.bot)').length===2,'host sees 2 humans seated');
   check(host.$('#bStart').hidden===false&&guest.$('#bStart').hidden===true,'only host has Start');
   check(/Waiting for Justin/.test(guest.$('#lobbyMsg').textContent),'guest sees waiting message');

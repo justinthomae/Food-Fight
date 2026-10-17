@@ -1,6 +1,6 @@
 // Food Fight UI: drawing, input, settings, practice mode and the online lobby.
 (function(){
-const VERSION='0.9.1';
+const VERSION='0.9.2';
 let spec=null; // board being spectated after you're knocked out
 const $=s=>document.querySelector(s);
 const $$=s=>[...document.querySelectorAll(s)];
@@ -752,17 +752,39 @@ const ME={id:(crypto.randomUUID?crypto.randomUUID():'u'+Math.random().toString(3
 const nameIn=$('#nameIn');
 ME.name=prefs.name||('Cook '+(100+Math.floor(Math.random()*900)));
 nameIn.value=prefs.name||'';nameIn.placeholder=ME.name;
-nameIn.addEventListener('input',()=>{const v=nameIn.value.trim().slice(0,14);prefs.name=v;savePrefs();ME.name=v||nameIn.placeholder});
+function setMyName(raw,from){
+  const v=String(raw).trim().slice(0,14);prefs.name=v;savePrefs();ME.name=v||nameIn.placeholder;
+  if(from!==nameIn)nameIn.value=v;
+  const ln=$('#lobbyName');if(ln&&from!==ln)ln.value=v;
+  if(NET&&inRoom){clearTimeout(setMyName.t);setMyName.t=setTimeout(()=>{NET.setProfile({name:ME.name});renderLobby()},400)}
+}
+nameIn.addEventListener('input',()=>setMyName(nameIn.value,nameIn));
+/* lobby: invitees skip the menu, so they can set their name and fighter right here */
+const lobbyName=$('#lobbyName');
+lobbyName.placeholder=ME.name;
+lobbyName.addEventListener('input',()=>setMyName(lobbyName.value,lobbyName));
+lobbyName.addEventListener('keydown',e=>{if(e.key==='Enter')lobbyName.blur()});
+function toggleLobbyPicker(open){
+  const lp=$('#lobbyPicker'),on=open==null?lp.hidden:open;
+  lp.hidden=!on;$('#bMeEdit').setAttribute('aria-expanded',String(on));$('#meAv').setAttribute('aria-expanded',String(on));
+  $('#bMeEdit').textContent=on?'Done':'Fighter';
+}
+$('#meAv').addEventListener('click',()=>{toggleLobbyPicker();sfx('tap')});
+$('#bMeEdit').addEventListener('click',()=>{toggleLobbyPicker();sfx('tap')});
+$('#lobbyPicker').addEventListener('click',e=>{if(e.target.closest('.pick'))setTimeout(()=>toggleLobbyPicker(false),250)});
 function renderPicker(){
-  const box=$('#picker');
+  ['#picker','#lobbyPicker'].forEach(sel=>{const box=$(sel);if(box)fillPicker(box)});
+  $$('.pick').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.av===prefs.av)));
+  const mi=$('#meAvImg');if(mi){mi.src=body(prefs.av);mi.alt=FIGHTER_INFO[prefs.av]?FIGHTER_INFO[prefs.av].name:''}
+}
+function fillPicker(box){
   if(!box.children.length)FIGHTERS.forEach(av=>{
     const b=document.createElement('button');b.type='button';b.className='pick';b.dataset.av=av;
     b.innerHTML=`<img src="${body(av)}" alt="" width="120" height="120"><span>${FIGHTER_INFO[av].name}</span>`;
     b.setAttribute('aria-label',`${FIGHTER_INFO[av].name}, ${FIGHTER_INFO[av].tag}`);
-    b.addEventListener('click',()=>{prefs.av=av;savePrefs();renderPicker();wakeAudio();sfx('tap');if(NET&&inRoom)NET.setProfile({av});if(G&&G.paused&&!G.online&&G.player)G.player.av=av});
+    b.addEventListener('click',()=>{prefs.av=av;savePrefs();renderPicker();wakeAudio();sfx('tap');if(NET&&inRoom){NET.setProfile({av});renderLobby()}if(G&&G.paused&&!G.online&&G.player)G.player.av=av});
     box.appendChild(b);
   });
-  $$('.pick').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.av===prefs.av)));
 }
 
 /* ---------- online ---------- */
@@ -781,6 +803,9 @@ async function enterRoom(code,invite,retry){
     inRoom=true;
     try{history.replaceState(null,'','?room='+code)}catch(e){}
     $('#roomCode').textContent=code;lobbyMsg('');
+    lobbyName.value=prefs.name||'';lobbyName.placeholder=ME.name;
+    const fresh=!prefs.name;toggleLobbyPicker(fresh);
+    $('#meLab').textContent=fresh?'You · pick a name and fighter':'You';
     show('#ovLobby');renderLobby();
   }catch(e){
     if(invite&&!retry){setTimeout(()=>enterRoom(code,true,true),1500);return}   // phones waking up from a link often need a second try

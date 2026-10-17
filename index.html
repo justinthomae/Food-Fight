@@ -137,7 +137,7 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
 .card{width:min(430px,100%);background:var(--panel);border-radius:20px;padding:22px;display:flex;flex-direction:column;gap:14px;box-shadow:0 20px 60px rgba(0,0,0,.35)}
 /* phones: menu screens are one solid sheet edge to edge, not a card floating on a backdrop */
 @media (max-width:600px){
-  .overlay.sheet{background:var(--panel);-webkit-backdrop-filter:none;backdrop-filter:none;place-items:start stretch;padding-left:0;padding-right:0}
+  .overlay.sheet{grid-template-columns:minmax(0,1fr);background:var(--panel);-webkit-backdrop-filter:none;backdrop-filter:none;place-items:start stretch;padding-left:0;padding-right:0}
   .overlay.sheet>.card{width:100%;border-radius:0;box-shadow:none;padding:16px max(20px,env(safe-area-inset-right,0px)) 22px max(20px,env(safe-area-inset-left,0px))}
   .overlay.sheet>.loading{align-self:center;justify-self:center}
   html.sheet-open,html.sheet-open body{background:var(--panel)}
@@ -241,6 +241,15 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
 .pick span{font-size:11px;white-space:nowrap}
 .pick{border:2px solid var(--line);background:var(--well);border-radius:16px;padding:6px 4px 8px;display:flex;flex-direction:column;align-items:center;gap:4px;font-size:12px;font-weight:800}
 .pick img{display:block;width:100%;height:64px;object-fit:contain;filter:drop-shadow(0 3px 4px rgba(0,0,0,.4))}
+.picker.small .pick{padding:4px 2px 6px;border-radius:12px}
+.picker.small .pick img{height:44px}
+.picker.small .pick span{font-size:10px}
+.merow{display:flex;gap:8px;align-items:center}
+.merow input{flex:1;min-width:0;height:48px;border:2px solid var(--line);background:var(--well);color:var(--ink);border-radius:12px;padding:0 12px;font:inherit;font-size:16px;-webkit-user-select:text;user-select:text}
+.merow .btn{height:48px}
+.meav{flex:none;width:48px;height:48px;border-radius:14px;border:2px solid var(--gold);background:var(--well);padding:2px;display:grid;place-items:center}
+.meav img{width:100%;height:100%;object-fit:contain}
+.merow .btn{flex:none}
 .pick[aria-pressed="true"]{border-color:var(--gold);background:var(--panel2)}
 .lineup{display:flex;justify-content:center;align-items:flex-end;gap:0;height:120px;margin:4px 0 -6px}
 .lineup img{height:100%;width:auto;margin:0 -10px;filter:drop-shadow(0 6px 8px rgba(0,0,0,.4))}
@@ -459,6 +468,13 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
     <div class="cardhead"><h2>Room</h2><button class="btn" id="bLeave">Leave</button></div>
     <div class="code" id="roomCode">----</div>
     <button class="btn" id="bInvite">Share invite link</button>
+    <div class="lab" id="meLab">You</div>
+    <div class="merow">
+      <button class="meav" id="meAv" type="button" aria-label="Change fighter" aria-expanded="false"><img id="meAvImg" src="" alt="" width="64" height="64"></button>
+      <input id="lobbyName" size="1" maxlength="14" autocomplete="nickname" spellcheck="false" aria-label="Your name">
+      <button class="btn" id="bMeEdit" type="button" aria-expanded="false">Fighter</button>
+    </div>
+    <div class="picker small" id="lobbyPicker" hidden></div>
     <div class="lab">Cooks <span id="seatCount"></span></div>
     <ul class="seats" id="seats"></ul>
     <div id="hostBox" class="field">
