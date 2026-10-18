@@ -392,10 +392,32 @@ button.nextbox:active{background:var(--gold)}
 .rankline{font-weight:800;color:var(--accent-text);font-size:14px;min-height:1.2em}
 
 /* lobby */
+/* room screen: everything on one screen */
+#ovLobby .card{gap:9px;padding:16px 18px}
+#ovLobby .cardhead h2{font-size:30px}
+#ovLobby .cardhead .btn{height:40px}
+.coderow{display:flex;gap:8px;align-items:stretch}
+.coderow .code{font-size:30px;letter-spacing:.14em;padding:8px 14px 6px;flex:none;min-width:96px;display:grid;place-items:center}
+.coderow .btn{flex:1;height:auto;min-height:48px}
+#ovLobby .vcard{flex-basis:96px;padding:6px 5px 7px}
+#ovLobby .vcard canvas,#ovLobby .vcard img{height:30px}
+#ovLobby .vcard span:not(.new){display:none}
+#ovLobby .merow input,#ovLobby .merow .btn,#ovLobby .meav{height:42px}
+#ovLobby .meav{width:42px}
+#ovLobby .stepper{grid-template-columns:48px 1fr 48px;padding:4px}
+#ovLobby .stepper button{height:40px}
+#ovLobby .stepper small{display:none}
+#ovLobby .stepper b{font-size:24px}
+#ovLobby .botline{display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center}
+#ovLobby .botline .seg button{padding:0 4px}
+#ovLobby #bStart,#ovLobby #gmJoin{min-height:52px}
+.variants.locked .vcard{pointer-events:none}
+.variants.locked .vcard:not([aria-checked="true"]){opacity:.45}
 .code{font-family:var(--display);font-size:48px;letter-spacing:.18em;line-height:1;text-align:center;background:var(--well);border-radius:16px;padding:14px 8px 10px;-webkit-user-select:text;user-select:text}
-.seats{display:flex;flex-direction:column;gap:6px;margin:0;padding:0;list-style:none}
-.seats li{display:flex;align-items:center;gap:10px;background:var(--well);border-radius:12px;padding:10px 12px;font-weight:700}
-.seats li span{margin-left:auto;font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.seats{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:0;padding:0;list-style:none}
+.seats li{display:flex;align-items:center;gap:7px;background:var(--well);border-radius:12px;padding:7px 9px;font-weight:700;font-size:14px;min-width:0;white-space:nowrap;overflow:hidden}
+.seats li .nm{min-width:0;overflow:hidden;text-overflow:ellipsis}
+.seats li span{margin-left:auto;flex:none;font-size:9px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
 .seats li.empty{background:transparent;border:2px dashed var(--line);color:var(--muted);font-weight:600}
 .seats .dot{width:10px;height:10px;border-radius:50%;background:var(--gold);flex:none}
 .seats li.bot .dot{background:var(--muted)}
@@ -672,7 +694,7 @@ button.nextbox:active{background:var(--gold)}
     <div class="lab">With friends</div>
     <button class="btn primary big" id="bCreate">Create a room<small>Get a code to share with up to 7 friends</small></button>
     <div class="lab">Or join with a code</div>
-    <div class="join"><input id="codeIn" maxlength="5" inputmode="numeric" pattern="[0-9]*" autocomplete="off" spellcheck="false" aria-label="Room code" placeholder="12345"><button class="btn" id="bJoin">Join</button></div>
+    <div class="join"><input id="codeIn" maxlength="5" inputmode="numeric" pattern="[0-9]*" autocomplete="off" spellcheck="false" aria-label="Room code" placeholder="123"><button class="btn" id="bJoin">Join</button></div>
     <div class="msg" id="onlineMsg"></div>
     <div class="lab">Or play vs AI <span class="free" id="aiModeTag"></span></div>
     <div class="seg three" id="mode2">
@@ -692,8 +714,7 @@ button.nextbox:active{background:var(--gold)}
 <div class="overlay sheet" id="ovLobby" hidden>
   <div class="card">
     <div class="cardhead"><h2>Room</h2><button class="btn" id="bLeave">Leave</button></div>
-    <div class="code" id="roomCode">----</div>
-    <button class="btn" id="bInvite">Share invite link</button>
+    <div class="coderow"><div class="code" id="roomCode">---</div><button class="btn" id="bInvite">Share invite link</button></div>
     <div class="lab" id="lobbyVarLab">Game mode</div>
     <div class="variants" id="lobbyVariants" role="radiogroup" aria-label="Game mode"></div>
     <div class="varnote" id="lobbyVarNote" hidden></div>
@@ -708,14 +729,14 @@ button.nextbox:active{background:var(--gold)}
     <ul class="seats" id="seats"></ul>
     <div id="hostBox" class="field">
       <div class="lab">Bots</div>
-      <div class="stepper" id="botStep">
+      <div class="botline"><div class="stepper" id="botStep">
         <button type="button" id="botMinus" aria-label="One less bot">−</button>
         <div><b id="botN">3</b><small id="botTotal">4 cooks total</small></div>
         <button type="button" id="botPlus" aria-label="One more bot">+</button>
       </div>
       <div class="seg three" id="botSkill">
         <button data-d="0">Easy</button><button data-d="1" aria-pressed="true">Normal</button><button data-d="2">Hard</button>
-      </div>
+      </div></div>
     </div>
     <button class="btn primary big" id="gmJoin" hidden>Join the grudge match</button>
     <button class="btn primary big" id="bStart">Start match</button>

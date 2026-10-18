@@ -11,7 +11,7 @@ window.FFNet=(function(){
       auth:{persistSession:false},realtime:{params:{eventsPerSecond:30}}
     });
   }
-  function makeCode(){return String(10000+Math.floor(Math.random()*90000))}  // 5 digits, easy to type on a number pad
+  function makeCode(){return String(100+Math.floor(Math.random()*900))}  // 3 digits, quick to read out and type
   function readMembers(){
     if(!ch)return[];
     const st=ch.presenceState(),list=[];

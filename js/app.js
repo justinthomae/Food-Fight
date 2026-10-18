@@ -1,6 +1,6 @@
 // Food Fight UI: drawing, input, settings, practice mode and the online lobby.
 (function(){
-const VERSION='1.12.2';
+const VERSION='1.13.0';
 let spec=null; // board being spectated after you're knocked out
 // how far we are between two 60Hz game steps (0..1): drawing uses it so motion is smooth on 90/120/144Hz screens too
 let ALPHA=0,lastDraw=performance.now(),drawDt=16,SIDEW=0;
@@ -1288,7 +1288,9 @@ const baseHooks={
       $('#eSub').textContent=modeLine||(won?`Last kitchen standing. Nice cooking.`:(w?`${w.name} wins the match.`:'Match over.'));
       if(lastMatch&&lastMatch.mid===G.mid)lastMatch.champ=res.winner?res.winner.id:null;
       setAgain('Grudge Match',`Rematch everyone who taps in${lastMatch&&lastMatch.bots?` · ${lastMatch.bots} bot${lastMatch.bots>1?'s':''}`:''}`,false);
-      $('#bMenu').textContent='Leave room';$('#bLobby').hidden=false;$('#gmPanel').hidden=true;
+      $('#bMenu').textContent='Leave room';$('#bLobby').hidden=false;$('#bLobby').textContent='Back to room';$('#gmPanel').hidden=true;
+      // you're still in the room: show as free so the next match (any mode) includes you without rejoining
+      if(NET&&inRoom)NET.setState('lobby');
     }else{
       $('#eSub').textContent=modeLine?modeLine+` (${D})`:won
         ?(n>2?`Last kitchen standing on ${D}.`:`${G.boards[1].name}'s stack overflowed on ${D}.`)
@@ -1562,6 +1564,8 @@ function scrollRow(box){
   window.addEventListener('pointermove',e=>{if(!dr)return;const dx=e.clientX-dr.x;if(Math.abs(dx)>5)dr.moved=true;if(dr.moved){box.scrollLeft=dr.l-dx;box.classList.add('dragging')}});
   window.addEventListener('pointerup',()=>{if(!dr)return;const m=dr.moved;dr=null;box.classList.remove('dragging');if(m){const stop=ev=>{ev.stopPropagation();ev.preventDefault()};box.addEventListener('click',stop,{capture:true,once:true});setTimeout(()=>box.removeEventListener('click',stop,{capture:true}),50)}});
 }
+// keep the picked mode in the middle of the row so everyone can see it
+function centerMode(box){requestAnimationFrame(()=>{const c=box&&box.querySelector('[aria-checked="true"]');if(!c||!box.clientWidth)return;if(box.dataset.cm===c.dataset.v)return;box.dataset.cm=c.dataset.v;const l=c.offsetLeft-box.offsetLeft-(box.clientWidth-c.offsetWidth)/2;try{box.scrollTo({left:Math.max(0,l),behavior:'smooth'})}catch(e){box.scrollLeft=Math.max(0,l)}})}
 function markVariants(box,v){box.querySelectorAll('.vcard').forEach(b=>b.setAttribute('aria-checked',String(b.dataset.v===v)))}
 function labelSizes(){
   const names=VARIANT_INFO[prefs.variant].sizes;
@@ -1570,7 +1574,7 @@ function labelSizes(){
 buildVariants($('#variants'),prefs.variant,v=>{prefs.variant=v;savePrefs();markVariants($('#variants'),v);labelSizes();if(NET&&inRoom&&isHost())setRoomMode(v)});
 labelSizes();
 let roomMode=prefs.variant;
-function setRoomMode(v){roomMode=v;markVariants($('#lobbyVariants'),v);if(NET&&inRoom)NET.setProfile({mode:v});renderLobby()}
+function setRoomMode(v){roomMode=v;markVariants($('#lobbyVariants'),v);centerMode($('#lobbyVariants'));if(NET&&inRoom)NET.setProfile({mode:v});renderLobby()}
 buildVariants($('#lobbyVariants'),roomMode,v=>{if(isHost())setRoomMode(v)});
 
 /* ---------- online ---------- */
@@ -1613,10 +1617,19 @@ async function enterRoom(code,invite,retry){
     onlineMsg("Couldn't reach the game server. Check your connection and try again.");
   }finally{$('#bCreate').disabled=$('#bJoin').disabled=false}
 }
-$('#bCreate').addEventListener('click',()=>enterRoom(NET.makeCode()));
+// with only 900 codes, check a fresh code is empty before keeping it (someone else may already be in that room)
+async function createRoom(){
+  for(let i=0;i<6;i++){
+    await enterRoom(NET.makeCode());if(!inRoom)return;
+    await new Promise(r=>setTimeout(r,700));
+    if(!lobbyMembers.some(m=>m.id!==ME.id))return;
+    inRoom=false;try{await NET.leave()}catch(e){}
+  }
+}
+$('#bCreate').addEventListener('click',createRoom);
 const codeIn=$('#codeIn');
-codeIn.addEventListener('input',()=>{codeIn.value=codeIn.value.replace(/\D/g,'').slice(0,5);if(codeIn.value.length===5)onlineMsg('')});
-function tryJoin(){const c=codeIn.value;if(!/^\d{5}$/.test(c)){onlineMsg('Room codes are 5 numbers.');return}enterRoom(c)}
+codeIn.addEventListener('input',()=>{codeIn.value=codeIn.value.replace(/\D/g,'').slice(0,5);if(codeIn.value.length>=3)onlineMsg('')});
+function tryJoin(){const c=codeIn.value;if(!/^\d{3,5}$/.test(c)){onlineMsg('Room codes are 3 numbers.');return}enterRoom(c)}
 $('#bJoin').addEventListener('click',tryJoin);
 codeIn.addEventListener('keydown',e=>{if(e.key==='Enter')tryJoin()});
 async function leaveRoom(){
@@ -1703,7 +1716,7 @@ function renderLobby(){
   seated.forEach((m,i)=>{
     const li=document.createElement('li');
     const tag=m.state==='playing'?'In a match':i===0?'Host':m.id===ME.id?'You':'';
-    li.innerHTML=`${avImg(m.id===ME.id?prefs.av:m.av)}${esc(m.name)}${m.id===ME.id&&i===0?' (you)':''}<span>${tag}</span>`;
+    li.innerHTML=`${avImg(m.id===ME.id?prefs.av:m.av)}<b class="nm">${esc(m.name)}${m.id===ME.id&&i===0?' (you)':''}</b><span>${tag}</span>`;
     ul.appendChild(li);
   });
   const hostView=isHost(),target=Math.min(MAX_PLAYERS,Math.max(2,seated.length+Math.min(botCount,MAX_PLAYERS-seated.length)+1));
@@ -1711,13 +1724,17 @@ function renderLobby(){
   const bots=hostView&&nb?pickBots(nb,null,[]):[];
   $('#botN').textContent=nb;$('#botTotal').textContent=`${nb===1?'bot':'bots'} · ${seated.length+nb} cooks total`;
   $('#botMinus').disabled=nb<=0;$('#botPlus').disabled=seated.length+nb>=MAX_PLAYERS;
-  bots.forEach(bt=>{const li=document.createElement('li');li.className='bot';li.innerHTML=`${avImg(bt.av)}${bt.name}<span>Bot</span>`;ul.appendChild(li)});
+  bots.forEach(bt=>{const li=document.createElement('li');li.className='bot';li.innerHTML=`${avImg(bt.av)}<b class="nm">${bt.name}</b><span>Bot</span>`;ul.appendChild(li)});
   for(let i=seated.length+bots.length;i<target;i++){const li=document.createElement('li');li.className='empty';li.textContent='Open seat';ul.appendChild(li)}
   $('#seatCount').textContent=`· ${seated.length} of ${MAX_PLAYERS}`;
   $('#hostBox').hidden=!hostView;$('#bStart').hidden=!hostView;
   const hostMode=host&&VARIANT_INFO[host.id===ME.id?roomMode:host.mode]?(host.id===ME.id?roomMode:host.mode):'classic';
-  $('#lobbyVariants').hidden=!hostView;$('#lobbyVarLab').textContent=hostView?'Game mode':'Next game';
-  const vn=$('#lobbyVarNote');vn.hidden=hostView;vn.innerHTML=`<b>${VARIANT_INFO[hostMode].name}</b> · ${VARIANT_INFO[hostMode].tag}. ${esc(host?host.name:'The host')} picks the mode.`;
+  {const lv=$('#lobbyVariants');lv.hidden=false;lv.classList.toggle('locked',!hostView);
+   // guests can't pick, but they see the host's mode; a hidden mode shows up for them as the only card
+   if(!hostView&&!lv.querySelector(`[data-v="${hostMode}"]`)){{const pk=pickers.find(p=>p.box===lv);buildVariants(lv,hostMode,pk?pk.onPick:()=>{})}if(!lv.querySelector(`[data-v="${hostMode}"]`)){const b=document.createElement('button');b.type='button';b.className='vcard';b.dataset.v=hostMode;b.appendChild(variantIcon(hostMode));b.insertAdjacentHTML('beforeend',`<b>${VARIANT_INFO[hostMode].name}</b>`);lv.appendChild(b)}}
+   markVariants(lv,hostView?roomMode:hostMode);centerMode(lv)}
+  $('#lobbyVarLab').textContent=hostView?'Game mode':'Next game';
+  const vn=$('#lobbyVarNote');vn.hidden=true;vn.innerHTML=`<b>${VARIANT_INFO[hostMode].name}</b> · ${VARIANT_INFO[hostMode].tag}. ${esc(host?host.name:'The host')} picks the mode.`;
   if(me>=MAX_PLAYERS)lobbyMsg('This room is full. You can wait here for an open seat.');
   else if(playing.length)lobbyMsg(playing.some(m=>m.id===ME.id)?'':'A match is in progress. You will be in the next one.');
   else if(!hostView&&host)lobbyMsg(`Waiting for ${host.name} to start.`);
@@ -1860,7 +1877,7 @@ if(NET){
 function afterLoad(){
   const q=NET?new URLSearchParams(location.search).get('room'):null;
   // invite link: skip the menu and go straight into the room (older 4-letter links still work)
-  if(q&&(/^\d{5}$/.test(q)||/^[A-Za-z]{4}$/.test(q))){
+  if(q&&(/^\d{3,5}$/.test(q)||/^[A-Za-z]{4}$/.test(q))){
     const code=/^\d+$/.test(q)?q:q.toUpperCase();
     backTo='#ovStart';codeIn.value=code;show('#ovOnline');enterRoom(code,true);
   }

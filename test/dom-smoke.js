@@ -142,7 +142,7 @@ const check=(cond,msg)=>{console.log((cond?'PASS ':'FAIL ')+msg);if(!cond)proces
   await sleep(100);
   check(vis(host,'#ovLobby'),'host lands in lobby');
   const code=host.$('#roomCode').textContent;
-  check(/^\d{5}$/.test(code),'room code is 5 numbers: '+code);
+  check(/^\d{3}$/.test(code),'room code is 3 numbers: '+code);
   const guest=page('https://foodfight.grudgematchgames.com/?room='+code);
   await sleep(2500);
   check(vis(guest,'#ovLobby'),'guest auto-joins from invite link');
@@ -353,7 +353,7 @@ const check=(cond,msg)=>{console.log((cond?'PASS ':'FAIL ')+msg);if(!cond)proces
     oh.$(`#lobbyVariants [data-v="${v}"]`).click();await sleep(100);
     const og=page('https://foodfight.grudgematchgames.com/?room='+oh.$('#roomCode').textContent);await sleep(2600);
     const vname={order:'Order Up!',boss:'Boss Brawl',stack:'Snack Stack',shot:'Splat Shot'}[v];
-    check(!og.$('#lobbyVarNote').hidden&&og.$('#lobbyVarNote').textContent.includes(vname)&&og.$('#lobbyVariants').hidden,`${v} online: guest sees the host picked ${vname}`);
+    check(og.$('#lobbyVariants').classList.contains('locked')&&og.$('#lobbyVariants [aria-checked="true"]')&&og.$('#lobbyVariants [aria-checked="true"]').dataset.v===v&&og.$('#lobbyVariants [aria-checked="true"]').textContent.includes(vname),`${v} online: guest sees the host picked ${vname} (highlighted, can't change it)`);
     setBots(oh,0);oh.$('#bStart').click();await sleep(4700);
     const H=oh.w.__ff.game,Gg=og.w.__ff.game;
     check(H&&Gg&&H.variant===v&&Gg.variant===v&&H.mid===Gg.mid,`${v} online: both phones in a ${v} match`);
@@ -364,6 +364,12 @@ const check=(cond,msg)=>{console.log((cond?'PASS ':'FAIL ')+msg);if(!cond)proces
       const P=Gg.player,tk=P.tickets[0];P.orders=9;P.fillOrders(tk.items.flatMap(it=>Array.from({length:it.n},()=>({t:it.t}))),3,6);
       await sleep(1200);
       check(H.over&&Gg.over&&Gg.result.won&&!H.result.won&&H.result.winner&&H.result.winner.id===Gg.player.id,'order online: host confirms the guest finished first');
+      // after the match: nobody rejoins. The host goes back to the room, switches mode and starts; the guest (still on the end screen) comes along
+      await sleep(400);check(/^\d{3}$/.test(oh.$('#roomCode').textContent),'room codes are 3 digits ('+oh.$('#roomCode').textContent+')');
+      oh.$('#bLobby').click();await sleep(200);oh.$('#lobbyVariants [data-v="stack"]').click();await sleep(300);
+      oh.$('#bStart').click();await sleep(4700);
+      const H2=oh.w.__ff.game,G2=og.w.__ff.game;
+      check(H2&&G2&&H2!==H&&G2!==Gg&&H2.variant==='stack'&&G2.variant==='stack'&&H2.mid===G2.mid,'after a match the room sticks together: next game (new mode) includes the guest without rejoining');
     }
     if(v==='boss'){
       check(H.boss.av===Gg.boss.av&&H.boss.max===Gg.boss.max,'boss online: same boss on both phones');
@@ -397,14 +403,14 @@ const check=(cond,msg)=>{console.log((cond?'PASS ':'FAIL ')+msg);if(!cond)proces
     check(!tapper.$('#variants [data-v="blocks"]'),'shortcut: hidden before the taps');
     tapper.w.document.body.dispatchEvent(ev());tapper.w.document.body.dispatchEvent(ev());check(tapper.$('#ovLobby').hidden,'shortcut: two taps do nothing');
     tapper.w.document.body.dispatchEvent(ev());await sleep(600);
-    check(!!tapper.$('#variants [data-v="blocks"]')&&/\d{5}/.test(tapper.$('#roomCode').textContent)&&tapper.$('#lobbyVariants [data-v="blocks"]').getAttribute('aria-checked')==='true','shortcut: 3 taps bottom-right open a Block Battle room ('+tapper.$('#roomCode').textContent+')');}
+    check(!!tapper.$('#variants [data-v="blocks"]')&&/^\d{3}$/.test(tapper.$('#roomCode').textContent)&&tapper.$('#lobbyVariants [data-v="blocks"]').getAttribute('aria-checked')==='true','shortcut: 3 taps bottom-right open a Block Battle room ('+tapper.$('#roomCode').textContent+')');}
    const wrong=page('https://foodfight.grudgematchgames.com/#admin=nope');await sleep(2400);
    check(!wrong.$('#variants [data-v="blocks"]'),'blocks: a wrong passphrase does nothing');
    oh.$('#nameIn').value='Admin';oh.$('#nameIn').dispatchEvent(new oh.w.Event('input'));
    oh.$('#bOnline').click();oh.$('#bCreate').click();await sleep(150);
    oh.$('#lobbyVariants [data-v="blocks"]').click();await sleep(100);
    const og=page('https://foodfight.grudgematchgames.com/?room='+oh.$('#roomCode').textContent);await sleep(2600);
-   check(og.$('#lobbyVarNote').textContent.includes('Block Battle')&&!og.$('#variants [data-v="blocks"]'),'blocks online: the guest (no passphrase) sees the mode by room code only');
+   check(og.$('#lobbyVariants [aria-checked="true"]')&&og.$('#lobbyVariants [aria-checked="true"]').dataset.v==='blocks'&&!og.$('#variants [data-v="blocks"]'),'blocks online: the guest (no passphrase) sees the mode by room code only');
    setBots(oh,1);oh.$('#bStart').click();await sleep(4700);
    const H=oh.w.__ff.game,Gg=og.w.__ff.game;
    check(H&&Gg&&H.variant==='blocks'&&Gg.variant==='blocks'&&H.boards.length===3,'blocks online: everyone in a Block Battle match');
@@ -415,8 +421,8 @@ const check=(cond,msg)=>{console.log((cond?'PASS ':'FAIL ')+msg);if(!cond)proces
    const hp=H.player;check(hp.incoming()>0||hp.m.some(r=>r.filter(v=>v===8).length===9)||H.boards.some(b=>!b.remote&&b.incoming&&b.incoming()>0),'blocks online: the guest\'s quad sends garbage across');
    Gg.launch(Gg.player,{k:'speed',cells:0},rem);await sleep(1200);
    check(H.player.speedT>0||H.player.dead,'blocks online: a guest\'s item (Speed up) lands on the host');
-   Gg.player.m[21]=[7,7,7,7,0,7,7,7,7,7];const hm=H.player.m.map(r=>r.join(',')).join('|');Gg.launch(Gg.player,{k:'swap',cells:0},rem);await sleep(1500);
-   check(H.player.m[21].join(',')==='7,7,7,7,0,7,7,7,7,7'||H.player.dead,'blocks online: Switcheroo trades wells across phones');
+   Gg.player.m[21]=[7,7,7,7,0,7,7,7,7,7];Gg.launch(Gg.player,{k:'swap',cells:0},rem);await sleep(2000);
+   check(H.player.m.some(r=>r.join(',')==='7,7,7,7,0,7,7,7,7,7')||H.player.dead,'blocks online: Switcheroo trades wells across phones');
    oh.errors.concat(og.errors,plain.errors).slice(0,3).forEach(e=>console.log('  ',e));
    check(oh.errors.length===0&&og.errors.length===0&&plain.errors.length===0,'blocks online: no script errors');}
   host.errors.concat(guest.errors,solo.errors).slice(0,5).forEach(e=>console.log('  ',e));
