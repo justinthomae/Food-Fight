@@ -136,6 +136,7 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
 .fly.sauce{border-radius:6px 6px 9px 9px;width:14px;height:24px;margin:-12px 0 0 -7px;background:#E5682A}
 .fly.cream{background:#FFF6E8;width:26px;height:26px;margin:-13px 0 0 -13px}
 .fly.freeze{background:#9BE3FF;border-radius:5px}
+.fly.swap{background:#56B4E9;border-radius:6px;width:30px;height:22px;margin:-11px 0 0 -15px;box-shadow:0 0 0 2px #08131C,0 0 14px rgba(86,180,233,.8)}
 .fly.blender{background:#E7A6D1;border-radius:4px 4px 8px 8px}
 
 /* overlays */
@@ -188,6 +189,9 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
 .nextbox{display:flex;align-items:center;gap:6px;background:var(--panel);border-radius:14px;height:52px;padding:0 10px}
 .nextbox span{font-size:9px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
 .nextbox canvas{display:block}
+button.nextbox{border:0;color:var(--ink);font:inherit;touch-action:none}
+button.nextbox:active{background:var(--gold)}
+.nextbox.now{border:2px solid var(--gold)}
 .spin{border:0;border-radius:14px;background:var(--panel2);height:52px;padding:0 18px;font-weight:800;font-size:15px;touch-action:none;color:var(--ink)}
 .spin:active{background:var(--gold);color:var(--gold-ink)}
 /* phones: menu screens are one solid sheet edge to edge, not a card floating on a backdrop */
@@ -467,7 +471,7 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
     <ul class="rules modes">
       <li><b>🧾</b><span><strong>Order Up!</strong> Same board, new goal. Tickets on the rail ask for foods ("4 tomatoes + 5 cheese"). Matches fill the oldest ticket first, and the first kitchen to fill 10 orders wins. Rush tickets 🔥 go cold if you're slow but pay a tip and a hot sauce. Topping out doesn't knock you out here: you spill, lose an order and freeze for a moment.</span></li>
       <li><b>🍩</b><span><strong>Snack Stack</strong> Pairs of food fall from the top. Drag sideways to slide, tap the board (or Spin) to turn, flick down or tap Drop to slam it. 4 or more of one food touching in any shape pops. When a pop makes the stack fall into another pop, that's a chain, and chains send big junk. Your pops cancel junk that's coming at you. Don't fill the ✕ column.</span></li>
-      <li><b>🎯</b><span><strong>Splat Shot</strong> Food hangs from the ceiling. Drag to aim (the dotted line shows where it'll stick, bounces included), let go to throw. Hit 3 or more of one food to pop them, and anything left hanging drops too. Drops hit hardest. Junk you receive arrives as crust rows that push the ceiling down. Tap Swap or the next food to trade throws. Past the dashed line, you're out.</span></li>
+      <li><b>🎯</b><span><strong>Splat Shot</strong> Food hangs from the ceiling. Slide your finger left or right anywhere on the board to turn your aim (a small slide is a small turn), then let go to throw. The dotted line, in the colour of your food, shows exactly where it'll stick, bounces included. Drag down before letting go to cancel. The food you're throwing and the next one sit in the bar under the board; tap Next or Swap to trade them. Hit 3 or more of one food to pop them, and anything left hanging drops too. Drops hit hardest. Junk you receive arrives as crust rows that push the ceiling down. Past the dashed line, you're out.</span></li>
       <li><b>👑</b><span><strong>Boss Brawl</strong> Co-op. Everyone plays their own board, and every throw hits the giant boss. The boss announces its next attack 5 seconds ahead, then fires at one of you. Hold a rack item for half a second to pass it to the teammate in the most trouble. Beat the boss before it cleans out the whole kitchen.</span></li>
     </ul>
     <div class="lab">How to earn attacks</div>
@@ -490,6 +494,7 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
       <div><span data-icon="freeze"></span><span><b>Brain freeze</b> · They can't move tiles for 2½ seconds.</span></div>
       <div><span data-icon="blender"></span><span><b>Blender</b> · Scrambles the top 3 rows of their stack.</span></div>
       <div><span data-icon="pin"></span><span><b>Rolling pin</b> · Use it on yourself: flattens your top 3 rows. Great when you're near the top.</span></div>
+      <div><span data-icon="swap"></span><span><b>Switcheroo</b> · Swaps your whole board with the cook you're aiming at. Your score, rack and orders stay yours, but their stack becomes your problem. Save it for when your stack is about to top out and theirs is low.</span></div>
       <div><span data-icon="plate"></span><span><b>Clean plate</b> · Use it on yourself: tap it, then tap any food on your board. Every tile of that food clears at once. Tap it again to cancel.</span></div>
     </div>
     <p>After 50 seconds, overtime makes every throw hit harder. Knocking a cook out powers up your throws by 25%.</p>

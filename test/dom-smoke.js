@@ -267,6 +267,22 @@ const check=(cond,msg)=>{console.log((cond?'PASS ':'FAIL ')+msg);if(!cond)proces
   check(vis(g2,'#ovVs')&&/Champ/.test(g2.$('#vsStage').textContent),'VS screen shows the Champ tag');
   h2.errors.concat(g2.errors).slice(0,3).forEach(e=>console.log('  ',e));
   check(h2.errors.length===0&&g2.errors.length===0,'no script errors in the grudge match');
+  // ---- Switcheroo across two phones ----
+  {
+    const sh=page('https://foodfight.grudgematchgames.com/');await sleep(2400);
+    sh.$('#bOnline').click();sh.$('#bCreate').click();await sleep(150);
+    sh.$('#lobbyVariants [data-v="classic"]').click();
+    const sg=page('https://foodfight.grudgematchgames.com/?room='+sh.$('#roomCode').textContent);await sleep(2600);
+    sh.$('#fill [data-f="0"]').click();sh.$('#bStart').click();await sleep(4700);
+    const H=sh.w.__ff.game,Gg=sg.w.__ff.game;
+    for(let r=0;r<5;r++)for(let c=0;c<6;c++)Gg.player.g[r][c]=sg.w.eval(`({t:${(r*2+c)%5},id:${9000+r*6+c},st:'idle',tm:0,clr:0,conv:false,chain:false,yo:0,xo:0,gid:0})`);
+    const before=Gg.player.g.flat().filter(Boolean).length,hb=H.player.g.flat().filter(Boolean).length;
+    H.player.earn({k:'swap'},3,5);H.player.fire(H.player.rack.findIndex(x=>x.k==='swap'));
+    await sleep(1600);
+    const ha=H.player.g.flat().filter(Boolean).length,ga=Gg.player.g.flat().filter(Boolean).length;
+    check(Math.abs(ha-before)<=8&&Math.abs(ga-hb)<=8,`switcheroo online: boards traded (host ${hb}→${ha} tiles, guest ${before}→${ga})`);
+    check(sh.errors.length===0&&sg.errors.length===0,'switcheroo online: no script errors');
+  }
   // ================= game modes =================
   // practice: every mode starts, runs and ends cleanly on a phone
   for(const v of ['order','stack','shot','boss']){
@@ -322,7 +338,7 @@ const check=(cond,msg)=>{console.log((cond?'PASS ':'FAIL ')+msg);if(!cond)proces
     check(H&&Gg&&H.variant===v&&Gg.variant===v&&H.mid===Gg.mid,`${v} online: both phones in a ${v} match`);
     await sleep(500);
     const rem=Gg.byId(H.player.id);
-    check(rem&&rem.remote&&rem.lastSnap>0&&(v==='shot'?rem.hex&&rem.hex.length===128:rem.g.flat().some(Boolean)),`${v} online: guest sees the host's board`);
+    check(rem&&rem.remote&&rem.lastSnap>0&&(v==='shot'?rem.hex&&rem.hex.length===98:rem.g.flat().some(Boolean)),`${v} online: guest sees the host's board`);
     if(v==='order'){
       const P=Gg.player,tk=P.tickets[0];P.orders=9;P.fillOrders(tk.items.flatMap(it=>Array.from({length:it.n},()=>({t:it.t}))),3,6);
       await sleep(1200);

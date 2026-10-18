@@ -6,7 +6,7 @@
 const E=typeof module!=='undefined'?require('./engine.js'):window.FFEngine;
 const {COLS,ROWS,NT,INC_T,DIFFS,mulberry32}=E;
 const rnd=n=>Math.floor(Math.random()*n);
-const HC=8,D=COLS/HC,R=D/2,RH=D*Math.sqrt(3)/2,NR=16,DEAD_ROW=14;
+const HC=7,D=COLS/HC,R=D/2,RH=D*Math.sqrt(3)/2,NR=14,DEAD_ROW=12;
 const SX=COLS/2,SY=ROWS-.75,SPEED=.3;
 const MIN_A=-Math.PI+.16,MAX_A=-.16;
 
@@ -17,7 +17,7 @@ class ShotBoard{
       lastAttacker:null,killedBy:null,place:0,hitFlash:0,diedAt:0,rack:[],rushT:0,creamT:0,frozenT:0,blendT:0,dmg:0,
       par:0,aimA:-Math.PI/2,ball:null,falling:[],popping:[],cool:30,think:60,plan:null,shots:0,ceilT:0,shot:true,preview:null});
     this.h=[];for(let r=0;r<NR;r++)this.h.push(new Array(HC).fill(null));
-    for(let r=0;r<6;r++)this.fillRow(r,false);
+    for(let r=0;r<5;r++)this.fillRow(r,false);
     this.cur=this.pick();this.next=this.pick();
     this.ceilT=this.ceilEvery();
     this.g=[];for(let r=0;r<ROWS;r++)this.g.push(new Array(COLS).fill(null));   // stand-in grid for code that expects one

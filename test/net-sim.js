@@ -10,7 +10,7 @@ function match(nHumans,nBots,seed){
     const hooks={send:m=>queue.push({at:tick+2+Math.floor(Math.random()*6),from:id,m:JSON.parse(JSON.stringify(m))})};
     clients[id]=new E.Game('online',1,hooks,true,{roster,myId:id,seed});
   });
-  const deliver=(c,m)=>{stats[m.t]=(stats[m.t]||0)+1;if(m.t==='snaps')c.netSnaps(m.list);else if(m.t==='atk')c.netAttack(m);else if(m.t==='ko')c.netKO(m.id,m.by);else if(m.t==='steal')c.netSteal(m);else if(m.t==='give')c.netGive(m)};
+  const deliver=(c,m)=>{stats[m.t]=(stats[m.t]||0)+1;if(m.t==='snaps')c.netSnaps(m.list);else if(m.t==='atk')c.netAttack(m);else if(m.t==='ko')c.netKO(m.id,m.by);else if(m.t==='steal')c.netSteal(m);else if(m.t==='give')c.netGive(m);else if(m.t==='swapg')c.netSwapGrid(m)};
   while(tick<60*900&&!Object.values(clients).every(c=>c.over)){
     tick++;
     for(let i=queue.length-1;i>=0;i--){const q=queue[i];if(q.at<=tick){queue.splice(i,1);for(const id in clients)if(id!==q.from)deliver(clients[id],q.m)}}

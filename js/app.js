@@ -1,6 +1,6 @@
 // Food Fight UI: drawing, input, settings, practice mode and the online lobby.
 (function(){
-const VERSION='1.0.1';
+const VERSION='1.1.0';
 let spec=null; // board being spectated after you're knocked out
 const $=s=>document.querySelector(s);
 const $$=s=>[...document.querySelectorAll(s)];
@@ -183,12 +183,13 @@ function tileSprite(t,s,pal){
   }
   return sp;
 }
-const SPECIAL_COL={cream:'#FFF6E8',freeze:'#9BE3FF',blender:'#E7A6D1',pin:'#E0A86E',plate:'#FFFFFF'};
+const SPECIAL_COL={cream:'#FFF6E8',freeze:'#9BE3FF',blender:'#E7A6D1',pin:'#E0A86E',plate:'#FFFFFF',swap:'#56B4E9'};
 function drawBadgeIcon(c,k,cx,cy,r){
   c.save();c.lineCap='round';c.lineJoin='round';
   if(k==='cream'){c.fillStyle='#FFF6E8';[[0,.45,.62],[0,.05,.48],[0,-.32,.32]].forEach(([dx,dy,rr2])=>{c.beginPath();c.ellipse(cx+dx*r,cy+dy*r,rr2*r*1.25,rr2*r*.75,0,0,Math.PI*2);c.fill()});c.beginPath();c.moveTo(cx,cy-.55*r);c.lineTo(cx+.12*r,cy-.8*r);c.lineWidth=r*.18;c.strokeStyle='#FFF6E8';c.stroke()}
   else if(k==='freeze'){c.strokeStyle='#9BE3FF';c.lineWidth=r*.16;for(let i=0;i<3;i++){const a=i*Math.PI/3;c.beginPath();c.moveTo(cx-Math.cos(a)*r*.75,cy-Math.sin(a)*r*.75);c.lineTo(cx+Math.cos(a)*r*.75,cy+Math.sin(a)*r*.75);c.stroke()}}
   else if(k==='blender'){c.fillStyle='#E7A6D1';c.beginPath();c.moveTo(cx-r*.5,cy-r*.65);c.lineTo(cx+r*.5,cy-r*.65);c.lineTo(cx+r*.35,cy+r*.25);c.lineTo(cx-r*.35,cy+r*.25);c.closePath();c.fill();c.fillStyle='#FFFFFF';c.fillRect(cx-r*.45,cy+r*.32,r*.9,r*.38)}
+  else if(k==='swap'){c.strokeStyle='#56B4E9';c.fillStyle='#56B4E9';c.lineWidth=r*.2;c.beginPath();c.arc(cx,cy,r*.55,Math.PI*1.1,Math.PI*1.9);c.stroke();c.beginPath();c.arc(cx,cy,r*.55,Math.PI*.1,Math.PI*.9);c.stroke();[[cx+r*.55*Math.cos(Math.PI*1.9),cy+r*.55*Math.sin(Math.PI*1.9),1],[cx+r*.55*Math.cos(Math.PI*.9),cy+r*.55*Math.sin(Math.PI*.9),-1]].forEach(([x,y,d])=>{c.beginPath();c.moveTo(x+r*.28*d,y);c.lineTo(x-r*.05*d,y-r*.3*d);c.lineTo(x-r*.12*d,y+r*.12*d);c.closePath();c.fill()})}
   else if(k==='plate'){c.fillStyle='#FFFFFF';c.beginPath();c.arc(cx,cy,r*.78,0,Math.PI*2);c.fill();c.strokeStyle='#B9C2D8';c.lineWidth=r*.12;c.beginPath();c.arc(cx,cy,r*.48,0,Math.PI*2);c.stroke();c.fillStyle='#F7C548';c.beginPath();c.moveTo(cx+r*.55,cy-r*.95);c.lineTo(cx+r*.66,cy-r*.66);c.lineTo(cx+r*.95,cy-r*.55);c.lineTo(cx+r*.66,cy-r*.44);c.lineTo(cx+r*.55,cy-r*.15);c.lineTo(cx+r*.44,cy-r*.44);c.lineTo(cx+r*.15,cy-r*.55);c.lineTo(cx+r*.44,cy-r*.66);c.closePath();c.fill()}
   else{c.fillStyle='#E0A86E';rr(c,cx-r*.55,cy-r*.22,r*1.1,r*.44,r*.2);c.fill();c.fillStyle='#B48A63';c.fillRect(cx-r*.85,cy-r*.1,r*.3,r*.2);c.fillRect(cx+r*.55,cy-r*.1,r*.3,r*.2)}
   c.restore();
@@ -384,8 +385,9 @@ ICONS.freeze='<svg viewBox="0 0 24 24" stroke="#56B4E9" stroke-width="2.2" strok
 ICONS.blender='<svg viewBox="0 0 24 24"><path d="M6 3h12l-2 12H8z" fill="#E7A6D1" stroke="#2A1A12" stroke-width="1.3" stroke-linejoin="round"/><path d="M9 9l6-2" stroke="#2A1A12" stroke-width="1.3" stroke-linecap="round"/><rect x="6" y="15" width="12" height="6" rx="2" fill="#7B6B8F" stroke="#2A1A12" stroke-width="1.3"/></svg>';
 ICONS.pin='<svg viewBox="0 0 24 24"><rect x="6" y="8" width="12" height="8" rx="3" fill="#E0A86E" stroke="#2A1A12" stroke-width="1.3"/><rect x="1.5" y="10.5" width="4.5" height="3" rx="1.5" fill="#B48A63" stroke="#2A1A12" stroke-width="1.1"/><rect x="18" y="10.5" width="4.5" height="3" rx="1.5" fill="#B48A63" stroke="#2A1A12" stroke-width="1.1"/></svg>';
 ICONS.plate='<svg viewBox="0 0 24 24"><circle cx="12" cy="13" r="9" fill="#FFFFFF" stroke="#2A1A12" stroke-width="1.3"/><circle cx="12" cy="13" r="5.5" fill="none" stroke="#B9C2D8" stroke-width="1.4"/><path d="M19 1.5l.9 2.6 2.6.9-2.6.9-.9 2.6-.9-2.6-2.6-.9 2.6-.9z" fill="#F7C548" stroke="#2A1A12" stroke-width=".8" stroke-linejoin="round"/></svg>';
-const LABEL={pie:'Pie',tower:'Tower',sauce:'Sauce',cream:'Cream',freeze:'Freeze',blender:'Blender',pin:'Pin',plate:'Plate'};
-const VALUE={sauce:'3s',cream:'5s',freeze:'2.5s',blender:'Mix',pin:'Self',plate:'Pick'};
+ICONS.swap='<svg viewBox="0 0 24 24" fill="none" stroke="#56B4E9" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="7" height="12" rx="2" fill="#262B4A"/><rect x="15" y="6" width="7" height="12" rx="2" fill="#262B4A"/><path d="M9.5 9h5l-2-2M14.5 15h-5l2 2"/></svg>';
+const LABEL={pie:'Pie',tower:'Tower',sauce:'Sauce',cream:'Cream',freeze:'Freeze',blender:'Blender',pin:'Pin',plate:'Plate',swap:'Swap'};
+const VALUE={sauce:'3s',cream:'5s',freeze:'2.5s',blender:'Mix',pin:'Self',plate:'Pick',swap:'Board'};
 let rackIds='';
 function renderRack(){
   const box=$('#slots'),B=G&&G.player;
@@ -584,6 +586,7 @@ const MODE_UI={};
 function setControls(){
   const mu=MODE_UI[G&&G.variant];
   $('#slots').hidden=!!(mu&&mu.ctl);$('#modeCtl').hidden=!(mu&&mu.ctl);
+  $('#tray').hidden=!!(mu&&mu.noTray);requestAnimationFrame(resize);
   rb.innerHTML=mu&&mu.raiseLabel?mu.raiseLabel:'<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 4l8 10h-5v6H9v-6H4z"/></svg>Raise';
   if(mu&&mu.ctl){$('#modeCtl').innerHTML=mu.ctl();if(mu.bind)mu.bind()}
 }
@@ -677,62 +680,93 @@ let shotDrag=null;
 const shooterImg={};
 function fighterImg(av){if(!shooterImg[av]){const im=new Image();im.src=body(av);shooterImg[av]=im}return shooterImg[av]}
 MODE_UI.shot={
+  noTray:true,
   raiseLabel:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7h11l-3-3M17 17H6l3 3"/></svg>Swap',
-  ctl(){return '<div class="nextbox" style="padding:0 14px"><span style="letter-spacing:.04em;text-transform:none;font-size:12px;color:var(--ink)">Drag to aim · let go to throw</span></div>'},
+  // what you're throwing and what's next live down here, clear of your thumb and your fighter
+  ctl(){return '<div class="nextbox now"><span>Throwing</span><canvas id="nowCv"></canvas></div><button class="nextbox" id="bNextShot" type="button"><span>Next</span><canvas id="nxCv"></canvas></button>'},
+  bind(){
+    const mk=(id,s)=>{const c=$(id);c.width=s*DPR;c.height=s*DPR;c.style.width=c.style.height=s+'px'};
+    mk('#nowCv',40);mk('#nxCv',30);this.key_='';
+    $('#bNextShot').addEventListener('pointerdown',e=>{e.preventDefault();if(canPlay())G.player.swap()});
+  },
+  drawCtl(B){
+    const key=B.cur+'|'+B.next+'|'+prefs.palette+prefs.art;if(key===this.key_)return;this.key_=key;
+    const a=$('#nowCv'),b=$('#nxCv');if(!a||!b)return;
+    const x=a.getContext('2d');x.clearRect(0,0,a.width,a.height);drawTile(x,{t:B.cur,clr:0},0,0,a.width,1,0);
+    const y=b.getContext('2d');y.clearRect(0,0,b.width,b.height);drawTile(y,{t:B.next,clr:0},0,0,b.width,1,0);
+  },
   render(){
     const Q=SHOTGEO();if(!Q)return;
     const B=spec||G.player,W=S*COLS,H=S*ROWS,f=G.frame,mine=B===G.player,u=S,sz=Q.D*u;
     checker(0);
     const sh=B.shake?Math.sin(B.shake*2)*S*.05:0;
-    // ceiling lip, red when junk is on the way
-    ctx.fillStyle=B.inc&&B.inc.length?'#E5682A':'#7B6B8F';ctx.fillRect(0,0,W,Math.max(3,S*.08));
+    // ceiling: turns orange and says how much junk is on its way (there's no tray in this mode)
+    const incoming=(B.inc||[]).reduce((a,i)=>a+i.cells,0);
+    ctx.fillStyle=incoming?'#E5682A':'#7B6B8F';ctx.fillRect(0,0,W,Math.max(4,S*.1));
     // danger line
-    const dy=(Q.R+Q.DEAD_ROW*Q.RH-Q.R)*u;
+    const dy=(Q.DEAD_ROW*Q.RH)*u;
     ctx.save();ctx.setLineDash([S*.15,S*.15]);ctx.strokeStyle='rgba(247,197,72,.55)';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(0,dy);ctx.lineTo(W,dy);ctx.stroke();ctx.restore();
     hexCells(B).forEach(b=>drawTile(ctx,{t:b.t,clr:0},(b.x-Q.R)*u+sz*.02,(b.y-Q.R)*u+sh+sz*.02,sz*.96,B.dead?.45:1,f));
     (B.popping||[]).forEach(p=>{const k=p.life/14;drawTile(ctx,{t:p.t,clr:0},(p.x-Q.R*k)*u,(p.y-Q.R*k)*u,sz*k,k,f)});
     (B.falling||[]).forEach(p=>drawTile(ctx,{t:p.t,clr:0},(p.x-Q.R)*u,(p.y-Q.R)*u,sz*.96,.8,f));
-    // aim guide: where this throw will stick
-    const a=B.aimA!=null?B.aimA:-Math.PI/2;
+    if(incoming&&mine){
+      const soon=B.inc.some(i=>i.t<70),txt=`+${incoming} junk incoming`;
+      ctx.font=`800 ${Math.round(S*.32)}px Figtree,sans-serif`;const tw=ctx.measureText(txt).width+S*.6;
+      ctx.fillStyle=soon?'rgba(229,104,42,.97)':'rgba(11,13,27,.88)';rr(ctx,W/2-tw/2,dy-S*.62,tw,S*.48,S*.24);ctx.fill();
+      ctx.fillStyle='#FFF6E8';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(txt,W/2,dy-S*.38);
+    }
+    const a=B.aimA!=null?B.aimA:-Math.PI/2,col=B.cur!=null&&B.cur>=0?PAL.c[B.cur]:'#F7C548';
     if(mine&&!B.dead&&B.trace&&!B.ball){
-      const pts=[[Q.SX,Q.SY]];const L=B.trace(a,(k,x,y)=>pts.push([x,y]));
+      // aim guide in the colour of the food you're throwing, ending on a ghost of where it sticks
+      const pts=[[Q.SX,Q.SY-.55]];const L=B.trace(a,(k,x,y)=>pts.push([x,y]));
       if(L){pts.push([L.x,L.y]);
-        ctx.save();ctx.setLineDash([2,S*.22]);ctx.lineCap='round';ctx.strokeStyle='rgba(247,197,72,.9)';ctx.lineWidth=Math.max(2,S*.07);
-        ctx.beginPath();pts.forEach(([x,y],i)=>i?ctx.lineTo(x*u,y*u):ctx.moveTo(x*u,y*u));ctx.stroke();ctx.restore();
-        if(L.r!=null){const cx=Q.R+L.c*Q.D+(((L.r+B.par)%2===1)?Q.R:0),cy=Q.R+L.r*Q.RH;ctx.strokeStyle='rgba(247,197,72,.9)';ctx.lineWidth=2;ctx.setLineDash([4,4]);ctx.beginPath();ctx.arc(cx*u,cy*u,Q.R*u*.92,0,Math.PI*2);ctx.stroke();ctx.setLineDash([])}
+        ctx.save();ctx.setLineDash([2,S*.2]);ctx.lineCap='round';ctx.lineWidth=Math.max(3,S*.1);
+        ctx.strokeStyle='rgba(11,13,27,.6)';ctx.beginPath();pts.forEach(([x,y],i)=>i?ctx.lineTo(x*u,y*u):ctx.moveTo(x*u,y*u));ctx.stroke();
+        ctx.lineWidth=Math.max(2,S*.07);ctx.strokeStyle=col;ctx.beginPath();pts.forEach(([x,y],i)=>i?ctx.lineTo(x*u,y*u):ctx.moveTo(x*u,y*u));ctx.stroke();ctx.restore();
+        if(L.r!=null){const cx=Q.R+L.c*Q.D+(((L.r+B.par)%2===1)?Q.R:0),cy=Q.R+L.r*Q.RH;
+          drawTile(ctx,{t:B.cur,clr:0},(cx-Q.R)*u,(cy-Q.R)*u,sz,.45,f);
+          ctx.strokeStyle='#FFFFFF';ctx.lineWidth=2;ctx.beginPath();ctx.arc(cx*u,cy*u,Q.R*u*.95,0,Math.PI*2);ctx.stroke()}
       }
     }else if(!B.dead){
-      // spectating / remote: just show the aim direction
-      ctx.strokeStyle='rgba(247,197,72,.5)';ctx.lineWidth=2;ctx.setLineDash([2,6]);ctx.beginPath();ctx.moveTo(Q.SX*u,Q.SY*u);ctx.lineTo((Q.SX+Math.cos(a)*2.2)*u,(Q.SY+Math.sin(a)*2.2)*u);ctx.stroke();ctx.setLineDash([]);
+      ctx.strokeStyle='rgba(247,197,72,.5)';ctx.lineWidth=2;ctx.setLineDash([2,6]);ctx.beginPath();ctx.moveTo(Q.SX*u,(Q.SY-.55)*u);ctx.lineTo((Q.SX+Math.cos(a)*2.2)*u,(Q.SY-.55+Math.sin(a)*2.2)*u);ctx.stroke();ctx.setLineDash([]);
     }
-    // shooter: your fighter holding the next throw
+    // your fighter cheers from the corner instead of sitting on top of the launcher
     const im=fighterImg(B.av||'bun');
-    if(im.complete&&im.naturalWidth)ctx.drawImage(im,(Q.SX-.95)*u,(Q.SY-.85)*u,1.9*u,1.7*u);
+    if(im.complete&&im.naturalWidth)ctx.drawImage(im,.05*u,(ROWS-1.45)*u,1.3*u,1.4*u);
     if(B.ball)drawTile(ctx,{t:B.ball.t,clr:0},(B.ball.x-Q.R)*u,(B.ball.y-Q.R)*u,sz*.96,1,f);
     if(B.cur!=null&&!B.dead){
-      ctx.save();ctx.shadowColor='rgba(247,197,72,.9)';ctx.shadowBlur=12;drawTile(ctx,{t:B.cur,clr:0},(Q.SX-Q.R)*u,(Q.SY-.55-Q.R)*u,sz,1,f);ctx.restore();
-      drawTile(ctx,{t:B.next,clr:0},(COLS-.9)*u,(Q.SY-.15)*u,sz*.8,.9,f);
-      ctx.fillStyle='rgba(148,155,189,.9)';ctx.font=`800 ${Math.round(S*.24)}px Figtree,sans-serif`;ctx.textAlign='center';ctx.fillText('NEXT',(COLS-.9+Q.D*.4)*u,(Q.SY-.3)*u);
+      // launcher: a plate holding the food you're about to throw, big and ringed in its colour
+      const lx=Q.SX*u,ly=(Q.SY-.55)*u,big=sz*1.18;
+      ctx.fillStyle='rgba(11,13,27,.65)';ctx.beginPath();ctx.arc(lx,ly,big*.7,0,Math.PI*2);ctx.fill();
+      ctx.strokeStyle=col;ctx.lineWidth=Math.max(3,S*.09);ctx.beginPath();ctx.arc(lx,ly,big*.7,0,Math.PI*2);ctx.stroke();
+      if(!B.ball)drawTile(ctx,{t:B.cur,clr:0},lx-big/2,ly-big/2,big,1,f);
+      // next one waits on the left of the launcher
+      const nx=(Q.SX-1.35)*u,ny=(Q.SY-.35)*u,ns=sz*.72;
+      drawTile(ctx,{t:B.next,clr:0},nx-ns/2,ny-ns/2,ns,.85,f);
+      ctx.fillStyle='rgba(148,155,189,.95)';ctx.font=`800 ${Math.round(S*.22)}px Figtree,sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('NEXT',nx,ny-ns*.75);
     }
     drawEffects(ctx,B,W,H,f);
     drawFxLayer(B,0);
     if(B.dead&&G.playerOut&&!G.over)drawKO(B,W,H);
+    if(mine)this.drawCtl(B);
   },
-  down(e,p){
-    const Q=SHOTGEO(),B=G.player,x=p.x/S,y=p.y/S;
-    if(x>COLS-1.4&&y>Q.SY-.9){B.swap();shotDrag=null;return}   // tap the next food to swap
-    shotDrag={id:e.pointerId};B.aimAt(x,y);
+  // aim by sliding your finger left/right anywhere on the board (relative, so a small slide is a small turn); let go to throw
+  down(e,p){shotDrag={id:e.pointerId,x0:p.x,y0:p.y,a0:G.player.aimA,moved:false}},
+  move(e,p){
+    if(!shotDrag||e.pointerId!==shotDrag.id)return;
+    const dx=p.x-shotDrag.x0;if(Math.abs(dx)>4)shotDrag.moved=true;
+    G.player.setAim(shotDrag.a0+dx/(S*COLS)*1.8);
   },
-  move(e,p){if(!shotDrag||e.pointerId!==shotDrag.id)return;G.player.aimAt(p.x/S,p.y/S)},
   up(e,p){
-    if(!shotDrag||(e&&e.pointerId!==shotDrag.id))return;shotDrag=null;
-    const Q=SHOTGEO();if(!p||p.y/S>Q.SY+.2)return;    // let go below your fighter = cancel
-    G.player.aimAt(p.x/S,p.y/S);G.player.shoot();
+    if(!shotDrag||(e&&e.pointerId!==shotDrag.id))return;const d=shotDrag;shotDrag=null;
+    if(!p)return;
+    if(p.y-d.y0>S*2.2)return;          // drag down off the shot to cancel
+    G.player.shoot();
   },
   raise(){G.player.swap()},
   key(k,down){
     if(!down)return false;const B=G.player;
-    if(k==='ArrowLeft')B.setAim(B.aimA-.06);else if(k==='ArrowRight')B.setAim(B.aimA+.06);
+    if(k==='ArrowLeft')B.setAim(B.aimA-.05);else if(k==='ArrowRight')B.setAim(B.aimA+.05);
     else if(k==='ArrowUp'||k===' '||k==='Enter')B.shoot();else if(k==='x'||k==='X'||k==='Shift'||k==='ArrowDown')B.swap();else return false;
     return true;
   }
@@ -833,6 +867,7 @@ const baseHooks={
   sfx,
   fly,
   rack:renderRack,
+  swapped(){drag=null;kb.on=false;if(plating!=null)cancelPlate()},
   bossPhase(ph){if(G&&G.player){G.player.pops.push({text:ph>=3?`${G.boss.name} is ENRAGED!`:`${G.boss.name} gets angry!`,x:3,y:4,col:'#CC79A7',size:1,life:90});sfx('overtime')}},
   pickFood(item){plating=item.id;renderRack();updatePlateHint();sfx('tap');return true},
   out(){spec=null;$('#bOutLeave').textContent=G.online?'Lobby':'Menu';setOut(true);$('#outToast').hidden=false;sfx('ko')},
@@ -1330,6 +1365,7 @@ if(NET){
       else if(m.t==='boss')G.netBoss(m);
       else if(m.t==='dmg')G.netDamage(m);
       else if(m.t==='batk')G.netBossAttack(m);
+      else if(m.t==='swapg')G.netSwapGrid(m);
       else if(m.t==='give')G.netGive(m);
     },
     members(list){

@@ -13,8 +13,8 @@ const BOARD_TYPES={};   // variant -> board class, filled in by stack.js / shot.
 const ORDER_GOAL=10;
 const MARGIN=50,RACK=3,RUSH=180,CYCLE=180,CREAM=300,FREEZE=150,SPECIAL_RATE=.16;
 // rack items: pie/tower = junk, sauce = fast rise, cream = board covered, freeze = no swaps, blender = scramble top rows,
-// pin = flatten own top rows, plate = clear every tile of one food on your own board
-const JUNK_KINDS=['pie','tower'],ATTACK_KINDS=['pie','tower','sauce','cream','freeze','blender'],SPECIALS=['cream','freeze','blender','pin','plate'],SPECIAL_W=[3,2,3,2,2];
+// pin = flatten own top rows, plate = clear every tile of one food on your own board, swap = trade whole boards with your target
+const JUNK_KINDS=['pie','tower'],ATTACK_KINDS=['pie','tower','sauce','cream','freeze','blender','swap'],SPECIALS=['cream','freeze','blender','pin','plate','swap'],SPECIAL_W=[3,2,3,2,2,1.5];
 const SELF_KINDS=['pin','plate'];
 const SPECIAL_TOTAL=SPECIAL_W.reduce((a,b)=>a+b,0);
 function pickSpecial(rng){let x=rng()*SPECIAL_TOTAL;for(let i=0;i<SPECIALS.length;i++){x-=SPECIAL_W[i];if(x<0)return SPECIALS[i]}return SPECIALS[0]}
@@ -237,7 +237,7 @@ class Board{
     }
     if(JUNK_KINDS.includes(item.k)&&!item.at)item.at={c:cx,r:cy};
     item.id=++uid;this.rack.push(item);
-    const label={pie:`Pie +${item.cells}`,tower:`Pie tower +${item.cells}`,sauce:'Hot sauce earned',cream:'Whipped cream!',freeze:'Brain freeze!',blender:'Blender!',pin:'Rolling pin!',plate:'Clean plate!'}[item.k];
+    const label={pie:`Pie +${item.cells}`,tower:`Pie tower +${item.cells}`,sauce:'Hot sauce earned',cream:'Whipped cream!',freeze:'Brain freeze!',blender:'Blender!',pin:'Rolling pin!',plate:'Clean plate!',swap:'Switcheroo!'}[item.k];
     const special=!JUNK_KINDS.includes(item.k);
     this.pop(label,cx,cy,special?'#F7C548':'#EEF0FA',.85);
     this.sfx('earn',special);
@@ -326,7 +326,7 @@ class Board{
   stealFrom(thief){
     if(this.dead||!this.rack.length)return null;
     const it=this.rack.shift();
-    this.pop(`${thief?thief.name:'Someone'} stole your ${it.k==='pie'?'pie':it.k==='tower'?'tower':it.k==='sauce'?'hot sauce':it.k==='pin'?'rolling pin':it.k==='plate'?'clean plate':it.k}!`,3,8,'#CC79A7',.75);
+    this.pop(`${thief?thief.name:'Someone'} stole your ${it.k==='pie'?'pie':it.k==='tower'?'tower':it.k==='sauce'?'hot sauce':it.k==='pin'?'rolling pin':it.k==='plate'?'clean plate':it.k==='swap'?'switcheroo':it.k}!`,3,8,'#CC79A7',.75);
     this.sfx('stolen');
     if(this===this.game.player&&this.game.hooks.rack)this.game.hooks.rack();
     return {k:it.k,cells:it.cells,at:it.at};
@@ -357,6 +357,36 @@ class Board{
     let n=0;
     for(let r=top;r<Math.min(ROWS,top+3);r++)for(let c=0;c<COLS;c++){const t=this.g[r][c];if(t&&t.clr===0){t.clr=CLR+n*2;t.conv=false;t.sp=null;t.chain=false;n++}}
     this.pop('Flattened!',3,top+1.5,'#F7C548',1.1);this.sfx('pin');
+  }
+  // ---------- Switcheroo: whole boards change hands ----------
+  // compact copy of the stack: '.' empty, 0-4 food, A-Z junk (one letter per junk block), plus special badges
+  gridCode(){
+    let g='';const ids=new Map(),sp=[];
+    for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){
+      const t=this.g[r][c];
+      if(!t||(t.clr>0&&!t.conv)){g+='.';continue}
+      if(t.t<0&&!t.conv){if(!ids.has(t.gid))ids.set(t.gid,String.fromCharCode(65+Math.min(25,ids.size)));g+=ids.get(t.gid)}
+      else{g+=String(t.t<0?Math.floor(this.rng()*NT):t.t);if(t.sp)sp.push([r*COLS+c,t.sp])}
+    }
+    return {g,sp};
+  }
+  loadGrid(code){
+    if(!code||typeof code.g!=='string'||code.g.length!==ROWS*COLS)return false;
+    const gids=new Map(),sps=new Map((code.sp||[]).filter(x=>Array.isArray(x)&&SPECIALS.includes(x[1])).map(x=>[x[0]|0,x[1]]));
+    for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){
+      const ch=code.g[r*COLS+c];let t=null;
+      if(ch>='0'&&ch<='4'){t=T(+ch);if(sps.has(r*COLS+c))t.sp=sps.get(r*COLS+c)}
+      else if(ch>='A'&&ch<='Z'){t=T(-1);if(!gids.has(ch))gids.set(ch,++gidc);t.gid=gids.get(ch)}
+      if(t)t.yo=-.6;
+      this.g[r][c]=t;
+    }
+    this.chain=1;this.tower=0;this.grace=GRACE;
+    return true;
+  }
+  swapped(other){
+    this.hitFlash=24;this.shake=10;this.streak=0;this.streakType=null;
+    this.pop(`Switcheroo! You got ${other&&other.name?other.name:'their'}'s board`,3,6,'#56B4E9',.9);this.sfx('blender');
+    if(this===this.game.player&&this.game.hooks.swapped)this.game.hooks.swapped();
   }
   // ---------- Order Up! ----------
   newTicket(){
@@ -420,9 +450,10 @@ class Board{
     if(this.raiseT>0){this.raiseT--;this.raising=this.raiseT>0}
     if(this.rack.length&&--this.fireT<=0){
       const F=DIFFS[this.game.d].fire;this.fireT=F[0]+rnd(F[1]-F[0]);
-      const pin=this.rack.findIndex(x=>x.k==='pin'),plate=this.rack.findIndex(x=>x.k==='plate'),atk=this.rack.findIndex(x=>!SELF_KINDS.includes(x.k));
+      const pin=this.rack.findIndex(x=>x.k==='pin'),plate=this.rack.findIndex(x=>x.k==='plate'),swp=this.rack.findIndex(x=>x.k==='swap'),atk=this.rack.findIndex(x=>!SELF_KINDS.includes(x.k)&&(x.k!=='swap'||!!this.game.boss));
       if(pin>=0&&this.height()>=8)this.fire(pin);
       else if(plate>=0&&this.height()>=7)this.fire(plate);
+      else if(swp>=0&&!this.game.boss&&this.height()>=8)this.fire(swp);
       else if(atk>=0)this.fire(atk);
     }
     if(this.frozenT>0)return;
@@ -489,12 +520,13 @@ class RemoteBoard{
     for(let r=0;r<ROWS;r++)this.g.push(new Array(COLS).fill(null));
   }
   height(){
-    if(this.hex){for(let r=15;r>=0;r--)if(/[^.]/.test(this.hex.slice(r*8,r*8+8)))return Math.round((r+1)/16*ROWS);return 0}
+    if(this.hex){const Q=BOARD_TYPES.shot&&BOARD_TYPES.shot.GEO;if(!Q)return 0;for(let r=Q.NR-1;r>=0;r--)if(/[^.]/.test(this.hex.slice(r*Q.HC,(r+1)*Q.HC)))return Math.round((r+1)/Q.NR*ROWS);return 0}
     for(let r=0;r<ROWS;r++)if(this.g[r].some(Boolean))return ROWS-r;return 0;
   }
   apply(s){
     // Splat Shot boards send their hex grid instead
-    if(s&&s.v==='shot'&&typeof s.g==='string'&&s.g.length===128){
+    const SQ=BOARD_TYPES.shot&&BOARD_TYPES.shot.GEO;
+    if(s&&s.v==='shot'&&typeof s.g==='string'&&SQ&&s.g.length===SQ.NR*SQ.HC){
       this.hex=s.g;this.par=s.pr?1:0;this.aimA=Number.isFinite(+s.a)?+s.a:-1.57;this.cur=s.u|0;this.next=s.n|0;
       this.ball=Array.isArray(s.b)?{x:+s.b[0]||0,y:+s.b[1]||0,t:s.b[2]|0}:null;
       this.rushT=s.h?1:0;this.creamT=s.c?1:0;this.frozenT=s.z?1:0;this.kos=s.o|0;this.dmg=s.x|0;this.lastSnap=this.game.frame;
@@ -577,7 +609,7 @@ class Game{
   bossDamage(item){
     const k=item.k;
     if(k==='pie'||k==='tower')return Math.round(item.cells*10);
-    return {sauce:60,cream:80,freeze:80,blender:90}[k]||40;
+    return {sauce:60,cream:80,freeze:80,blender:90,swap:110}[k]||40;
   }
   hitBoss(src,amt,remote){
     if(!this.boss||this.over)return;
@@ -666,7 +698,7 @@ class Game{
     if(JUNK_KINDS.includes(k)&&!cells)return;
     from.sent+=cells;
     const at=Number.isFinite(m.ac)&&Number.isFinite(m.ar)?{c:Math.max(0,Math.min(COLS,m.ac)),r:Math.max(0,Math.min(ROWS,m.ar))}:null;
-    this.flights.push({from,to,item:{k,cells,at},t:FLY});
+    this.flights.push({from,to,item:{k,cells,at,g:k==='swap'?m.g:undefined},t:FLY});
     if(this.hooks.fly)this.hooks.fly(from,to,{k,cells});
   }
   netKO(id,by){
@@ -686,10 +718,25 @@ class Game{
   netGive(m){
     const to=this.byId(m.to),from=this.byId(m.from);
     if(!to||to.remote||to.dead||this.over)return;
-    const kinds=['pie','tower','sauce','cream','freeze','blender','pin','plate'];if(!kinds.includes(m.k))return;
+    const kinds=['pie','tower','sauce','cream','freeze','blender','pin','plate','swap'];if(!kinds.includes(m.k))return;
     const at=Number.isFinite(m.ac)&&Number.isFinite(m.ar)?{c:Math.max(0,Math.min(COLS,m.ac)),r:Math.max(0,Math.min(ROWS,m.ar))}:null;
     to.takeItem({k:m.k,cells:JUNK_KINDS.includes(m.k)?Math.max(1,Math.min(72,m.cells|0)):0,at},from);
   }
+  swapBoards(to,from,item){
+    if(!to||to.dead||!to.gridCode)return;
+    to.lastAttacker=from;
+    if(from&&!from.remote&&!from.dead&&from.gridCode){
+      const a=to.g;to.g=from.g;from.g=a;
+      to.chain=from.chain=1;to.tower=from.tower=0;
+      to.swapped(from);from.swapped(to);
+    }else if(item&&item.g){
+      const mine=to.gridCode();
+      if(!to.loadGrid(item.g))return;
+      to.swapped(from);
+      if(this.hooks.send&&from)this.hooks.send({t:'swapg',to:from.id,from:to.id,g:mine});
+    }
+  }
+  netSwapGrid(m){const b=this.byId(m.to),o=this.byId(m.from);if(!b||b.remote||b.dead||this.over||!b.loadGrid(m.g))return;b.swapped(o)}
   netLeave(ownerId){this.boards.filter(b=>b.remote&&b.owner===ownerId&&!b.dead).forEach(b=>this.netKO(b.id,null))}
   level(){return Math.min(10,1+Math.floor(this.frame/(60*20)))}
   margin(){const s=this.frame/60-MARGIN;return s>0?1+Math.floor(s/15)*.3:1}
@@ -699,6 +746,7 @@ class Game{
     else if(item.k==='cream')to.cream(from);
     else if(item.k==='freeze')to.freeze(from);
     else if(item.k==='blender')to.blend(from);
+    else if(item.k==='swap')this.swapBoards(to,from,item);
     else to.receive(item.cells,from,item.at);
   }
   aim(){if(this.boss)return this.bossObj;const o=this.alive().filter(b=>b!==this.player);return o.length?o[Math.floor(this.frame/CYCLE)%o.length]:null}
@@ -711,7 +759,7 @@ class Game{
       this.flights.push({from:src,to:tgt,item:it,t:FLY,boss:amt});
       return;
     }
-    if(tgt.remote){if(this.hooks.send)this.hooks.send({t:'atk',from:src.id,to:tgt.id,k:it.k,cells:it.cells,ac:it.at?+it.at.c.toFixed(2):null,ar:it.at?+it.at.r.toFixed(2):null})}
+    if(tgt.remote){if(this.hooks.send)this.hooks.send({t:'atk',from:src.id,to:tgt.id,k:it.k,cells:it.cells,ac:it.at?+it.at.c.toFixed(2):null,ar:it.at?+it.at.r.toFixed(2):null,g:it.k==='swap'&&src.gridCode?src.gridCode():undefined})}
     else this.flights.push({from:src,to:tgt,item:it,t:FLY});
     if(this.hooks.fly)this.hooks.fly(src,tgt,it,slot);
   }
