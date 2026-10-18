@@ -174,7 +174,7 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
 .varnote{font-size:13px;color:var(--muted);background:var(--well);border-radius:12px;padding:10px 12px}
 .varnote b{color:var(--ink)}
 /* Order Up! ticket rail */
-.rail{width:calc(var(--bw,300px) + 120px);max-width:100%;display:flex;gap:7px;flex:none;position:relative;padding-top:7px}
+.rail{width:calc(var(--bw,300px) + 66px);max-width:100%;display:flex;gap:7px;flex:none;position:relative;padding-top:7px}
 .rail::before{content:"";position:absolute;left:0;right:0;top:1px;height:4px;border-radius:2px;background:#7B6B8F}
 .ticket{flex:1 1 0;min-width:0;background:#FFFDF6;color:#2A1A12;border-radius:3px 3px 10px 10px;padding:6px 8px 7px;box-shadow:0 3px 8px rgba(0,0,0,.35);position:relative;transition:transform .2s}
 .ticket:nth-child(1){transform:rotate(-1.5deg)}.ticket:nth-child(2){transform:rotate(1deg)}.ticket:nth-child(3){transform:rotate(-.6deg)}
@@ -214,18 +214,14 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
 .stepper b{display:block;font-family:var(--display);font-weight:400;font-size:26px;line-height:1}
 .stepper small{font-size:11px;color:var(--muted);font-weight:700}
 .sidecol{position:absolute;top:0;right:2px;display:flex;flex-direction:column;align-items:center;gap:8px;width:70px;z-index:4}
-.sidecol.left{left:2px;right:auto}
-.sidecol.left .tray{width:70px;height:auto;flex-direction:column;align-items:stretch;gap:5px;padding:7px 5px 8px;border-radius:14px}
-.sidecol.left .tray .lbl{margin:0;text-align:center;font-size:9px;letter-spacing:.08em}
-.sidecol.left .tray .none{font-size:11px;text-align:center;line-height:1.2}
-.sidecol.left .tray .pie{align-self:center}
-.sidecol.left .raise{margin-top:auto;width:70px;height:70px;border-radius:16px;padding:0;flex-direction:column;justify-content:center;gap:3px;font-size:13px}
-.sidecol.left .raise svg{width:20px;height:20px}
-.sidecol.narrow,.sidecol.left{width:56px}
-.sidecol.narrow .slot{width:56px;height:56px}
-.sidecol.left .tray{width:56px;padding:7px 3px 8px}
-.sidecol.left .tray .lbl{font-size:8px;letter-spacing:.04em}
-.sidecol.left .raise{width:56px;height:66px}
+.sidecol.narrow{width:62px}
+.sidecol.narrow .slot{width:62px;height:58px}
+.sidecol.narrow .tray{width:62px;height:auto;flex-direction:column;align-items:stretch;gap:5px;padding:7px 3px 8px;border-radius:14px}
+.sidecol.narrow .tray .lbl{margin:0;text-align:center;font-size:8px;letter-spacing:.04em}
+.sidecol.narrow .tray .none{font-size:11px;text-align:center;line-height:1.2}
+.sidecol.narrow .tray .pie{align-self:center}
+.sidecol.narrow .raise{width:62px;height:68px;border-radius:16px;padding:0;flex-direction:column;justify-content:center;gap:3px;font-size:13px}
+.sidecol.narrow .raise svg{width:20px;height:20px}
 .sidecol .nextbox{flex-direction:column;height:auto;padding:7px 4px 9px;gap:5px;width:70px}
 .sidecol #slotHost{margin-top:auto}
 .sidefig{width:70px;background:var(--panel);border-radius:14px;padding:4px}
@@ -490,7 +486,6 @@ button.nextbox:active{background:var(--gold)}
       <div class="tray" id="tray"><span class="lbl">Incoming</span><span class="none">Nothing yet</span></div>
       <div class="boardwrap" id="wrap"><canvas id="board"></canvas>
         <div class="sidecol" id="sideCol" hidden></div>
-        <div class="sidecol left" id="leftCol" hidden></div>
         <div class="specbar" id="specBar" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg><span id="specName">Watching</span><button id="bSpecOff" type="button">My board</button></div>
         <div class="watchpill" id="watchPill" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg><span id="watchText">Someone is watching</span></div>
       </div>

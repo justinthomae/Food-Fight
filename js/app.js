@@ -1,6 +1,6 @@
 // Food Fight UI: drawing, input, settings, practice mode and the online lobby.
 (function(){
-const VERSION='1.8.0';
+const VERSION='1.8.1';
 let spec=null; // board being spectated after you're knocked out
 const $=s=>document.querySelector(s);
 const $$=s=>[...document.querySelectorAll(s)];
@@ -653,9 +653,7 @@ function setControls(){
   // park the rack back in its normal spot before a mode rebuilds its bar
   if(slots.parentNode!==$('.rack'))$('#aimline').after(slots);
   // ...and the incoming tray and Raise button, which Classic / Order Up / Boss Brawl move to the left column
-  {const tray=$('#tray'),lc=$('#leftCol');
-   if(mu&&mu.leftCol){lc.hidden=false;lc.appendChild(tray);lc.appendChild(rb)}
-   else{lc.hidden=true;if(tray.parentNode===lc)$('#wrap').before(tray);if(rb.parentNode===lc)document.querySelector('.controls').prepend(rb)}}
+  {const tray=$('#tray');if(tray.parentNode!==$('.play'))$('#wrap').before(tray);if(rb.parentNode!==document.querySelector('.controls'))document.querySelector('.controls').prepend(rb)}
   $('#modeCtl').hidden=!(mu&&mu.ctl);slots.hidden=!!(mu&&(mu.ctl||mu.side)&&!mu.slots);
   $('#tray').hidden=!!(mu&&mu.noTray);
   const noRaise=!!(mu&&(typeof mu.noRaise==='function'?mu.noRaise():mu.noRaise));
@@ -665,6 +663,8 @@ function setControls(){
   document.querySelector('.controls').hidden=!!(mu&&mu.noFooter);
   if(mu&&mu.ctl)$('#modeCtl').innerHTML=mu.ctl();
   {const host=$('#slotHost');if(host&&mu&&mu.slots)host.appendChild(slots)}
+  // Classic / Order Up / Boss Brawl: Incoming on top of the right column, items under it, Raise at the bottom
+  if(mu&&mu.rightCol){const sc=$('#sideCol');sc.prepend($('#tray'));sc.appendChild(rb)}
   if(mu&&mu.bind)mu.bind();
   rackIds='~';renderRack();requestAnimationFrame(resize);
 }
@@ -700,9 +700,9 @@ function drawFxLayer(B,ro){
   ctx.globalAlpha=1;
 }
 function checker(ro){ctx.fillStyle=TOK.grid;for(let r=-1;r<=ROWS;r++)for(let c=0;c<COLS;c++)if((r+c+400)%2===0)ctx.fillRect(c*S,r*S-(ro||0),S,S)}
-// ----- Classic, Order Up and Boss Brawl: no bottom bar. Incoming and Raise sit left of the board, items on the right (first one at the bottom) -----
-const SIDE_UI={leftCol:true,narrow:true,slots:true,noFooter:true,
-  side(){return '<div id="slotHost"></div>'},sideW(){return 60},leftW(){return 60}};
+// ----- Classic, Order Up and Boss Brawl: no bottom bar. Incoming, items (first one at the bottom) and Raise share the column right of the board -----
+const SIDE_UI={rightCol:true,narrow:true,slots:true,noFooter:true,
+  side(){return '<div id="slotHost"></div>'},sideW(){return 66}};
 MODE_UI.classic=SIDE_UI;MODE_UI.order=SIDE_UI;MODE_UI.boss=SIDE_UI;
 // "tap a food" reminder while a Clean plate is armed (there's no aim line under the board any more)
 function drawPlateHint(W){
