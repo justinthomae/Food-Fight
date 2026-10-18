@@ -2,10 +2,10 @@
 // Food Fight engine — pure game logic, no DOM. Shared by the site, the artifact build and the node tests.
 const COLS=6,ROWS=12,NT=5,CLR=40,POP=9,HOVER=9,INC_T=220,GRACE=150,FLY=34;
 const DIFFS=[
-  // think = frames between moves, miss = chance to skip a turn, fire = frames between throws, noise = how sloppy move choice is, hit = size of bot throws (v0.9.4: all toned down)
-  {name:'Easy',  think:[56,84], miss:.38, raiseH:5, fire:[150,330], noise:3, hit:.82},
-  {name:'Normal',think:[30,46], miss:.2,  raiseH:6, fire:[90,220], noise:1.5, hit:.9},
-  {name:'Hard',  think:[16,25], miss:.08, raiseH:7, fire:[50,150], noise:1, hit:.76},
+  // think = frames between moves, miss = chance to skip a turn, fire = frames between throws, noise = how sloppy move choice is, hit = size of bot throws (v0.9.5: toned down again)
+  {name:'Easy',  think:[85,125], miss:.45, raiseH:4, fire:[260,520], noise:4,   hit:.6},
+  {name:'Normal',think:[40,60],  miss:.28, raiseH:5, fire:[140,300], noise:2.2, hit:.7},
+  {name:'Hard',  think:[21,32],  miss:.13, raiseH:6, fire:[75,190],  noise:1.4, hit:.66},
 ];
 const MARGIN=50,RACK=3,RUSH=180,CYCLE=180,CREAM=300,FREEZE=150,SPECIAL_RATE=.16;
 // rack items: pie/tower = junk, sauce = fast rise, cream = board covered, freeze = no swaps, blender = scramble top rows,
