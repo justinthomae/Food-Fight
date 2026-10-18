@@ -16,6 +16,8 @@ js/engine.js          game rules (pure logic, no DOM), shared by site, artifact 
 js/stack.js           Snack Stack board (falling pairs, connect 4, chains)
 js/shot.js            Splat Shot board (hex bubble shooter, pops and drops)
 js/app.js             drawing, input, settings, practice mode, online lobby
+js/cuisines.js        the cuisine tile sets (drawn in code)
+sw.js                 offline support: saves the game on the device so vs-AI play works with no connection
 js/net.js             Supabase Realtime rooms
 js/scores.js          leaderboard calls (submit + read)
 assets/               logo and the eight fighters (WebP, trimmed; *-face = avatar crops)

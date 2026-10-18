@@ -1,6 +1,6 @@
 // Food Fight UI: drawing, input, settings, practice mode and the online lobby.
 (function(){
-const VERSION='1.3.0';
+const VERSION='1.5.0';
 let spec=null; // board being spectated after you're knocked out
 const $=s=>document.querySelector(s);
 const $$=s=>[...document.querySelectorAll(s)];
@@ -605,7 +605,9 @@ function hud(){
 /* ---------- sizing ---------- */
 function resize(){
   const w=$('#wrap');const W=w.clientWidth,H=w.clientHeight;
-  S=Math.max(16,Math.floor(Math.min(W/COLS,H/ROWS)));
+  // a side column (Snack Stack's next + items) takes the right edge; the board centres in what's left
+  const mu=G&&MODE_UI[G.variant],side=mu&&mu.sideW?mu.sideW():0;w.style.paddingRight=side?side+'px':'';
+  S=Math.max(16,Math.floor(Math.min((W-side)/COLS,H/ROWS)));
   DPR=Math.min(3,window.devicePixelRatio||1);
   cv.style.width=S*COLS+'px';cv.style.height=S*ROWS+'px';
   cv.width=Math.round(S*COLS*DPR);cv.height=Math.round(S*ROWS*DPR);
@@ -627,6 +629,7 @@ function setControls(){
   const noRaise=!!(mu&&(typeof mu.noRaise==='function'?mu.noRaise():mu.noRaise));
   rb.hidden=noRaise;document.querySelector('.controls').classList.toggle('wide',noRaise);
   rb.innerHTML=mu&&mu.raiseLabel?mu.raiseLabel:'<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 4l8 10h-5v6H9v-6H4z"/></svg>Raise';
+  const sideHtml=mu&&mu.side?mu.side():'';$('#sideCol').innerHTML=sideHtml;$('#sideCol').hidden=!sideHtml;
   if(mu&&mu.ctl){$('#modeCtl').innerHTML=mu.ctl();const host=$('#slotHost');if(host&&mu.slots)host.appendChild(slots);if(mu.bind)mu.bind()}
   rackIds='~';renderRack();requestAnimationFrame(resize);
 }
@@ -655,16 +658,17 @@ MODE_UI.stack={
   slots:true,
   noRaise:()=>prefs.stackCtl==='buttons',
   raiseLabel:'<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 20l8-10h-5V4H9v6H4z"/></svg>Drop',
+  side(){return prefs.stackCtl==='buttons'?'<div class="nextbox"><span>Next</span><canvas id="nextCv"></canvas></div><div id="slotHost"></div>':''},
+  sideW(){return prefs.stackCtl==='buttons'?66:0},
   ctl(){
     const next='<div class="nextbox"><span>Next</span><canvas id="nextCv"></canvas></div>';
     if(prefs.stackCtl!=='buttons')return next+'<div id="slotHost"></div>';   // swipe mode: tap the board to spin, Drop on the left
-    // left thumb: tap or slide the pad to move. right thumb: Spin on top, Drop underneath
-    return `<div class="movepad" id="movePad"><span>◀</span><i>slide</i><span>▶</span></div>
-      <div class="ctlmid">${next}<div id="slotHost"></div></div>
+    // left thumb: a big slide pad. right thumb: Spin on top, Drop underneath. Next pair and items sit beside the board
+    return `<div class="movepad wide" id="movePad"><span>◀</span><i>tap or slide</i><span>▶</span></div>
       <div class="ctlcol"><button class="spin" id="bSpin" type="button">↻ Spin</button><button class="spin drop" id="bDrop" type="button">⬇ Drop</button></div>`;
   },
   bind(){
-    const c=$('#nextCv'),s=prefs.stackCtl==='buttons'?20:26;c.width=(s*2+8)*DPR;c.height=s*2*DPR;c.style.width=(s*2+8)+'px';c.style.height=s*2+'px';nextKey='';this.ns=s;
+    const c=$('#nextCv'),s=prefs.stackCtl==='buttons'?24:26;c.width=(s*2+8)*DPR;c.height=s*2*DPR;c.style.width=(s*2+8)+'px';c.style.height=s*2+'px';nextKey='';this.ns=s;
     const sp=$('#bSpin');if(sp)sp.addEventListener('pointerdown',e=>{e.preventDefault();if(canPlay())G.player.rotate(1)});
     const d=$('#bDrop');if(d)d.addEventListener('pointerdown',e=>{e.preventDefault();if(canPlay())G.player.hardDrop()});
     const pad=$('#movePad');if(!pad)return;
@@ -690,7 +694,7 @@ MODE_UI.stack={
     const key=(hide?'grease':B.queue.slice(0,2).map(q=>q.join('')).join('|'))+prefs.palette+prefs.art+cuisine();if(key===nextKey)return;nextKey=key;
     const x=c.getContext('2d'),s=(this.ns||26)*DPR;x.clearRect(0,0,c.width,c.height);
     if(hide){x.fillStyle='#F7C548';x.font=`800 ${Math.round(s*.9)}px Figtree,sans-serif`;x.textAlign='center';x.textBaseline='middle';x.fillText('??',c.width/2,c.height/2);return}
-    B.queue.slice(0,2).forEach(([a,b,sa,sb],i)=>{const ox=i*(s+8*DPR),al=i?.55:1;drawTile(x,{t:b,clr:0,sp:sb},ox,0,s,al,0);drawTile(x,{t:a,clr:0,sp:sa},ox,s,s,al,0)});
+    B.queue.slice(0,2).forEach(([a,b,sa,sb],i)=>{const ox=i*(s+8*DPR),al=i?.55:1;const k=i?.8:1,oy=i?s*.2:0;drawTile(x,{t:b,clr:0,sp:sb},ox,oy,s*k,al,0);drawTile(x,{t:a,clr:0,sp:sa},ox,oy+s*k,s*k,al,0)});
   },
   render(){
     const B=spec||G.player,W=S*COLS,H=S*ROWS,f=G.frame,mine=B===G.player;
@@ -997,6 +1001,22 @@ if(!/^[\w-]{8,64}$/.test(deviceId)){deviceId='d-'+(crypto.randomUUID?crypto.rand
 const boardKey=(mode,d)=>mode+'-'+(/online$/.test(mode)?1:d);
 let localScores={};
 try{localScores=JSON.parse(localStorage.getItem('ff-scores')||'{}')||{}}catch(e){}
+// scores played offline wait here and post when the connection comes back (oldest first, 16s apart for the server's rate limit)
+let pendingScores=[];try{pendingScores=JSON.parse(localStorage.getItem('ff-pending')||'[]')||[]}catch(e){}
+function queueScore(e){pendingScores.push(e);pendingScores=pendingScores.slice(-20);try{localStorage.setItem('ff-pending',JSON.stringify(pendingScores))}catch(_){}}
+let flushing=false;
+async function flushScores(){
+  if(flushing||!SCORES||!pendingScores.length||navigator.onLine===false)return;flushing=true;
+  try{
+    while(pendingScores.length&&navigator.onLine!==false){
+      const r=await SCORES.submit(pendingScores[0]).catch(()=>null);
+      if(r&&r.reason==='too_fast'){await new Promise(z=>setTimeout(z,16000));continue}
+      if(!r||(!r.ok&&(r.reason==='network'||r.reason==='offline')))break;   // still no connection: try again later (other failures just drop the entry)
+      pendingScores.shift();try{localStorage.setItem('ff-pending',JSON.stringify(pendingScores))}catch(_){}
+      if(pendingScores.length)await new Promise(z=>setTimeout(z,16000));
+    }
+  }finally{flushing=false}
+}
 function saveLocal(key,row){
   const list=(localScores[key]||[]).concat(row).sort((a,b)=>b.score-a.score||a.at-b.at).slice(0,20);
   localScores[key]=list;try{localStorage.setItem('ff-scores',JSON.stringify(localScores))}catch(e){}
@@ -1015,10 +1035,12 @@ function recordScore(res){
   el.textContent=localLine;
   const duration=Math.round(G.frame/60);
   if(!SCORES||B.score<=0||duration<10)return;
+  const entry={deviceId,name:ME.name,avatar:prefs.av,mode,difficulty:d,score:B.score,maxChain:B.maxChain,kos:B.kos,won:!!res.won,place:res.place||1,duration,version:VERSION};
+  if(navigator.onLine===false){queueScore(entry);el.textContent=localLine+' · Offline: it goes on the leaderboard when you reconnect';return}
   el.textContent='Saving your score…';
-  SCORES.submit({deviceId,name:ME.name,avatar:prefs.av,mode,difficulty:d,score:B.score,maxChain:B.maxChain,kos:B.kos,won:!!res.won,place:res.place||1,duration,version:VERSION})
+  SCORES.submit(entry)
     .then(r=>{
-      if(!r||!r.ok){el.textContent=localLine+(r&&r.reason==='too_fast'?'':' · Leaderboard unavailable right now');return}
+      if(!r||!r.ok){const net=!r||r.reason==='network'||r.reason==='offline';if(net)queueScore(entry);el.textContent=localLine+(r&&r.reason==='too_fast'?'':net?' · Saved, will post when the connection is back':' · Leaderboard unavailable right now');return}
       el.textContent=`#${r.rank_day} today · #${r.rank_all} all time`+(r.personal_best?' · New personal best!':'');
     });
 }
@@ -1037,8 +1059,8 @@ async function loadBoard(){
   const list=$('#lbList'),req=++lb.req;
   const meta=r=>`${lb.variant==='boss'?(r.won?'Boss beaten':'Boss won'):(r.max_chain||r.chain||1)+'-chain · '+(r.won?'Won':placeName(r.place||2))}`;
   const row=(rank,name,score,sub,mine,av)=>`<li${mine?' class="mine"':''}><span class="rk">${rank}</span><div class="who">${av?avImg(av):''}<div><b>${esc(name)}</b><span>${sub}</span></div></div><span class="sc">${score}</span></li>`;
-  if(!SCORES){
-    $('#lbSrc').textContent='Your games on this device';$('#lbNote').textContent='';
+  if(!SCORES||navigator.onLine===false){
+    $('#lbSrc').textContent='Your games on this device';$('#lbNote').textContent=SCORES?'Offline':'';
     const rows=localScores[boardKey(lbKey(),lb.d)]||[];
     list.innerHTML=rows.length?rows.slice(0,10).map((r,i)=>row(i+1,r.name,r.score,meta(r)+' · '+dateFmt(r.at),false,r.av)).join(''):'<li class="lbempty">No games here yet. Finish one to set a score.</li>';
     return;
@@ -1195,14 +1217,28 @@ function setRoomMode(v){roomMode=v;markVariants($('#lobbyVariants'),v);if(NET&&i
 buildVariants($('#lobbyVariants'),roomMode,v=>{if(isHost())setRoomMode(v)});
 
 /* ---------- online ---------- */
-let lobbyMembers=[],fillTo=4,botSkill=1,inRoom=false;
+let lobbyMembers=[],botCount=3,botSkill=1,inRoom=false;   // host adds or removes bots one at a time
 const onlineMsg=t=>{$('#onlineMsg').textContent=t||''};
 const lobbyMsg=t=>{$('#lobbyMsg').textContent=t||''};
-if(!NET){
-  $('#onlineNote').textContent=typeof window.FFNet==='undefined'?'Online play runs at foodfight.grudgematchgames.com':'Online play is not set up yet';
-  $('#bOnline').disabled=true;
+function setOnlineParts(){
+  const ok=!!NET&&navigator.onLine!==false;
+  $('#bCreate').disabled=$('#bJoin').disabled=!ok;$('#codeIn').disabled=!ok;
+  if(!ok)onlineMsg(!NET&&typeof window.FFNet==='undefined'?'Rooms with friends run at foodfight.grudgematchgames.com.':navigator.onLine===false?"You're offline. Rooms need a connection, but you can play vs AI below.":'Rooms are unavailable right now. Try reloading, or play vs AI below.');
+  else if(/offline|unavailable|grudgematchgames/.test($('#onlineMsg').textContent))onlineMsg('');
+  $('#aiModeTag').textContent=VARIANT_INFO[prefs.variant].name;
 }
-$('#bOnline').addEventListener('click',()=>{if(!NET)return;wakeAudio();onlineMsg('');openSub('#ovOnline')});
+function showConnection(){
+  const off=navigator.onLine===false,note=$('#onlineNote');
+  note.hidden=!off;note.textContent=off?"Offline · vs AI still works":'';
+  if(!$('#ovOnline').hidden)setOnlineParts();
+  if(!off&&NET)flushScores();
+}
+window.addEventListener('online',showConnection);window.addEventListener('offline',showConnection);
+$('#bOnline').addEventListener('click',()=>{wakeAudio();onlineMsg('');syncSizeLabels();openSub('#ovOnline');setOnlineParts()});
+// play vs AI from the Play screen: same size and skill choices as the practice section
+function syncSizeLabels(){const names=VARIANT_INFO[prefs.variant].sizes;$$('#mode2 button').forEach((b,i)=>{b.firstChild.textContent=names[i];b.setAttribute('aria-pressed',String(+b.dataset.size===pickSize))})}
+$$('#mode2 button').forEach(b=>b.addEventListener('click',()=>{pickMode=b.dataset.m;pickSize=+b.dataset.size;syncSizeLabels();$$('#mode button').forEach(x=>x.setAttribute('aria-pressed',String(+x.dataset.size===pickSize)))}));
+$$('#diff2 [data-d]').forEach(b=>b.addEventListener('click',()=>startPractice(+b.dataset.d,pickMode,pickSize)));
 async function enterRoom(code,invite,retry){
   onlineMsg(invite?`Joining room ${code}…`:'Connecting…');$('#bCreate').disabled=$('#bJoin').disabled=true;
   try{
@@ -1295,7 +1331,10 @@ $('#bInvite').addEventListener('click',async()=>{
   try{if(navigator.share){await navigator.share({title:'Food Fight',text,url});return}}catch(e){if(e&&e.name==='AbortError')return}
   try{await navigator.clipboard.writeText(url);lobbyMsg('Invite link copied.')}catch(e){lobbyMsg(url)}
 });
-$$('#fill button').forEach(b=>b.addEventListener('click',()=>{fillTo=+b.dataset.f;$$('#fill button').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));renderLobby()}));
+const botRoom=()=>Math.max(0,MAX_PLAYERS-Math.min(MAX_PLAYERS,lobbyMembers.filter(m=>m.state!=='playing').length||1));
+function setBots(n){botCount=Math.max(0,Math.min(MAX_PLAYERS-1,n));renderLobby()}
+$('#botMinus').addEventListener('click',()=>{setBots(Math.min(botCount,botRoom())-1);sfx('tap')});
+$('#botPlus').addEventListener('click',()=>{setBots(Math.min(botCount,botRoom())+1);sfx('tap')});
 $$('#botSkill button').forEach(b=>b.addEventListener('click',()=>{botSkill=+b.dataset.d;$$('#botSkill button').forEach(x=>x.setAttribute('aria-pressed',String(x===b)))}));
 function isHost(){return lobbyMembers.length&&lobbyMembers[0].id===ME.id}
 function renderLobby(){
@@ -1310,8 +1349,11 @@ function renderLobby(){
     li.innerHTML=`${avImg(m.id===ME.id?prefs.av:m.av)}${esc(m.name)}${m.id===ME.id&&i===0?' (you)':''}<span>${tag}</span>`;
     ul.appendChild(li);
   });
-  const hostView=isHost(),target=Math.max(4,seated.length);
-  const bots=hostView&&fillTo>seated.length?pickBots(fillTo-seated.length,null,[]):[];
+  const hostView=isHost(),target=Math.min(MAX_PLAYERS,Math.max(2,seated.length+Math.min(botCount,MAX_PLAYERS-seated.length)+1));
+  const nb=Math.min(botCount,Math.max(0,MAX_PLAYERS-seated.length));
+  const bots=hostView&&nb?pickBots(nb,null,[]):[];
+  $('#botN').textContent=nb;$('#botTotal').textContent=`${nb===1?'bot':'bots'} · ${seated.length+nb} cooks total`;
+  $('#botMinus').disabled=nb<=0;$('#botPlus').disabled=seated.length+nb>=MAX_PLAYERS;
   bots.forEach(bt=>{const li=document.createElement('li');li.className='bot';li.innerHTML=`${avImg(bt.av)}${bt.name}<span>Bot</span>`;ul.appendChild(li)});
   for(let i=seated.length+bots.length;i<target;i++){const li=document.createElement('li');li.className='empty';li.textContent='Open seat';ul.appendChild(li)}
   $('#seatCount').textContent=`· ${seated.length} of ${MAX_PLAYERS}`;
@@ -1322,9 +1364,9 @@ function renderLobby(){
   if(me>=MAX_PLAYERS)lobbyMsg('This room is full. You can wait here for an open seat.');
   else if(playing.length)lobbyMsg(playing.some(m=>m.id===ME.id)?'':'A match is in progress. You will be in the next one.');
   else if(!hostView&&host)lobbyMsg(`Waiting for ${host.name} to start.`);
-  else if(hostView&&seated.length<2&&fillTo<2)lobbyMsg('Share the code, or add bots to play now.');
+  else if(hostView&&seated.length+nb<2)lobbyMsg('Share the code, or add a bot to play now.');
   else lobbyMsg('');
-  $('#bStart').disabled=!!playing.length||(seated.length<2&&fillTo<2);
+  $('#bStart').disabled=!!playing.length||seated.length+nb<2;
   const forming=lobbyMembers.filter(m=>m.state.startsWith('gm:')&&m.id!==ME.id);
   const gj=$('#gmJoin');gj.hidden=!forming.length&&!gmMid;gj.disabled=!!gmMid;
   if(gmMid)gj.innerHTML=`You're in!<small>${esc($('#gmMsg').textContent||'Waiting for the grudge match')}</small>`;
@@ -1335,7 +1377,8 @@ $('#bStart').addEventListener('click',()=>{
   if(!isHost())return;
   const humans=lobbyMembers.filter(m=>m.state!=='playing').slice(0,MAX_PLAYERS);
   const roster=humans.map(h=>({id:h.id,name:h.name,av:h.id===ME.id?prefs.av:h.av}));
-  if(fillTo>roster.length)pickBots(fillTo-roster.length,null,[]).forEach((bt,i)=>roster.push({id:`bot:${ME.id}:${i}`,name:bt.name,av:bt.av,bot:true,owner:ME.id}));
+  const nb=Math.min(botCount,MAX_PLAYERS-roster.length);
+  if(nb>0)pickBots(nb,null,[]).forEach((bt,i)=>roster.push({id:`bot:${ME.id}:${i}`,name:bt.name,av:bt.av,bot:true,owner:ME.id}));
   if(roster.length<2){lobbyMsg('Need at least one more cook. Share the code or turn on bots.');return}
   const m={t:'start',mid:Math.random().toString(36).slice(2,10),seed:Math.floor(Math.random()*2**31),roster,diff:botSkill,delay:3000,variant:roomMode,host:ME.id,boss:pickBoss(roster)};
   NET.send(m);onStart(m);
@@ -1488,10 +1531,15 @@ document.addEventListener('touchend',e=>{
 },{passive:false});
 document.addEventListener('touchmove',e=>{if(e.touches&&e.touches.length>1)e.preventDefault()},{passive:false});   // pinch
 
+/* ---------- offline: save the game on the device ---------- */
+if('serviceWorker' in navigator&&(location.protocol==='https:'||location.hostname==='localhost')&&!/claude\.ai|claudeusercontent/.test(location.hostname)){
+  window.addEventListener('load',()=>{navigator.serviceWorker.register('sw.js').catch(()=>{})});
+}
+
 /* ---------- boot ---------- */
 document.querySelectorAll('[data-icon]').forEach(e=>e.innerHTML=ICONS[e.dataset.icon]);
 try{$('#year').textContent=new Date().getFullYear()}catch(e){}
-showMute();showBest();renderPicker();
+showMute();showBest();renderPicker();showConnection();
 demo();applyLook();show('#ovLoad');preload();
 window.__ff={get game(){return G}}; // handy for debugging in the console
 

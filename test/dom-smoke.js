@@ -57,6 +57,7 @@ function page(url){
 }
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 const vis=(p,id)=>!p.$(id).hidden;
+const setBots=(pg,n)=>{for(let i=0;i<9;i++)pg.$('#botMinus').click();for(let i=0;i<n;i++)pg.$('#botPlus').click()};
 const check=(cond,msg)=>{console.log((cond?'PASS ':'FAIL ')+msg);if(!cond)process.exitCode=1};
 
 (async()=>{
@@ -69,7 +70,10 @@ const check=(cond,msg)=>{console.log((cond?'PASS ':'FAIL ')+msg);if(!cond)proces
   check(solo.w.document.querySelectorAll('#picker .pick').length===8,'fighter picker offers 8 fighters');
   solo.$('#picker [data-av="crunch"]').click();
   check(JSON.parse(solo.w.localStorage.getItem('ff-prefs')).av==='crunch','picked fighter is saved');
-  check(!solo.$('#bOnline').disabled,'online button enabled when configured');
+  check(!solo.$('#bOnline').disabled&&/^Play/.test(solo.$('#bOnline').textContent.trim()),'main button just says Play');
+  solo.$('#bOnline').click();
+  check(vis(solo,'#ovOnline')&&!solo.$('#bCreate').disabled&&solo.w.document.querySelectorAll('#diff2 [data-d]').length===3,'Play screen offers rooms and Play vs AI');
+  solo.$('#ovOnline [data-close]').click();
   solo.$('.pal[data-p="redgreen"]').click();
   check(solo.$('.pal[data-p="redgreen"]').getAttribute('aria-pressed')==='true','palette picker selects red-green');
   solo.$('#theme [data-t="day"]').click();
@@ -142,7 +146,7 @@ const check=(cond,msg)=>{console.log((cond?'PASS ':'FAIL ')+msg);if(!cond)proces
   check(host.w.document.querySelectorAll('#seats li:not(.empty):not(.bot)').length===2,'host sees 2 humans seated');
   check(host.$('#bStart').hidden===false&&guest.$('#bStart').hidden===true,'only host has Start');
   check(/Waiting for Justin/.test(guest.$('#lobbyMsg').textContent),'guest sees waiting message');
-  host.$('#fill [data-f="0"]').click();
+  setBots(host,0);
   host.$('#bStart').click();
   await sleep(100);
   check(vis(host,'#ovVs')&&vis(guest,'#ovVs')&&host.w.document.querySelectorAll('#vsStage .duelvs').length===1,'both see the duel match-up screen');
@@ -182,8 +186,10 @@ const check=(cond,msg)=>{console.log((cond?'PASS ':'FAIL ')+msg);if(!cond)proces
   check(vis(host,'#ovLobby'),'host back in lobby');
   check(vis(guest,'#ovStart'),'guest back at start screen');
   // host alone, seats filled with bots
-  host.$('#fill [data-f="8"]').click();
+  setBots(host,7);check(host.$('#botN').textContent==='7'&&host.$('#botPlus').disabled,'bot stepper stops at 8 cooks');
   check(host.w.document.querySelectorAll('#seats li.bot').length===7,'lobby previews 7 bots for an 8-cook room');
+  setBots(host,4);check(host.w.document.querySelectorAll('#seats li.bot').length===4&&/5 cooks/.test(host.$('#botTotal').textContent),'add bots one at a time: 4 bots = 5 cooks');
+  setBots(host,7);
   host.$('#bStart').click();await sleep(4600);
   const BG=host.w.__ff.game;
   check(BG.boards.length===8&&BG.boards.filter(b=>b.isBot&&!b.remote).length===7,'host runs 7 local bots online');
@@ -226,7 +232,7 @@ const check=(cond,msg)=>{console.log((cond?'PASS ':'FAIL ')+msg);if(!cond)proces
     const fh=page('https://foodfight.grudgematchgames.com/');await sleep(2400);
     fh.$('#bOnline').click();fh.$('#bCreate').click();await sleep(120);
     const fg=page('https://foodfight.grudgematchgames.com/?room='+fh.$('#roomCode').textContent);await sleep(2500);
-    fh.$('#fill [data-f="4"]').click();fh.$('#bStart').click();await sleep(4600);
+    setBots(fh,2);fh.$('#bStart').click();await sleep(4600);
     const FH=fh.w.__ff.game,FGg=fg.w.__ff.game;
     FGg.player.die();await sleep(800);
     check(!fg.$('#outToast').hidden&&fg.$('#bFF').hidden,'guest out while host still plays: no fast forward');
@@ -252,7 +258,7 @@ const check=(cond,msg)=>{console.log((cond?'PASS ':'FAIL ')+msg);if(!cond)proces
   h2.$('#bOnline').click();h2.$('#bCreate').click();await sleep(120);
   const code2=h2.$('#roomCode').textContent;
   const g2=page('https://foodfight.grudgematchgames.com/?room='+code2);await sleep(2500);
-  h2.$('#fill [data-f="4"]').click();h2.$('#bStart').click();await sleep(4600);
+  setBots(h2,2);h2.$('#bStart').click();await sleep(4600);
   const M1=h2.w.__ff.game,M1g=g2.w.__ff.game;
   check(M1.boards.length===4&&M1.boards.filter(b=>b.isBot).length===2,'first match: 2 humans + 2 bots');
   M1g.player.die();await sleep(300);
@@ -277,7 +283,7 @@ const check=(cond,msg)=>{console.log((cond?'PASS ':'FAIL ')+msg);if(!cond)proces
     sh.$('#bOnline').click();sh.$('#bCreate').click();await sleep(150);
     sh.$('#lobbyVariants [data-v="classic"]').click();
     const sg=page('https://foodfight.grudgematchgames.com/?room='+sh.$('#roomCode').textContent);await sleep(2600);
-    sh.$('#fill [data-f="0"]').click();sh.$('#bStart').click();await sleep(4700);
+    setBots(sh,0);sh.$('#bStart').click();await sleep(4700);
     const H=sh.w.__ff.game,Gg=sg.w.__ff.game;
     for(let r=0;r<5;r++)for(let c=0;c<6;c++)Gg.player.g[r][c]=sg.w.eval(`({t:${(r*2+c)%5},id:${9000+r*6+c},st:'idle',tm:0,clr:0,conv:false,chain:false,yo:0,xo:0,gid:0})`);
     const before=Gg.player.g.flat().filter(Boolean).length,hb=H.player.g.flat().filter(Boolean).length;
@@ -311,9 +317,9 @@ const check=(cond,msg)=>{console.log((cond?'PASS ':'FAIL ')+msg);if(!cond)proces
       MG.boss.hp=10;MG.player.earn({k:'pie',cells:5},3,5);MG.player.fire(MG.player.rack.length-1);for(let i=0;i<40;i++)MG.step();await sleep(900);
       check(MG.over&&MG.result.won&&MG.result.coop&&/Boss beaten/.test(mp.$('#eTitle').textContent),'boss: knocking out the boss wins for the team');}
     if(v==='stack'){const P=MG.player;
-      check(!mp.$('#modeCtl').hidden&&mp.$('#movePad')&&mp.$('#bSpin')&&mp.$('#bDrop')&&mp.$('#bRaise').hidden&&mp.$('#modeCtl #slots'),'stack: thumb controls (slide pad, Spin over Drop) with the item rack');
+      check(!mp.$('#modeCtl').hidden&&mp.$('#movePad')&&mp.$('#bSpin')&&mp.$('#bDrop')&&mp.$('#bRaise').hidden&&mp.$('#sideCol #slots')&&mp.$('#sideCol #nextCv'),'stack: slide pad left, Spin over Drop right, Next and items down the right edge');
       if(P.piece){const c0=P.piece.c;mp.$('#movePad').dispatchEvent(new mp.w.MouseEvent('pointerdown',{clientX:10,clientY:10,bubbles:true}));mp.$('#movePad').dispatchEvent(new mp.w.MouseEvent('pointerup',{bubbles:true}));check(P.piece.c===Math.max(0,c0-1),'stack: tapping the left of the pad moves left');}
-      P.earn({k:'steam'},3,5);await sleep(100);check(mp.w.document.querySelectorAll('#modeCtl .slot.full').length===1,'stack: earned item shows in the rack');
+      P.earn({k:'steam'},3,5);await sleep(100);check(mp.w.document.querySelectorAll('#sideCol .slot.full').length===1,'stack: earned item shows in the side rack');
       check(P.piece||P.state!=='fall','stack: a pair is falling');
       if(P.piece){const c0=P.piece.c;P.move(1);check(P.piece.c===c0+1||c0===5,'stack: move works');const r0=P.piece.rot;P.rotate(1);check(P.piece.rot!==r0||true,'stack: spin works');}
       for(let k=0;k<3;k++){for(let i=0;i<200&&P.state!=='fall';i++)MG.step();P.hardDrop();}
@@ -339,7 +345,7 @@ const check=(cond,msg)=>{console.log((cond?'PASS ':'FAIL ')+msg);if(!cond)proces
     const og=page('https://foodfight.grudgematchgames.com/?room='+oh.$('#roomCode').textContent);await sleep(2600);
     const vname={order:'Order Up!',boss:'Boss Brawl',stack:'Snack Stack',shot:'Splat Shot'}[v];
     check(!og.$('#lobbyVarNote').hidden&&og.$('#lobbyVarNote').textContent.includes(vname)&&og.$('#lobbyVariants').hidden,`${v} online: guest sees the host picked ${vname}`);
-    oh.$('#fill [data-f="0"]').click();oh.$('#bStart').click();await sleep(4700);
+    setBots(oh,0);oh.$('#bStart').click();await sleep(4700);
     const H=oh.w.__ff.game,Gg=og.w.__ff.game;
     check(H&&Gg&&H.variant===v&&Gg.variant===v&&H.mid===Gg.mid,`${v} online: both phones in a ${v} match`);
     await sleep(500);

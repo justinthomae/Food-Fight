@@ -187,6 +187,17 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
 .lab .free{font-size:9px;letter-spacing:.06em;background:var(--gold);color:var(--gold-ink);border-radius:5px;padding:1px 5px;margin-left:6px;vertical-align:1px}
 .slot.full.giving{background:#56B4E9;color:#08131C;border-color:#56B4E9}
 .modectl{display:flex;gap:8px;align-items:center}
+.stepper{display:grid;grid-template-columns:64px 1fr 64px;align-items:center;gap:8px;background:var(--well);border-radius:14px;padding:6px}
+.stepper button{height:52px;border:0;border-radius:12px;background:var(--panel2);color:var(--ink);font-size:28px;font-weight:800;line-height:1}
+.stepper button:disabled{opacity:.35}
+.stepper button:active{background:var(--gold);color:var(--gold-ink)}
+.stepper div{text-align:center}
+.stepper b{display:block;font-family:var(--display);font-weight:400;font-size:26px;line-height:1}
+.stepper small{font-size:11px;color:var(--muted);font-weight:700}
+.sidecol{position:absolute;top:0;right:4px;display:flex;flex-direction:column;align-items:center;gap:8px;width:60px;z-index:4}
+.sidecol .nextbox{flex-direction:column;height:auto;padding:6px 4px;gap:4px;width:60px}
+.sidecol #slotHost .slots{flex-direction:column;gap:8px}
+.sidecol .slot{width:60px;height:58px}
 .controls.wide .rack{flex:1;max-width:400px;min-width:0}
 .controls.wide .modectl{justify-content:space-between}
 .modectl .slots{gap:5px}
@@ -200,6 +211,7 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
 .ctlcol .spin{height:46px;width:84px;padding:0;font-size:14px}
 .spin.drop{background:var(--gold);color:var(--gold-ink)}
 .movepad{flex:none;width:96px;height:98px;border-radius:16px;background:var(--panel2);display:flex;align-items:center;justify-content:space-between;padding:0 14px;touch-action:none;font-size:22px;color:var(--ink);position:relative;box-shadow:inset 0 -3px 0 rgba(0,0,0,.25)}
+.movepad.wide{flex:1;width:auto;max-width:220px;padding:0 26px;font-size:28px}
 .movepad i{position:absolute;left:0;right:0;bottom:8px;text-align:center;font-style:normal;font-size:9px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
 .movepad:active{background:var(--line)}
 .fly.steam{background:#EEF0FA;width:28px;height:20px;border-radius:12px}
@@ -423,6 +435,7 @@ button.nextbox:active{background:var(--gold)}
       <div class="rail" id="rail" hidden></div>
       <div class="tray" id="tray"><span class="lbl">Incoming</span><span class="none">Nothing yet</span></div>
       <div class="boardwrap" id="wrap"><canvas id="board"></canvas>
+        <div class="sidecol" id="sideCol" hidden></div>
         <div class="specbar" id="specBar" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg><span id="specName">Watching</span><button id="bSpecOff" type="button">My board</button></div>
         <div class="watchpill" id="watchPill" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg><span id="watchText">Someone is watching</span></div>
       </div>
@@ -457,7 +470,7 @@ button.nextbox:active{background:var(--gold)}
     <div class="field"><label class="lab" for="nameIn">Your name · shown on leaderboards</label><input id="nameIn" maxlength="14" autocomplete="nickname" spellcheck="false"></div>
     <div class="lab">Game mode</div>
     <div class="variants" id="variants" role="radiogroup" aria-label="Game mode"></div>
-    <button class="btn primary big" id="bOnline">Play online<small id="onlineNote">Invite friends with a room code</small></button>
+    <button class="btn primary big" id="bOnline">Play<small id="onlineNote" hidden></small></button>
     <div class="lab">Practice vs bots</div>
     <div class="seg three" id="mode">
       <button aria-pressed="true" data-m="duel" data-size="2">Duel<small>1 vs 1</small></button>
@@ -564,11 +577,23 @@ button.nextbox:active{background:var(--gold)}
 <!-- online: create / join -->
 <div class="overlay sheet" id="ovOnline" hidden>
   <div class="card">
-    <div class="cardhead"><h2>Play online</h2><button class="x" data-close aria-label="Close"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
-    <button class="btn primary big" id="bCreate">Create a room<small>Get a code to share with up to 3 friends</small></button>
+    <div class="cardhead"><h2>Play</h2><button class="x" data-close aria-label="Close"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+    <div class="lab">With friends</div>
+    <button class="btn primary big" id="bCreate">Create a room<small>Get a code to share with up to 7 friends</small></button>
     <div class="lab">Or join with a code</div>
     <div class="join"><input id="codeIn" maxlength="5" inputmode="numeric" pattern="[0-9]*" autocomplete="off" spellcheck="false" aria-label="Room code" placeholder="12345"><button class="btn" id="bJoin">Join</button></div>
     <div class="msg" id="onlineMsg"></div>
+    <div class="lab">Or play vs AI <span class="free" id="aiModeTag"></span></div>
+    <div class="seg three" id="mode2">
+      <button aria-pressed="true" data-m="duel" data-size="2">Duel<small>1 vs 1</small></button>
+      <button aria-pressed="false" data-m="brawl" data-size="4">Brawl<small>4 cooks</small></button>
+      <button aria-pressed="false" data-m="brawl" data-size="8">Big Brawl<small>8 cooks</small></button>
+    </div>
+    <div class="diff" id="diff2">
+      <button class="btn" data-d="0">Easy<small>Slow hands</small></button>
+      <button class="btn" data-d="1">Normal<small>Fair fight</small></button>
+      <button class="btn" data-d="2">Hard<small>Quick hands</small></button>
+    </div>
   </div>
 </div>
 
@@ -592,8 +617,10 @@ button.nextbox:active{background:var(--gold)}
     <ul class="seats" id="seats"></ul>
     <div id="hostBox" class="field">
       <div class="lab">Bots</div>
-      <div class="seg three" id="fill">
-        <button data-f="0">No bots</button><button data-f="4" aria-pressed="true">Fill to 4</button><button data-f="8">Fill to 8</button>
+      <div class="stepper" id="botStep">
+        <button type="button" id="botMinus" aria-label="One less bot">−</button>
+        <div><b id="botN">3</b><small id="botTotal">4 cooks total</small></div>
+        <button type="button" id="botPlus" aria-label="One more bot">+</button>
       </div>
       <div class="seg three" id="botSkill">
         <button data-d="0">Easy</button><button data-d="1" aria-pressed="true">Normal</button><button data-d="2">Hard</button>
