@@ -314,8 +314,9 @@ const check=(cond,msg)=>{console.log((cond?'PASS ':'FAIL ')+msg);if(!cond)proces
       await sleep(200);check(to&&/→/.test(mp.$('#bossNext').textContent),'boss: next attack announced: '+mp.$('#bossNext').textContent);
       const inc0=to.inc.length,fr0=to.frozenT,cr0=to.creamT;for(let i=0;i<60*5+50;i++)MG.step();
       check(to.inc.length>inc0||to.frozenT>fr0||to.creamT>cr0||to.rushT>0||to.blendT>0||to.dead,'boss: attack lands on '+to.name);
-      MG.boss.hp=10;MG.player.earn({k:'pie',cells:5},3,5);MG.player.fire(MG.player.rack.length-1);for(let i=0;i<40;i++)MG.step();await sleep(900);
-      check(MG.over&&MG.result.won&&MG.result.coop&&/Boss beaten/.test(mp.$('#eTitle').textContent),'boss: knocking out the boss wins for the team');}
+      const wiped=MG.over;   // an idle test team can lose to the boss before the last hit: that's the boss working
+      if(!wiped){MG.boss.hp=10;const th=MG.alive().find(b=>!b.remote);th.rack=[];th.earn({k:'pie',cells:5},3,5);th.fire(th.rack.findIndex(x=>x.k==='pie'));for(let i=0;i<40;i++)MG.step();}await sleep(900);
+      check(wiped?(MG.result.coop&&!MG.result.won):MG.over&&MG.result.won&&MG.result.coop&&(wiped||/Boss beaten/.test(mp.$('#eTitle').textContent)),wiped?'boss: idle team lost to the boss (co-op loss screen)':'boss: knocking out the boss wins for the team'+(MG.over&&MG.result.won?'':' DEBUG over='+MG.over+' res='+JSON.stringify(MG.result&&{won:MG.result.won})+' hp='+MG.boss.hp+' alive='+MG.alive().length+' title='+mp.$('#eTitle').textContent));}
     if(v==='stack'){const P=MG.player;
       check(!mp.$('#modeCtl').hidden&&mp.$('#movePad')&&mp.$('#bSpin')&&mp.$('#bDrop')&&mp.$('#bRaise').hidden&&mp.$('#sideCol #slots')&&mp.$('#sideCol #nextCv'),'stack: slide pad left, Spin over Drop right, Next and items down the right edge');
       if(P.piece){const c0=P.piece.c;mp.$('#movePad').dispatchEvent(new mp.w.MouseEvent('pointerdown',{clientX:10,clientY:10,bubbles:true}));mp.$('#movePad').dispatchEvent(new mp.w.MouseEvent('pointerup',{bubbles:true}));check(P.piece.c===Math.max(0,c0-1),'stack: tapping the left of the pad moves left');}

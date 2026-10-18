@@ -627,7 +627,7 @@ function setControls(){
   $('#modeCtl').hidden=!(mu&&mu.ctl);slots.hidden=!!(mu&&mu.ctl&&!mu.slots);
   $('#tray').hidden=!!(mu&&mu.noTray);
   const noRaise=!!(mu&&(typeof mu.noRaise==='function'?mu.noRaise():mu.noRaise));
-  rb.hidden=noRaise;document.querySelector('.controls').classList.toggle('wide',noRaise);
+  rb.hidden=noRaise;$('#aimline').hidden=!!(mu&&mu.ctl);document.querySelector('.controls').classList.toggle('wide',noRaise);
   rb.innerHTML=mu&&mu.raiseLabel?mu.raiseLabel:'<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 4l8 10h-5v6H9v-6H4z"/></svg>Raise';
   const sideHtml=mu&&mu.side?mu.side():'';$('#sideCol').innerHTML=sideHtml;$('#sideCol').hidden=!sideHtml;
   if(mu&&mu.ctl){$('#modeCtl').innerHTML=mu.ctl();const host=$('#slotHost');if(host&&mu.slots)host.appendChild(slots);if(mu.bind)mu.bind()}
@@ -657,7 +657,7 @@ let sd=null,nextKey='';
 MODE_UI.stack={
   slots:true,
   noRaise:()=>prefs.stackCtl==='buttons',
-  raiseLabel:'<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 20l8-10h-5V4H9v6H4z"/></svg>Drop',
+  raiseLabel:'Drop',
   side(){return prefs.stackCtl==='buttons'?'<div class="nextbox"><span>Next</span><canvas id="nextCv"></canvas></div><div id="slotHost"></div>':''},
   sideW(){return prefs.stackCtl==='buttons'?66:0},
   ctl(){
@@ -665,7 +665,7 @@ MODE_UI.stack={
     if(prefs.stackCtl!=='buttons')return next+'<div id="slotHost"></div>';   // swipe mode: tap the board to spin, Drop on the left
     // left thumb: a big slide pad. right thumb: Spin on top, Drop underneath. Next pair and items sit beside the board
     return `<div class="movepad wide" id="movePad"><span>◀</span><i>tap or slide</i><span>▶</span></div>
-      <div class="ctlcol"><button class="spin" id="bSpin" type="button">↻ Spin</button><button class="spin drop" id="bDrop" type="button">⬇ Drop</button></div>`;
+      <div class="ctlcol"><button class="spin icon" id="bSpin" type="button" aria-label="Spin">↻</button><button class="spin drop" id="bDrop" type="button">Drop</button></div>`;
   },
   bind(){
     const c=$('#nextCv'),s=prefs.stackCtl==='buttons'?24:26;c.width=(s*2+8)*DPR;c.height=s*2*DPR;c.style.width=(s*2+8)+'px';c.style.height=s*2+'px';nextKey='';this.ns=s;
