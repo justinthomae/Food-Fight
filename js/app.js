@@ -1,6 +1,6 @@
 // Food Fight UI: drawing, input, settings, practice mode and the online lobby.
 (function(){
-const VERSION='1.8.1';
+const VERSION='1.8.2';
 let spec=null; // board being spectated after you're knocked out
 const $=s=>document.querySelector(s);
 const $$=s=>[...document.querySelectorAll(s)];
@@ -1021,8 +1021,8 @@ const baseHooks={
     if(won)best.wins++;
     best.score=Math.max(best.score,B.score);best.chain=Math.max(best.chain,B.maxChain);saveBest();
     $('#eTitle').textContent=res.coop?(won?'Boss beaten!':'The boss wins'):won?'You win':(n>2?`${placeName(res.place)} of ${n}`:G.variant==='order'?'Outcooked':'Topped out');
-    const champ=res.coop?(won?B:{av:G.boss.av,name:G.boss.name}):won?B:(res.winner||G.boards.find(b=>!b.dead&&b!==B)||B.killedBy||B);
-    hideKO();$('#eHero').src=pose(champ.av,'win')||body(champ.av);$('#eHero').alt=won?'Your fighter celebrates':`${champ.name} wins`;
+    // your own fighter: the victory pose when you win, dizzy when you don't
+    hideKO();$('#eHero').src=pose(B.av,won?'win':'ko')||body(B.av);$('#eHero').alt=won?'Your fighter celebrates':'Your fighter is dizzy';
     $('#eHero').style.animation='none';void $('#eHero').offsetWidth;$('#eHero').style.animation='';
     const modeLine=res.coop?(won?`${G.boss.name} is down! You did ${Math.round(B.dmg||0)} damage (${placeName(res.place)} on the team).`:`${G.boss.name} cleaned out the whole kitchen.`)
       :G.variant==='order'?(won?`First to ${ORDER_GOAL} orders. Kitchen of the day!`:`${res.winner?res.winner.name:'Someone'} filled ${ORDER_GOAL} orders first. You filled ${B.orders|0}.`):null;

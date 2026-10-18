@@ -314,7 +314,7 @@ const check=(cond,msg)=>{console.log((cond?'PASS ':'FAIL ')+msg);if(!cond)proces
     if(v==='boss'){check(!mp.$('#bossBar').hidden&&/HP/.test(mp.$('#bossHpText').textContent),'boss: boss bar with HP');
       const hp0=MG.boss.hp;MG.player.earn({k:'pie',cells:5},3,5);MG.player.fire(MG.player.rack.length-1);for(let i=0;i<40;i++)MG.step();
       check(MG.boss.hp<hp0&&MG.player.dmg>0,'boss: a pie damages the boss ('+(hp0-MG.boss.hp)+')');
-      MG.boss.next=null;MG.boss.nextAt=MG.frame+60*5;MG.step();const to=MG.byId(MG.boss.next&&MG.boss.next.to);
+      MG.boss.next=null;MG.boss.nextAt=MG.frame+60*5;MG.step();for(let i=0;i<600&&!(MG.boss.next&&MG.byId(MG.boss.next.to));i++)MG.step();const to=MG.byId(MG.boss.next&&MG.boss.next.to);
       await sleep(200);check(to&&/→/.test(mp.$('#bossNext').textContent),'boss: next attack announced: '+mp.$('#bossNext').textContent);
       const inc0=to.inc.length,fr0=to.frozenT,cr0=to.creamT;for(let i=0;i<60*5+50;i++)MG.step();
       check(to.inc.length>inc0||to.frozenT>fr0||to.creamT>cr0||to.rushT>0||to.blendT>0||to.dead,'boss: attack lands on '+to.name);
