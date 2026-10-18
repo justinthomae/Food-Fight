@@ -48,7 +48,7 @@
     color-scheme:light;
   }
 }
-html{height:100%;box-sizing:border-box;background:var(--bg);padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+html{height:100%;box-sizing:border-box;background:var(--bg);padding-top:env(safe-area-inset-top,0px);padding-bottom:max(2px,calc(env(safe-area-inset-bottom,0px) - 14px))}
 *,*::before,*::after{box-sizing:inherit}
 /* no double-tap or pinch zoom anywhere: every element pans/taps only (the board and hold buttons opt out further below) */
 *,*::before,*::after{touch-action:manipulation}
@@ -69,15 +69,15 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
 .arena{flex:1;min-height:0;display:flex;flex-direction:column;gap:8px}
 .opps{display:flex;gap:8px;flex:none}
 .foe{flex:1;min-width:0;display:flex;flex-direction:column;align-items:stretch;gap:5px;background:var(--panel);border:2px solid transparent;border-radius:14px;padding:6px 8px;text-align:left;transition:background .15s,border-color .15s,opacity .3s}
-.foe canvas{width:30px;height:60px;border-radius:4px;flex:none;background:var(--well);display:block}
+.foe canvas{width:32px;height:64px;border-radius:4px;flex:none;background:var(--well);display:block}
 /* name gets the full card width on top; the avatar sits on the corner of the mini board */
-.foe .nm{font-family:var(--display);font-size:16px;line-height:1.1;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;letter-spacing:.01em}
-.foe .body{display:flex;align-items:center;gap:11px;min-width:0}
+.foe .nm{font-family:var(--display);font-size:16px;line-height:1.1;color:var(--ink);white-space:nowrap;overflow:hidden;min-width:0;letter-spacing:.01em}
+.foe .body{display:flex;align-items:center;gap:10px;min-width:0}
 .foe .mb{position:relative;flex:none}
 .foe .mb .av{position:absolute;right:-8px;bottom:-6px;width:22px;height:22px;border-radius:50%;box-shadow:0 0 0 2px var(--panel)}
 .foe .who{min-width:0;flex:1;display:flex;flex-direction:column;gap:2px}
-.foe .st{font-size:11px;font-weight:700;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.foe .meta{font-size:10px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.foe .st{font-size:12px;font-weight:700;color:var(--ink);white-space:nowrap;overflow:hidden;min-width:0}
+.foe .meta{font-size:10px;color:var(--muted);white-space:nowrap;overflow:hidden;min-width:0}
 .foe.watchable{cursor:pointer}
 .foe.watching{border-color:#56B4E9;background:var(--panel2)}
 .foe .eye{display:none;align-self:flex-start;font-size:9px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;border-radius:6px;padding:2px 5px;background:#56B4E9;color:#08131C}
@@ -194,10 +194,11 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
 .stepper div{text-align:center}
 .stepper b{display:block;font-family:var(--display);font-weight:400;font-size:26px;line-height:1}
 .stepper small{font-size:11px;color:var(--muted);font-weight:700}
-.sidecol{position:absolute;top:0;right:4px;display:flex;flex-direction:column;align-items:center;gap:8px;width:60px;z-index:4}
-.sidecol .nextbox{flex-direction:column;height:auto;padding:6px 4px;gap:4px;width:60px}
+.sidecol{position:absolute;top:0;bottom:6px;right:2px;display:flex;flex-direction:column;align-items:center;gap:8px;width:70px;z-index:4}
+.sidecol .nextbox{flex-direction:column;height:auto;padding:7px 4px 9px;gap:5px;width:70px}
+.sidecol #slotHost{margin-top:auto}   /* items rest at the bottom, right above Spin */
 .sidecol #slotHost .slots{flex-direction:column;gap:8px}
-.sidecol .slot{width:60px;height:58px}
+.sidecol .slot{width:68px;height:62px}
 .controls.wide .rack{flex:1;max-width:400px;min-width:0}
 .controls.wide .modectl{justify-content:space-between}
 .modectl .slots{gap:5px}
@@ -212,7 +213,17 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
 .spin.drop{background:var(--gold);color:var(--gold-ink);font-family:var(--display);font-weight:400;font-size:20px;letter-spacing:.02em}
 .spin.icon{font-size:30px;line-height:1}
 .movepad{flex:none;width:96px;height:98px;border-radius:16px;background:var(--panel2);display:flex;align-items:center;justify-content:space-between;padding:0 14px;touch-action:none;font-size:22px;color:var(--ink);position:relative;box-shadow:inset 0 -3px 0 rgba(0,0,0,.25)}
-.movepad.wide{flex:1;width:auto;max-width:220px;padding:0 26px;font-size:28px}
+.movepad.wide{flex:none;width:var(--bw,240px);height:96px;max-width:100%;padding:0 30px;font-size:34px}
+.movepad.reversed{background:#4A2A44;box-shadow:inset 0 0 0 2px #CC79A7}
+.movepad.reversed span:first-child::after{content:"";}
+/* Snack Stack thumb layout: arrows centred under the board, square Spin/Drop on the right edge */
+.controls.stackbtn{position:relative;padding-right:76px;justify-content:center;min-height:148px;align-items:flex-end}
+.controls.stackbtn .rack{max-width:none}
+.controls.stackbtn .modectl{justify-content:center}
+.controls.stackbtn .ctlcol{position:absolute;right:0;bottom:0;gap:8px}
+.controls.stackbtn .ctlcol .spin{width:70px;height:70px;border-radius:16px}
+.controls.stackbtn .spin.icon{font-size:36px}
+.controls.stackbtn .spin.drop{font-size:21px}
 .movepad i{position:absolute;left:0;right:0;bottom:8px;text-align:center;font-style:normal;font-size:9px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
 .movepad:active{background:var(--line)}
 .fly.steam{background:#EEF0FA;width:28px;height:20px;border-radius:12px}
@@ -502,7 +513,7 @@ button.nextbox:active{background:var(--gold)}
     <div class="lab">Game modes</div>
     <ul class="rules modes">
       <li><b>🧾</b><span><strong>Order Up!</strong> Same board, new goal. Tickets on the rail ask for foods ("4 tomatoes + 5 cheese"). Matches fill the oldest ticket first, and the first kitchen to fill 10 orders wins. Rush tickets 🔥 go cold if you're slow but pay a tip and a hot sauce. Topping out doesn't knock you out here: you spill, lose an order and freeze for a moment.</span></li>
-      <li><b>🍩</b><span><strong>Snack Stack</strong> Pairs of food fall from the top. Drag sideways to slide, tap the board (or Spin) to turn, flick down or tap Drop to slam it. 4 or more of one food touching in any shape pops. When a pop makes the stack fall into another pop, that's a chain, and chains send big junk. Your pops cancel junk that's coming at you. Don't fill the ✕ column. Controls: by default, a slide pad sits under your left thumb (tap or slide it to move) with Spin above Drop under your right thumb. Prefer gestures? Switch to "Swipe the board" in Colors &amp; look. Some pairs carry a gold-badge food: pop it to rack an item. Throw Steam (fog), Greasy fingers (hides their ghost and next pair), Hot sauce (faster fall), Brain freeze, Blender or Switcheroo at your target, or use a Rolling pin (flattens your top 3 rows) or Clean plate (clears your most common food) on yourself.</span></li>
+      <li><b>🍩</b><span><strong>Snack Stack</strong> Pairs of food fall from the top. Drag sideways to slide, tap the board (or Spin) to turn, flick down or tap Drop to slam it. 4 or more of one food touching in any shape pops. When a pop makes the stack fall into another pop, that's a chain, and chains send big junk. Your pops cancel junk that's coming at you. Don't fill the ✕ column. Controls: by default, a slide pad sits centred under the board (tap or slide it to move) with big Spin and Drop squares under your right thumb; your next pair and items sit down the right edge. Prefer gestures? Switch to "Swipe the board" in Colors &amp; look. Some pairs carry a gold-badge food: pop it to rack an item. Throw Steam (fog), Greasy fingers (hides their ghost and next pair), Topsy-turvy (their left and right swap for 7 seconds), Hot sauce (faster fall), Brain freeze, Blender or Switcheroo at your target, fire Lights out to hide the Next pair from every opponent at once, or use a Rolling pin (flattens your top 3 rows) or Clean plate (clears your most common food) on yourself.</span></li>
       <li><b>🎯</b><span><strong>Splat Shot</strong> Food hangs from the ceiling. Slide your finger left or right anywhere on the board to turn your aim (a small slide is a small turn), then let go to throw. The dotted line, in the colour of your food, shows exactly where it'll stick, bounces included. Drag down before letting go to cancel. The food you're throwing and the next one sit in the bar under the board; tap Next or Swap to trade them. Hit 3 or more of one food to pop them, and anything left hanging drops too. Drops hit hardest. Junk you receive arrives as crust rows that push the ceiling down. Past the dashed line, you're out. Gold-badge foods hang in some rows: pop or drop one to rack its item, then tap it to throw. Steam fogs their food, Greasy fingers hides their aim guide and makes it wobble, Hot sauce drops their ceiling, plus Brain freeze, Blender and Switcheroo. Rainbow sprinkles make your next throw match anything it touches, and a Chili bomb blasts everything around where it lands, crust included.</span></li>
       <li><b>👑</b><span><strong>Boss Brawl</strong> Co-op. Everyone plays their own board, and every throw hits the giant boss. The boss announces its next attack 5 seconds ahead, then fires at one of you. Hold a rack item for half a second to pass it to the teammate in the most trouble. Beat the boss before it cleans out the whole kitchen.</span></li>
     </ul>

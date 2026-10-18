@@ -11,7 +11,8 @@ const ROT=[[-1,0],[0,1],[1,0],[0,-1]];              // satellite offset (dr,dc) 
 // Snack Stack items ride on gold-badge foods in some pairs; pop the badge food to rack the item.
 // attacks: steam (fog), grease (no ghost or next preview), sauce (faster fall), freeze (no controls), blender, swap.
 // self: pin (flatten your top 3 rows), plate (clear your most common food)
-const STACK_ITEMS=['steam','grease','sauce','freeze','blender','swap','pin','plate'],STACK_W=[3,2,2,2,2,1,2,2],STACK_SELF=['pin','plate'];
+// lights (Lights out) hides the Next preview for EVERY opponent; reverse (Topsy-turvy) flips one opponent's left and right
+const STACK_ITEMS=['steam','grease','sauce','freeze','blender','swap','pin','plate','lights','reverse'],STACK_W=[2.5,2,2,2,2,1,2,2,2,2],STACK_SELF=['pin','plate'];
 const STACK_WT=STACK_W.reduce((a,b)=>a+b,0),RACK_N=3;
 
 class StackBoard{
@@ -19,7 +20,7 @@ class StackBoard{
     Object.assign(this,{game,name,isBot,idx,id:id||('b'+idx),rng:mulberry32(seed>>>0),
       rise:0,chain:0,maxChain:1,maxCombo:0,score:0,inc:[],dead:false,sent:0,blocked:0,kos:0,pops:[],parts:[],shake:0,
       lastAttacker:null,killedBy:null,place:0,hitFlash:0,diedAt:0,rack:[],rushT:0,creamT:0,frozenT:0,blendT:0,dmg:0,
-      state:'spawn',wait:20,piece:null,queue:[],pending:0,lock:0,soft:false,think:40,plan:null,moveT:0,stack:true,preview:null,steamT:0,greaseT:0,fireT:120});
+      state:'spawn',wait:20,piece:null,queue:[],pending:0,lock:0,soft:false,think:40,plan:null,moveT:0,stack:true,preview:null,steamT:0,greaseT:0,fireT:120,lightsT:0,reverseT:0});
     this.g=[];for(let r=0;r<ROWS;r++)this.g.push(new Array(COLS).fill(null));
     // a few starter scraps on the floor so the first chains come sooner
     for(let c=0;c<COLS;c++){const h=Math.floor(this.rng()*2);for(let k=0;k<h;k++)this.g[ROWS-1-k][c]=T(Math.floor(this.rng()*NT))}
@@ -43,8 +44,8 @@ class StackBoard{
   fits(p){return this.cells(p).every(([r,c])=>this.free(r,c))}
   // ---------- player controls ----------
   canAct(){return !this.dead&&this.state==='fall'&&this.piece&&this.frozenT<=0}
-  move(d){if(!this.canAct())return false;const p=Object.assign({},this.piece,{c:this.piece.c+d});if(!this.fits(p))return false;this.piece=p;this.lock=Math.min(this.lock,8);this.sfx('tap');return true}
-  moveTo(col){if(!this.canAct())return;let guard=6;while(this.piece.c!==col&&guard--){if(!this.move(Math.sign(col-this.piece.c)))break}}
+  move(d){if(!this.canAct())return false;if(this.reverseT>0)d=-d;const p=Object.assign({},this.piece,{c:this.piece.c+d});if(!this.fits(p))return false;this.piece=p;this.lock=Math.min(this.lock,8);this.sfx('tap');return true}
+  moveTo(col){if(!this.canAct())return;let guard=6;while(this.piece.c!==col&&guard--){const d=Math.sign(col-this.piece.c);if(!this.move(this.reverseT>0?-d:d))break}}
   rotate(dir){
     if(!this.canAct())return false;
     const rot=(this.piece.rot+(dir<0?3:1))%4;
@@ -57,7 +58,7 @@ class StackBoard{
   step(){
     if(this.hitFlash>0)this.hitFlash--;
     if(this.creamT>0)this.creamT--;if(this.frozenT>0)this.frozenT--;if(this.rushT>0)this.rushT--;if(this.blendT>0)this.blendT--;
-    if(this.steamT>0)this.steamT--;if(this.greaseT>0)this.greaseT--;
+    if(this.steamT>0)this.steamT--;if(this.greaseT>0)this.greaseT--;if(this.lightsT>0)this.lightsT--;if(this.reverseT>0)this.reverseT--;
     if(this.shake>0)this.shake--;
     this.inc.forEach(it=>{if(it.t>0)it.t--});
     // tile fall animation
@@ -175,6 +176,8 @@ class StackBoard{
   rush(from){this.rushT=180;this.lastAttacker=from;this.hitFlash=24;this.pop('Hot sauce!',3,9,'#F7C548',1.1);this.sfx('sauce')}
   cream(from){this.steam(from)}
   steam(from){if(this.dead)return;this.steamT=360;this.lastAttacker=from;this.hitFlash=24;this.pop('Steamed up!',3,6,'#EEF0FA',1.05);this.sfx('cream')}
+  lights(from){if(this.dead)return;this.lightsT=480;this.lastAttacker=from;this.hitFlash=18;this.pop('Lights out! No preview',3,6,'#EEF0FA',.95);this.sfx('freeze')}
+  reverse(from){if(this.dead)return;this.reverseT=420;this.lastAttacker=from;this.hitFlash=24;this.pop('Topsy-turvy! Left is right',3,6,'#CC79A7',.95);this.sfx('blender')}
   grease(from){if(this.dead)return;this.greaseT=420;this.lastAttacker=from;this.hitFlash=24;this.pop('Greasy fingers! No preview',3,6,'#F7C548',.9);this.sfx('sauce')}
   freeze(from){this.frozenT=150;this.lastAttacker=from;this.hitFlash=24;this.pop('Brain freeze!',3,9,'#56B4E9',1.1);this.sfx('freeze')}
   blend(from){this.lastAttacker=from;this.hitFlash=24;this.each(t=>{if(t.t>=0&&!t.clr&&Math.random()<.4)t.t=Math.floor(Math.random()*NT)});this.sfx('blender')}
@@ -183,7 +186,7 @@ class StackBoard{
   earn(item,cx,cy){
     if(this.dead||!STACK_ITEMS.includes(item.k))return;
     item.id=E.nextId();this.rack.push(item);
-    this.pop({steam:'Steam cloud!',grease:'Greasy fingers!',sauce:'Hot sauce!',freeze:'Brain freeze!',blender:'Blender!',swap:'Switcheroo!',pin:'Rolling pin!',plate:'Clean plate!'}[item.k],cx==null?3:cx,cy==null?6:cy,'#F7C548',.85);
+    this.pop({steam:'Steam cloud!',grease:'Greasy fingers!',sauce:'Hot sauce!',freeze:'Brain freeze!',blender:'Blender!',swap:'Switcheroo!',pin:'Rolling pin!',plate:'Clean plate!',lights:'Lights out!',reverse:'Topsy-turvy!'}[item.k],cx==null?3:cx,cy==null?6:cy,'#F7C548',.85);
     this.sfx('earn',true);
     if(this.rack.length>RACK_N){const i=this.rack.findIndex(x=>!STACK_SELF.includes(x.k));this.fire(i<0?0:i)}
     if(this===this.game.player&&this.game.hooks.rack)this.game.hooks.rack();
@@ -192,6 +195,11 @@ class StackBoard{
     if(this.dead||i<0||i>=this.rack.length)return false;
     const it=this.rack[i];
     if(STACK_SELF.includes(it.k)){this.rack.splice(i,1);if(it.k==='pin')this.flatten();else this.clearFood()}
+    else if(it.k==='lights'){
+      // hits everyone at once
+      const all=this.game.alive().filter(b=>b!==this);if(!all.length)return false;
+      this.rack.splice(i,1);all.forEach(t=>this.game.launch(this,{k:'lights',cells:0,at:null},t,i));
+    }
     else{const tgt=this.pickTarget();if(!tgt)return false;this.rack.splice(i,1);this.game.launch(this,{k:it.k,cells:0,at:null},tgt,i)}
     if(this===this.game.player&&this.game.hooks.rack)this.game.hooks.rack();
     return true;

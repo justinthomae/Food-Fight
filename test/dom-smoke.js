@@ -107,6 +107,9 @@ const check=(cond,msg)=>{console.log((cond?'PASS ':'FAIL ')+msg);if(!cond)proces
    solo.$('#bSpecOff').click();await sleep(50);
    check(solo.$('#specBar').hidden,'My board returns to your own board');
    cards[0].click();await sleep(50);
+   // pause and come back: the out bar and Fast forward must come back too
+   solo.$('#bPause').click();await sleep(50);solo.$('#bResume').click();await sleep(300);
+   check(!solo.$('#outToast').hidden&&!solo.$('#bFF').hidden,'after a pause, the out bar and Fast forward come back');
    solo.$('#bFF').click();
    let t=0;while(!SG.over&&t<40){await sleep(250);t++}
    check(SG.over&&solo.$('#specBar').hidden,'fast forward ends the practice brawl and stops spectating');}
