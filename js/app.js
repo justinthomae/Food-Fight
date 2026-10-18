@@ -1,6 +1,6 @@
 // Food Fight UI: drawing, input, settings, practice mode and the online lobby.
 (function(){
-const VERSION='1.0.0';
+const VERSION='1.0.1';
 let spec=null; // board being spectated after you're knocked out
 const $=s=>document.querySelector(s);
 const $$=s=>[...document.querySelectorAll(s)];
@@ -1357,6 +1357,20 @@ function preload(){
   const min=new Promise(r=>setTimeout(r,900)),cap=new Promise(r=>setTimeout(r,2000)); // slow network: carry on, art keeps loading
   Promise.all([Promise.race([Promise.all(urls.map(one)),cap]),min]).then(()=>{bar.style.width='100%';setTimeout(afterLoad,150)});
 }
+
+/* ---------- no zooming: iOS ignores user-scalable=no, so block its zoom gestures directly ---------- */
+['gesturestart','gesturechange','gestureend'].forEach(ev=>document.addEventListener(ev,e=>e.preventDefault(),{passive:false}));
+document.addEventListener('dblclick',e=>e.preventDefault(),{passive:false});
+let lastTouchEnd=0;
+document.addEventListener('touchend',e=>{
+  const now=Date.now(),tag=e.target&&e.target.tagName;
+  if(now-lastTouchEnd<350&&tag!=='INPUT'&&tag!=='TEXTAREA'&&tag!=='SELECT'){
+    e.preventDefault();   // second tap of a double tap: no zoom...
+    const b=e.target.closest&&e.target.closest('button,a,.vcard,.foe');if(b)b.click();   // ...but a quick second tap on a button still counts
+  }
+  lastTouchEnd=now;
+},{passive:false});
+document.addEventListener('touchmove',e=>{if(e.touches&&e.touches.length>1)e.preventDefault()},{passive:false});   // pinch
 
 /* ---------- boot ---------- */
 document.querySelectorAll('[data-icon]').forEach(e=>e.innerHTML=ICONS[e.dataset.icon]);
