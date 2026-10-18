@@ -4,7 +4,7 @@ const {JSDOM}=require('jsdom');
 const fs=require('fs'),path=require('path');
 const root=path.join(__dirname,'..');
 const html=fs.readFileSync(path.join(root,'index.html'),'utf8').replace(/<script[^>]*src=[^>]*><\/script>/g,'');
-const scripts=['js/sfx.js','js/engine.js','js/stack.js','js/shot.js','js/net.js','js/scores.js','js/app.js'].map(f=>fs.readFileSync(path.join(root,f),'utf8'));
+const scripts=['js/sfx.js','js/cuisines.js','js/engine.js','js/stack.js','js/shot.js','js/net.js','js/scores.js','js/app.js'].map(f=>fs.readFileSync(path.join(root,f),'utf8'));
 
 // ---- fake Supabase Realtime: one shared bus per channel name ----
 const buses={},rpcLog=[],rpcRows=[{mode:'brawl',diff:1,name:'Top Chef',score:99999,device:'d-other-device'}];
@@ -76,6 +76,10 @@ const check=(cond,msg)=>{console.log((cond?'PASS ':'FAIL ')+msg);if(!cond)proces
   check(solo.w.document.documentElement.getAttribute('data-ff-theme')==='day','day theme applied');
   check(JSON.parse(solo.w.localStorage.getItem('ff-prefs')).palette==='redgreen','prefs saved');
   check(JSON.parse(solo.w.localStorage.getItem('ff-prefs')).art===undefined||solo.$('#art [data-a="food"]').getAttribute('aria-pressed')==='true','food art is the default');
+  check(solo.w.document.querySelectorAll('#cuisines .cz').length===7,'7 cuisines offered');
+  solo.$('#cuisines [data-c="japanese"]').click();
+  check(JSON.parse(solo.w.localStorage.getItem('ff-prefs')).cuisine==='japanese'&&solo.$('#cuisines [data-c="japanese"]').getAttribute('aria-pressed')==='true','picking a cuisine saves it');
+  solo.$('#cuisines [data-c="market"]').click();
   solo.$('#art [data-a="shapes"]').click();
   check(JSON.parse(solo.w.localStorage.getItem('ff-prefs')).art==='shapes','tile art switches to shapes');
   solo.$('#mode [data-size="4"]').click();solo.$('.diff [data-d="1"]').click();

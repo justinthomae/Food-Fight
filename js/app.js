@@ -1,6 +1,6 @@
 // Food Fight UI: drawing, input, settings, practice mode and the online lobby.
 (function(){
-const VERSION='1.1.0';
+const VERSION='1.2.0';
 let spec=null; // board being spectated after you're knocked out
 const $=s=>document.querySelector(s);
 const $$=s=>[...document.querySelectorAll(s)];
@@ -18,8 +18,11 @@ const PALETTES={
   mono:      {name:'Shapes only',         note:'All grey, play entirely by shape',          c:['#EDEDED','#CFCFCF','#B3B3B3','#E0E0E0','#C2C2C2'],ink:'rgba(0,0,0,.82)',plate:0},
 };
 const FOOD_NAMES=['Tomato','Cheese','Donut','Avocado','Grapes'],SHAPE_NAMES=['Circle','Triangle','Diamond','Drop','Star'];
-const names=()=>prefs.art==='shapes'?SHAPE_NAMES:FOOD_NAMES;
-let prefs={palette:'classic',theme:'night',muted:false,name:'',art:'food',av:'bun',variant:'classic'};
+const CZ=window.FFCuisines||{CUISINES:{},CUISINE_ORDER:['market']};
+let czOverride=null;   // lets the cuisine picker draw a preview of a kitchen you haven't picked yet
+const cuisine=()=>czOverride||(CZ.CUISINES[prefs.cuisine]?prefs.cuisine:'market');
+const names=()=>prefs.art==='shapes'?SHAPE_NAMES:cuisine()==='market'?FOOD_NAMES:CZ.CUISINES[cuisine()].foods;
+let prefs={palette:'classic',theme:'night',muted:false,name:'',art:'food',av:'bun',variant:'classic',cuisine:'market'};
 const VARIANT_INFO={
   classic:{name:'Classic',tag:'Swap and splat',sizes:['Duel','Brawl','Big Brawl']},
   order:{name:'Order Up!',tag:'Ticket race',sizes:['Duel','Race of 4','Race of 8']},
@@ -66,7 +69,7 @@ function applyLook(){
   document.documentElement.setAttribute('data-ff-theme',prefs.theme);
   readTokens();
   sheetTint();
-  renderPals();
+  renderPals();renderCuisines();
   $$('#theme button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.t===prefs.theme)));
   $$('#art button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.a===prefs.art)));
   render();minis.forEach(renderMini);
@@ -101,6 +104,7 @@ function mix(hex,to,a){const p=h=>[1,3,5].map(i=>parseInt(h.slice(i,i+2),16)),A=
 const OUT='#2A1A12';
 function outline(c,s){c.lineWidth=Math.max(1,s*.04);c.strokeStyle=OUT;c.lineJoin='round';c.lineCap='round';c.stroke()}
 function drawFood(c,t,x,y,s){
+  const cz=cuisine();if(cz!=='market'&&CZ.CUISINES[cz]){CZ.CUISINES[cz].draw(c,t,x,y,s,()=>outline(c,s));return}
   const X=v=>x+v*s,Y=v=>y+v*s;
   if(t===0){ // tomato: round, red, green leafy crown
     const cx=X(.5),cy=Y(.57),r=s*.29;
@@ -173,7 +177,7 @@ function drawTileArt(c,t,x,y,s,pal,art){
 // tiles are drawn once per size/look into small canvases, then copied: keeps 60fps with detailed food art
 const sprites=new Map();
 function tileSprite(t,s,pal){
-  const px=Math.max(8,Math.round(s*DPR)),key=prefs.art+'|'+pal.name+'|'+t+'|'+px;
+  const px=Math.max(8,Math.round(s*DPR)),key=prefs.art+'|'+cuisine()+'|'+pal.name+'|'+t+'|'+px;
   let sp=sprites.get(key);
   if(!sp){
     if(sprites.size>600)sprites.clear();
@@ -358,9 +362,30 @@ function drawLegend(){
     drawTile(c.getContext('2d'),{t:tt===NT?-1:tt,clr:0},0,0,72,1,0);lg.appendChild(c);
   }
 }
+function renderCuisines(){
+  const box=$('#cuisines');if(!box)return;
+  if(!box.children.length){
+    CZ.CUISINE_ORDER.forEach(key=>{
+      const info=key==='market'?{name:'Farmers Market',note:'Tomato, cheese, donut, avocado, grapes'}:CZ.CUISINES[key];if(!info)return;
+      const b=document.createElement('button');b.className='pal cz';b.type='button';b.dataset.c=key;
+      b.innerHTML=`<canvas width="250" height="50" aria-hidden="true"></canvas><b>${info.name}</b><span>${info.note}</span>`;
+      box.appendChild(b);
+      b.addEventListener('click',()=>{prefs.cuisine=key;if(prefs.art!=='food')prefs.art='food';savePrefs();applyLook();sfx('tap')});
+    });
+  }
+  // previews follow the current colour set
+  $$('#cuisines .cz').forEach(b=>{
+    const key=b.dataset.c,k=b.dataset.k||'';if(k!==prefs.palette){b.dataset.k=prefs.palette;
+      const c=b.querySelector('canvas').getContext('2d');c.clearRect(0,0,250,50);
+      czOverride=key;const art=prefs.art;prefs.art='food';
+      for(let t=0;t<NT;t++)drawTileArt(c,t,t*50,0,50,PAL,'food');
+      prefs.art=art;czOverride=null}
+    b.setAttribute('aria-pressed',String(prefs.art==='food'&&cuisine()===key));
+  });
+}
 function renderPals(){
   const box=$('#pals');
-  if(box.dataset.art!==prefs.art){box.innerHTML='';box.dataset.art=prefs.art}
+  if(box.dataset.art!==prefs.art+cuisine()){box.innerHTML='';box.dataset.art=prefs.art+cuisine()}
   if(!box.children.length){
     Object.entries(PALETTES).forEach(([key,p])=>{
       const b=document.createElement('button');b.className='pal';b.type='button';b.dataset.p=key;
@@ -456,10 +481,10 @@ function buildOpps(){
 /* ---------- Order Up! tickets ---------- */
 let railKey='';
 const ticketIcon={};
-function foodIcon(t){if(!ticketIcon[t]){const c=document.createElement('canvas');c.width=c.height=36;drawTile(c.getContext('2d'),{t,clr:0},0,0,36,1,0);ticketIcon[t]=c.toDataURL()}return ticketIcon[t]}
+function foodIcon(t){const k=t+'|'+prefs.palette+prefs.art+cuisine()+cuisine();if(!ticketIcon[k]){const c=document.createElement('canvas');c.width=c.height=36;drawTile(c.getContext('2d'),{t,clr:0},0,0,36,1,0);ticketIcon[k]=c.toDataURL()}return ticketIcon[k]}
 function renderRail(){
   const B=G&&G.player;if(!B||!B.tickets)return;
-  const key=B.tickets.map(t=>t.id+':'+t.items.map(i=>i.got).join('.')+(t.rush?':'+Math.ceil(t.T/60):'')).join('|')+'|'+prefs.palette+prefs.art;
+  const key=B.tickets.map(t=>t.id+':'+t.items.map(i=>i.got).join('.')+(t.rush?':'+Math.ceil(t.T/60):'')).join('|')+'|'+prefs.palette+prefs.art+cuisine();
   if(key===railKey)return;railKey=key;
   $('#rail').innerHTML=B.tickets.map(tk=>{
     const secs=Math.ceil(tk.T/60);
@@ -613,7 +638,7 @@ MODE_UI.stack={
   },
   drawNext(){
     const B=G.player,c=$('#nextCv');if(!c||!B.queue)return;
-    const key=B.queue.slice(0,2).map(q=>q.join('')).join('|')+prefs.palette+prefs.art;if(key===nextKey)return;nextKey=key;
+    const key=B.queue.slice(0,2).map(q=>q.join('')).join('|')+prefs.palette+prefs.art+cuisine();if(key===nextKey)return;nextKey=key;
     const x=c.getContext('2d'),s=26*DPR;x.clearRect(0,0,c.width,c.height);
     B.queue.slice(0,2).forEach(([a,b],i)=>{const ox=i*(s+10*DPR),al=i?.55:1;drawTile(x,{t:b,clr:0},ox,0,s,al,0);drawTile(x,{t:a,clr:0},ox,s,s,al,0)});
   },
@@ -690,7 +715,7 @@ MODE_UI.shot={
     $('#bNextShot').addEventListener('pointerdown',e=>{e.preventDefault();if(canPlay())G.player.swap()});
   },
   drawCtl(B){
-    const key=B.cur+'|'+B.next+'|'+prefs.palette+prefs.art;if(key===this.key_)return;this.key_=key;
+    const key=B.cur+'|'+B.next+'|'+prefs.palette+prefs.art+cuisine();if(key===this.key_)return;this.key_=key;
     const a=$('#nowCv'),b=$('#nxCv');if(!a||!b)return;
     const x=a.getContext('2d');x.clearRect(0,0,a.width,a.height);drawTile(x,{t:B.cur,clr:0},0,0,a.width,1,0);
     const y=b.getContext('2d');y.clearRect(0,0,b.width,b.height);drawTile(y,{t:B.next,clr:0},0,0,b.width,1,0);

@@ -184,6 +184,7 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
 .hpline{display:flex;justify-content:space-between;font-size:10px;font-weight:800;margin-top:3px;color:var(--ink)}
 .hpline span:last-child{color:var(--gold)}
 .rules.modes b{font-size:18px}
+.lab .free{font-size:9px;letter-spacing:.06em;background:var(--gold);color:var(--gold-ink);border-radius:5px;padding:1px 5px;margin-left:6px;vertical-align:1px}
 .slot.full.giving{background:#56B4E9;color:#08131C;border-color:#56B4E9}
 .modectl{display:flex;gap:8px;align-items:center}
 .nextbox{display:flex;align-items:center;gap:6px;background:var(--panel);border-radius:14px;height:52px;padding:0 10px}
@@ -506,9 +507,11 @@ button.nextbox:active{background:var(--gold)}
 <div class="overlay sheet" id="ovLook" hidden>
   <div class="card">
     <div class="cardhead"><h2>Colors &amp; look</h2><button class="x" data-close aria-label="Close"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+    <div class="lab">Cuisine <span class="free">All free during early access</span></div>
+    <div class="pals cuisines" id="cuisines"></div>
     <div class="lab">Tile art</div>
     <div class="seg" id="art">
-      <button data-a="food">Food<small>Tomato, cheese, donut…</small></button>
+      <button data-a="food">Food<small>Your cuisine’s dishes</small></button>
       <button data-a="shapes">Shapes<small>Simple bold symbols</small></button>
     </div>
     <div class="lab">Tile colors</div>
@@ -519,7 +522,7 @@ button.nextbox:active{background:var(--gold)}
       <button data-t="day">Day</button>
       <button data-t="auto">Device</button>
     </div>
-    <p>Every food and every symbol has its own outline, so you can play by shape in any color set. In Food art the colors tint the plate behind each food. Saved on this device.</p>
+    <p>Every food and every symbol has its own outline, so you can play by shape in any color set. In Food art the colors tint the plate behind each food, whatever the cuisine. Your cuisine only changes what you see: opponents see their own. Saved on this device.</p>
   </div>
 </div>
 
@@ -628,6 +631,7 @@ button.nextbox:active{background:var(--gold)}
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js" data-site-only></script>
 <script src="js/config.js" data-site-only></script>
 <script src="js/sfx.js"></script>
+<script src="js/cuisines.js"></script>
 <script src="js/engine.js"></script>
 <script src="js/stack.js"></script>
 <script src="js/shot.js"></script>
