@@ -73,12 +73,20 @@ class ShotBoard{
   setAim(a){this.aimA=Math.max(MIN_A,Math.min(MAX_A,a))}
   aimAt(x,y){this.setAim(Math.atan2(y-SY,x-SX))}
   canAct(){return !this.dead&&!this.ball&&this.cool<=0&&this.frozenT<=0}
+  // bank: put the food in the launcher aside for later (C, or tap the Bank box); with one banked, they trade places. Once per throw.
+  bankShot(){
+    if(!this.canAct()||this.heldUsed)return false;
+    if(this.held==null){this.held=this.cur;this.cur=this.next;this.next=this.pick()}
+    else{const t=this.held;this.held=this.cur;this.cur=t}
+    this.heldUsed=true;this.sfx('swap');return true;
+  }
+  useBank(){return this.held!=null?this.bankShot():false}
   swap(){if(this.dead||this.ball)return;[this.cur,this.next]=[this.next,this.cur];this.sfx('swap')}
   shoot(){
     if(!this.canAct())return false;
     this.ball={x:SX,y:SY,vx:Math.cos(this.aimA)*SPEED,vy:Math.sin(this.aimA)*SPEED,t:this.cur,wild:this.armed==='rainbow',bomb:this.armed==='bomb'};
     this.armed=null;
-    this.cur=this.next;this.next=this.pick();this.shots++;
+    this.cur=this.next;this.next=this.pick();this.shots++;this.heldUsed=false;
     this.sfx('throw');return true;
   }
   // follow a throw to where it sticks; used for flight, the aim guide and the bot

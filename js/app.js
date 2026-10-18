@@ -1,6 +1,6 @@
 // Food Fight UI: drawing, input, settings, practice mode and the online lobby.
 (function(){
-const VERSION='1.9.1';
+const VERSION='1.10.0';
 let spec=null; // board being spectated after you're knocked out
 const $=s=>document.querySelector(s);
 const $$=s=>[...document.querySelectorAll(s)];
@@ -687,6 +687,7 @@ function setControls(){
   // Classic / Order Up / Boss Brawl: Incoming on top of the right column, items under it, Raise at the bottom
   if(mu&&mu.rightCol){const sc=$('#sideCol');sc.prepend($('#tray'));sc.appendChild(rb)}
   if(mu&&mu.bind)mu.bind();
+  {const bb=$('#bankBox');if(bb){bankKey='';bb.addEventListener('pointerdown',e=>{e.preventDefault();if(canPlay())doBank(false)})}}
   rackIds='~';renderRack();requestAnimationFrame(resize);
 }
 // steam: soft clouds drift over the top of a board (Snack Stack and Splat Shot)
@@ -733,17 +734,38 @@ function drawPlateHint(W){
   ctx.fillStyle='rgba(247,197,72,.95)';rr(ctx,x,y,w,h,h/2);ctx.fill();
   ctx.fillStyle='#2A1E05';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(t,W/2,y+h/2+1);
 }
+// ----- Bank (Snack Stack and Splat Shot): one spare piece. C or a tap banks / trades, V brings the banked one back -----
+let bankKey='';
+function doBank(useOnly){
+  const B=G&&G.player;if(!B)return false;
+  const ok=useOnly?(B.useBank&&B.useBank()):(B.bankPiece?B.bankPiece():B.bankShot?B.bankShot():false);
+  if(!ok&&!useOnly&&B.heldUsed)B.pops.push({text:'Bank once per piece',x:3,y:4,col:'#EEF0FA',size:.65,life:45});
+  else if(!ok&&useOnly&&B.held==null)B.pops.push({text:'Bank is empty',x:3,y:4,col:'#EEF0FA',size:.65,life:45});
+  return ok;
+}
+function drawBank(){
+  const B=G.player,c=$('#bankCv'),box=$('#bankBox');if(!c||!box)return;
+  const shot=G.variant==='shot',h=B.held,s=shot?34:(prefs.stackCtl==='buttons'?34:26);
+  const key=JSON.stringify(h)+'|'+!!B.heldUsed+'|'+s+prefs.palette+prefs.art+cuisine();if(key===bankKey)return;bankKey=key;
+  const rows=shot?1:2;c.width=s*DPR;c.height=s*rows*DPR;c.style.width=s+'px';c.style.height=s*rows+'px';
+  const x=c.getContext('2d'),u=s*DPR;x.clearRect(0,0,c.width,c.height);
+  box.classList.toggle('used',!!B.heldUsed);box.classList.toggle('full',h!=null);
+  if(h==null){x.strokeStyle='rgba(255,255,255,.3)';x.lineWidth=2*DPR;x.setLineDash([4*DPR,3*DPR]);rr(x,DPR*2,DPR*2,c.width-DPR*4,c.height-DPR*4,u*.2);x.stroke();
+    x.setLineDash([]);x.fillStyle='rgba(238,240,250,.55)';x.font=`800 ${Math.round(u*.28)}px Figtree,sans-serif`;x.textAlign='center';x.textBaseline='middle';x.fillText('Tap',c.width/2,c.height/2);return}
+  if(shot)drawTile(x,{t:h,clr:0},0,0,u,1,0);
+  else{const [a,b,sa,sb]=h;drawTile(x,{t:b,clr:0,sp:sb},0,0,u,1,0);drawTile(x,{t:a,clr:0,sp:sa},0,u,u,1,0)}
+}
 // ----- Snack Stack -----
 let sd=null,nextKey='';
 MODE_UI.stack={
   slots:true,noTray:true,footClass:()=>prefs.stackCtl==='buttons'?'stackbtn':'',
   noRaise:()=>prefs.stackCtl==='buttons',
   raiseLabel:'Drop',
-  side(){return prefs.stackCtl==='buttons'?'<div class="nextbox"><span>Next</span><canvas id="nextCv"></canvas></div><div id="slotHost"></div>':''},
+  side(){return prefs.stackCtl==='buttons'?'<div class="nextbox"><span>Next</span><canvas id="nextCv"></canvas></div><button class="nextbox bankbox" id="bankBox" type="button" aria-label="Bank: tap to save this piece, tap again to bring it back"><span>Bank</span><canvas id="bankCv"></canvas></button><div id="slotHost"></div>':''},
   sideW(){return prefs.stackCtl==='buttons'?76:0},
   ctl(){
     const next='<div class="nextbox"><span>Next</span><canvas id="nextCv"></canvas></div>';
-    if(prefs.stackCtl!=='buttons')return next+'<div id="slotHost"></div>';   // swipe mode: tap the board to spin, Drop on the left
+    if(prefs.stackCtl!=='buttons')return next+'<button class="nextbox bankbox" id="bankBox" type="button" aria-label="Bank: tap to save this piece, tap again to bring it back"><span>Bank</span><canvas id="bankCv"></canvas></button><div id="slotHost"></div>';   // swipe mode: tap the board to spin, Drop on the left
     // one row under the board: left, right (one pad, so you can also slide across it), Spin, Drop. Next pair and items sit beside the board
     return `<div class="stackrow"><div class="movepad row" id="movePad"><span>◀</span><span>▶</span><b class="revtag">⇄ Reversed</b></div><button class="spin icon" id="bSpin" type="button" aria-label="Spin">↻</button><button class="spin drop" id="bDrop" type="button">Drop</button></div>`;
   },
@@ -807,7 +829,7 @@ MODE_UI.stack={
     if(mine&&B.reverseT>0){const t=`⇄ Controls reversed ${Math.ceil(B.reverseT/60)}s`;ctx.font=`800 ${Math.round(S*.3)}px Figtree,sans-serif`;const tw=ctx.measureText(t).width+S*.6;ctx.fillStyle='rgba(204,121,167,.95)';rr(ctx,W/2-tw/2,S*.78,tw,S*.5,S*.25);ctx.fill();ctx.fillStyle='#FFFFFF';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(t,W/2,S*1.03)}
     drawFxLayer(B,0);
     if(B.dead&&G.playerOut&&!G.over)drawKO(B,W,H);
-    if(mine){this.drawNext();const pad=$('#movePad');if(pad){pad.classList.toggle('reversed',B.reverseT>0);const tg=pad.querySelector('.revtag');if(tg&&B.reverseT>0)tg.textContent=`⇄ Reversed ${Math.ceil(B.reverseT/60)}s`}}
+    if(mine){this.drawNext();drawBank();const pad=$('#movePad');if(pad){pad.classList.toggle('reversed',B.reverseT>0);const tg=pad.querySelector('.revtag');if(tg&&B.reverseT>0)tg.textContent=`⇄ Reversed ${Math.ceil(B.reverseT/60)}s`}}
   },
   down(e,p){const B=G.player;sd={id:e.pointerId,x0:p.x,y0:p.y,t:performance.now(),c0:B.piece?B.piece.c:2,moved:false}},
   move(e,p){
@@ -828,7 +850,11 @@ MODE_UI.stack={
     if(!down)return false;
     if(k==='ArrowLeft')B.move(-1);else if(k==='ArrowRight')B.move(1);
     else if(k==='ArrowUp'||k==='x'||k==='X')B.rotate(1);else if(k==='z'||k==='Z')B.rotate(-1);
-    else if(k===' '||k==='Enter')B.hardDrop();else return false;
+    else if(k===' '||k==='Enter')B.hardDrop();
+    else if(k==='c'||k==='C')doBank(false);else if(k==='Shift')doBank(true);
+    else if(k==='v'||k==='V'){if(B.rack.length)B.fire(0)}
+    else if('123'.includes(k)&&k.length===1)B.fire(+k-1);
+    else return false;
     return true;
   }
 };
@@ -850,7 +876,7 @@ const shooterImg={};
 function fighterImg(av){if(!shooterImg[av]){const im=new Image();im.src=body(av);shooterImg[av]=im}return shooterImg[av]}
 MODE_UI.shot={
   noTray:true,slots:true,noRaise:true,noFooter:true,
-  side(){return `<div class="sidefig"><img src="${body(G.player.av||'bun')}" alt=""></div><div id="slotHost"></div>`},
+  side(){return `<div class="sidefig"><img src="${body(G.player.av||'bun')}" alt=""></div><button class="nextbox bankbox" id="bankBox" type="button" aria-label="Bank: tap to save this piece, tap again to bring it back"><span>Bank</span><canvas id="bankCv"></canvas></button><div id="slotHost"></div>`},
   sideW(){return 76},
   raiseLabel:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7h11l-3-3M17 17H6l3 3"/></svg>Swap',
   // what you're throwing and what's next live down here, clear of your thumb and your fighter
@@ -908,6 +934,7 @@ MODE_UI.shot={
     if(mine&&B.greaseT>0){ctx.fillStyle='rgba(247,197,72,.9)';ctx.font=`800 ${Math.round(S*.3)}px Figtree,sans-serif`;ctx.textAlign='center';ctx.fillText('Greasy fingers! No aim guide',W/2,(Q.SY-1.6)*u)}
     drawEffects(ctx,B,W,H,f);drawSteam(B,W,H,f);
     drawFxLayer(B,0);
+    if(mine)drawBank();
     if(B.dead&&G.playerOut&&!G.over)drawKO(B,W,H);
   },
   // aim by sliding your finger left/right anywhere on the board (relative, so a small slide is a small turn); let go to throw
@@ -931,7 +958,11 @@ MODE_UI.shot={
   key(k,down){
     if(!down)return false;const B=G.player;
     if(k==='ArrowLeft')B.setAim(B.aimA-.05);else if(k==='ArrowRight')B.setAim(B.aimA+.05);
-    else if(k==='ArrowUp'||k===' '||k==='Enter')B.shoot();else if(k==='x'||k==='X'||k==='Shift'||k==='ArrowDown')B.swap();else return false;
+    else if(k==='ArrowUp'||k===' '||k==='Enter')B.shoot();else if(k==='x'||k==='X'||k==='ArrowDown')B.swap();
+    else if(k==='c'||k==='C')doBank(false);else if(k==='Shift')doBank(true);
+    else if(k==='v'||k==='V'){if(B.rack.length)B.fire(0)}
+    else if('123'.includes(k)&&k.length===1)B.fire(+k-1);
+    else return false;
     return true;
   }
 };
@@ -1312,6 +1343,23 @@ function buildVariants(box,current,onPick){
     box.appendChild(b);
   });
   markVariants(box,current);
+  scrollRow(box);
+}
+// a sideways list you can scroll with a mouse too: wheel, click-and-drag, or the ‹ › buttons at its ends
+function scrollRow(box){
+  if(box.dataset.sr)return;box.dataset.sr='1';
+  const wrap=document.createElement('div');wrap.className='srow';box.parentNode.insertBefore(wrap,box);wrap.appendChild(box);
+  const mk=(d,lbl)=>{const b=document.createElement('button');b.type='button';b.className='srbtn '+(d<0?'l':'r');b.setAttribute('aria-label',lbl);b.textContent=d<0?'‹':'›';
+    b.addEventListener('click',()=>{box.scrollBy({left:d*Math.max(120,box.clientWidth*.7),behavior:'smooth'});sfx('tap')});wrap.appendChild(b);return b};
+  const L=mk(-1,'Scroll modes left'),R=mk(1,'Scroll modes right');
+  const upd=()=>{const m=box.scrollWidth-box.clientWidth;L.hidden=box.scrollLeft<=8;R.hidden=m<=8||box.scrollLeft>=m-8};
+  box.addEventListener('scroll',upd,{passive:true});new ResizeObserver(upd).observe(box);setTimeout(upd,0);
+  box.addEventListener('wheel',e=>{if(Math.abs(e.deltaY)>Math.abs(e.deltaX)&&box.scrollWidth>box.clientWidth){box.scrollLeft+=e.deltaY;e.preventDefault()}},{passive:false});
+  // drag with the mouse (touch already scrolls natively); a real drag doesn't count as a click on a card
+  let dr=null;
+  box.addEventListener('pointerdown',e=>{if(e.pointerType!=='mouse'||e.button!==0)return;dr={x:e.clientX,l:box.scrollLeft,moved:false}});
+  window.addEventListener('pointermove',e=>{if(!dr)return;const dx=e.clientX-dr.x;if(Math.abs(dx)>5)dr.moved=true;if(dr.moved){box.scrollLeft=dr.l-dx;box.classList.add('dragging')}});
+  window.addEventListener('pointerup',()=>{if(!dr)return;const m=dr.moved;dr=null;box.classList.remove('dragging');if(m){const stop=ev=>{ev.stopPropagation();ev.preventDefault()};box.addEventListener('click',stop,{capture:true,once:true});setTimeout(()=>box.removeEventListener('click',stop,{capture:true}),50)}});
 }
 function markVariants(box,v){box.querySelectorAll('.vcard').forEach(b=>b.setAttribute('aria-checked',String(b.dataset.v===v)))}
 function labelSizes(){

@@ -81,8 +81,19 @@ class StackBoard{
     const [a,b,sa,sb]=this.queue.shift();this.queue.push(this.pair());
     this.piece={a,b,sa,sb,c:SPAWN_C,r:1,rot:0};this.lock=0;this.plan=null;if(this.isBot)this.soft=false;
     if(!this.fits(this.piece)){this.piece=null;return this.die()}
-    this.state='fall';
+    this.state='fall';this.heldUsed=false;
   }
+  // bank: park the falling pair for later (C, or tap the Bank box). With a pair already banked, the two trade places.
+  // Once per pair, so you can't stall by banking back and forth.
+  bankPiece(){
+    if(!this.canAct()||this.heldUsed)return false;
+    const p=this.piece,cur=[p.a,p.b,p.sa,p.sb];
+    if(!this.held){this.held=cur;this.piece=null;this.spawn()}
+    else{const [a,b,sa,sb]=this.held;const np={a,b,sa,sb,c:SPAWN_C,r:1,rot:0};if(!this.fits(np))return false;this.held=cur;this.piece=np;this.lock=0}
+    this.heldUsed=true;this.sfx('swap');return true;
+  }
+  // use the banked pair now (V)
+  useBank(){return this.held?this.bankPiece():false}
   fall(){
     const p=this.piece,below=Object.assign({},p,{r:Math.floor(p.r)+1});
     if(this.fits(below)){p.r+=this.speed();if(p.r>below.r)p.r=below.r;this.lock=0}
