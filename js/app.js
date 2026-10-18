@@ -1,6 +1,6 @@
 // Food Fight UI: drawing, input, settings, practice mode and the online lobby.
 (function(){
-const VERSION='1.7.0';
+const VERSION='1.8.0';
 let spec=null; // board being spectated after you're knocked out
 const $=s=>document.querySelector(s);
 const $$=s=>[...document.querySelectorAll(s)];
@@ -297,6 +297,7 @@ function render(){
     ctx.fillStyle=p.col;ctx.fillText(p.text,xx,yy);
   });
   ctx.globalAlpha=1;
+  if(mine)drawPlateHint(W);
   if(B.dead&&G.playerOut&&!G.over)drawKO(B,W,H);
 }
 // knocked out: say who did it, and point at the spectate cards
@@ -305,8 +306,14 @@ function drawKO(B,W,H){
   const k=B.killedBy,mine=B===G.player,F=n=>`${Math.round(S*n)}px 'Lilita One','Arial Rounded MT Bold',sans-serif`;
   ctx.textAlign='center';ctx.textBaseline='middle';ctx.lineWidth=S*.14;ctx.strokeStyle='#0B0D1B';
   const line=(t,y,size,col)=>{ctx.font=F(size);const tw=ctx.measureText(t).width;if(tw>W*.88)ctx.font=F(size*W*.88/tw);ctx.strokeText(t,W/2,y);ctx.fillStyle=col;ctx.fillText(t,W/2,y)};
-  line(B.place?placeName(B.place)+' place':'Knocked out',H*.36,.5,'#949BBD');
-  line(mine?'KNOCKED OUT':`${B.name} is out`,H*.44,.8,'#EEF0FA');
+  // the knocked-out fighter's dizzy pose, above the words
+  const pi=poseImg(B.av,'ko');
+  if(pi&&pi.complete&&pi.naturalWidth){
+    const top=H*.06,bot=H*.32,ph=bot-top,pw=Math.min(W*.8,ph*pi.naturalWidth/pi.naturalHeight),h2=pw*pi.naturalHeight/pi.naturalWidth;
+    ctx.drawImage(pi,W/2-pw/2,bot-h2,pw,h2);
+  }
+  line(B.place?placeName(B.place)+' place':'Knocked out',H*.37,.5,'#949BBD');
+  line(mine?'KNOCKED OUT':`${B.name} is out`,H*.45,.8,'#EEF0FA');
   if(k){
     const im=faceImg(k.av),sz=S*1.5;
     if(im&&im.complete&&im.naturalWidth){ctx.save();ctx.beginPath();ctx.arc(W/2,H*.56,sz/2,0,Math.PI*2);ctx.clip();ctx.drawImage(im,W/2-sz/2,H*.56-sz/2,sz,sz);ctx.restore()}
@@ -314,6 +321,8 @@ function drawKO(B,W,H){
   }
   if(mine)line(G.over?'':'Tap any board above to watch',H*.8,.4,'#EEF0FA');
 }
+const poseCache={};
+function poseImg(av,kind){const k=av+'-'+kind;if(!poseCache[k]){const im=new Image();im.src=pose(av,kind);poseCache[k]=im}return poseCache[k]}
 const faceCache={};
 function faceImg(av){if(!faceCache[av]){const im=new Image();im.src=face(av);faceCache[av]=im}return faceCache[av]}
 function drawEffects(c,B,W,H,f){
@@ -623,14 +632,15 @@ function hud(){
 function resize(){
   const w=$('#wrap');const W=w.clientWidth,H=w.clientHeight;
   // a side column (Snack Stack's next + items) takes the right edge; the board centres in what's left
-  const mu=G&&MODE_UI[G.variant],side=mu&&mu.sideW?mu.sideW():0;w.style.paddingRight=side?side+'px':'';
-  S=Math.max(16,Math.floor(Math.min((W-side)/COLS,H/ROWS)));
+  const mu=G&&MODE_UI[G.variant],side=mu&&mu.sideW?mu.sideW():0,left=mu&&mu.leftW?mu.leftW():0;
+  w.style.paddingRight=side?side+'px':'';w.style.paddingLeft=left?left+'px':'';
+  S=Math.max(16,Math.floor(Math.min((W-side-left)/COLS,H/ROWS)));
   DPR=Math.min(3,window.devicePixelRatio||1);
   cv.style.width=S*COLS+'px';cv.style.height=S*ROWS+'px';
   cv.width=Math.round(S*COLS*DPR);cv.height=Math.round(S*ROWS*DPR);
   ctx.setTransform(DPR,0,0,DPR,0,0);
   document.documentElement.style.setProperty('--bw',S*COLS+'px');
-  {const sc=$('#sideCol');if(sc)sc.style.height=S*ROWS+'px'}   // side column lines up with the board, items at its bottom
+  {const sc=$('#sideCol'),lc=$('#leftCol');if(sc)sc.style.height=S*ROWS+'px';if(lc)lc.style.height=S*ROWS+'px'}   // side column lines up with the board, items at its bottom
   sizeMinis();render();
 }
 new ResizeObserver(resize).observe($('#wrap'));
@@ -642,12 +652,16 @@ function setControls(){
   const mu=MODE_UI[G&&G.variant],slots=$('#slots');
   // park the rack back in its normal spot before a mode rebuilds its bar
   if(slots.parentNode!==$('.rack'))$('#aimline').after(slots);
+  // ...and the incoming tray and Raise button, which Classic / Order Up / Boss Brawl move to the left column
+  {const tray=$('#tray'),lc=$('#leftCol');
+   if(mu&&mu.leftCol){lc.hidden=false;lc.appendChild(tray);lc.appendChild(rb)}
+   else{lc.hidden=true;if(tray.parentNode===lc)$('#wrap').before(tray);if(rb.parentNode===lc)document.querySelector('.controls').prepend(rb)}}
   $('#modeCtl').hidden=!(mu&&mu.ctl);slots.hidden=!!(mu&&(mu.ctl||mu.side)&&!mu.slots);
   $('#tray').hidden=!!(mu&&mu.noTray);
   const noRaise=!!(mu&&(typeof mu.noRaise==='function'?mu.noRaise():mu.noRaise));
   rb.hidden=noRaise;const fc=mu&&mu.footClass?mu.footClass():'';document.querySelector('.controls').classList.toggle('stackbtn',fc==='stackbtn');$('#aimline').hidden=!!(mu&&(mu.ctl||mu.side));document.querySelector('.controls').classList.toggle('wide',noRaise);
   rb.innerHTML=mu&&mu.raiseLabel?mu.raiseLabel:'<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 4l8 10h-5v6H9v-6H4z"/></svg>Raise';
-  const sideHtml=mu&&mu.side?mu.side():'';$('#sideCol').innerHTML=sideHtml;$('#sideCol').hidden=!sideHtml;
+  const sideHtml=mu&&mu.side?mu.side():'';$('#sideCol').innerHTML=sideHtml;$('#sideCol').hidden=!sideHtml;$('#sideCol').classList.toggle('narrow',!!(mu&&mu.narrow));
   document.querySelector('.controls').hidden=!!(mu&&mu.noFooter);
   if(mu&&mu.ctl)$('#modeCtl').innerHTML=mu.ctl();
   {const host=$('#slotHost');if(host&&mu&&mu.slots)host.appendChild(slots)}
@@ -686,6 +700,18 @@ function drawFxLayer(B,ro){
   ctx.globalAlpha=1;
 }
 function checker(ro){ctx.fillStyle=TOK.grid;for(let r=-1;r<=ROWS;r++)for(let c=0;c<COLS;c++)if((r+c+400)%2===0)ctx.fillRect(c*S,r*S-(ro||0),S,S)}
+// ----- Classic, Order Up and Boss Brawl: no bottom bar. Incoming and Raise sit left of the board, items on the right (first one at the bottom) -----
+const SIDE_UI={leftCol:true,narrow:true,slots:true,noFooter:true,
+  side(){return '<div id="slotHost"></div>'},sideW(){return 60},leftW(){return 60}};
+MODE_UI.classic=SIDE_UI;MODE_UI.order=SIDE_UI;MODE_UI.boss=SIDE_UI;
+// "tap a food" reminder while a Clean plate is armed (there's no aim line under the board any more)
+function drawPlateHint(W){
+  if(plating==null)return;
+  const t='Clean plate: tap a food';ctx.font=`800 ${Math.round(S*.36)}px Figtree,sans-serif`;
+  const tw=ctx.measureText(t).width,h=S*.7,w=tw+S*.8,x=(W-w)/2,y=S*.25;
+  ctx.fillStyle='rgba(247,197,72,.95)';rr(ctx,x,y,w,h,h/2);ctx.fill();
+  ctx.fillStyle='#2A1E05';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(t,W/2,y+h/2+1);
+}
 // ----- Snack Stack -----
 let sd=null,nextKey='';
 MODE_UI.stack={
