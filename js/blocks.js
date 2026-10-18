@@ -165,12 +165,14 @@ class BlocksBoard{
       let pts=(ts==='full'?PTS_TS[n]:ts==='mini'?PTS_MINI[n]:PTS_N[n])*this.level();if(b2b)pts=Math.round(pts*1.5);pts+=50*Math.max(0,this.combo)*this.level();
       this.score+=pts;this.lines+=n;this.b2b=diff;
       this.maxChain=Math.max(this.maxChain,this.combo+1);this.maxCombo=Math.max(this.maxCombo,n);
-      const label=(ts==='full'?'T-spin ':ts==='mini'?'T-spin mini ':'')+(ts?['','single','double','triple'][n]:['','Single','Double','Triple','Quad!'][n]);
+      const label=(ts==='full'?'T-spin ':ts==='mini'?'T-spin mini ':'')+(ts?['','single','double','triple'][n]:['','Single','Double','Triple','Tetris!'][n]);
       const y=(full[0]-HID)/VH*ROWS;
       if(ts||n>=2)this.pop(label,3,y,n===4||ts?'#F7C548':'#EEF0FA',n===4||ts?1.15:.9);
-      if(b2b)this.pop('Back-to-back',3,y+.9,'#56B4E9',.8);
+      if(b2b)this.pop(n===4&&!ts?'Back-to-back Tetris!':'Back-to-back',3,y+.9,'#56B4E9',n===4?1:.8);
       if(this.combo>=1)this.pop(`${this.combo} combo`,3,y+(b2b?1.8:.9),'#CC79A7',.8);
-      this.sfx(n===4||ts?'chain':'match',n===4?5:n+1);
+      // sound: Tetris fanfare (with the announcer on a back-to-back Tetris), and a harp note that climbs with every back-to-back clear
+      if(n===4&&!ts)this.sfx(b2b?'b2btetris':'tetris');else this.sfx(ts?'chain':'match',ts?4:n+1);
+      if(this.combo>=1)this.sfx('harp',this.combo);
       // ? blocks in the cleared lines become items
       let got=0;full.forEach(r=>this.m[r].forEach(v=>{if(v&SP)got++}));
       for(let i=0;i<got;i++)this.earn({k:ITEMS[Math.floor(this.rng()*ITEMS.length)]},3,y-1-i*.8);

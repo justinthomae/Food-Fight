@@ -183,6 +183,37 @@ window.FFSound=(function(){
     },
   };
 
+  // ---- harp: a plucked string (Karplus-Strong), cached per pitch ----
+  const pluckCache={};
+  function pluck(f,t,v){
+    const key=Math.round(f);let buf=pluckCache[key];
+    if(!buf){
+      const sr=AC.sampleRate,len=Math.floor(sr*1.8),N=Math.max(2,Math.round(sr/f));buf=AC.createBuffer(1,len,sr);
+      const d=buf.getChannelData(0),ring=new Float32Array(N);for(let i=0;i<N;i++)ring[i]=Math.random()*2-1;
+      let p=0;for(let i=0;i<len;i++){const nx=(p+1)%N,y=(ring[p]+ring[nx])*.4985;d[i]=ring[p];ring[p]=y;p=nx}
+      pluckCache[key]=buf;
+    }
+    const s=AC.createBufferSource(),g=AC.createGain(),lp=AC.createBiquadFilter();s.buffer=buf;
+    lp.type='lowpass';lp.frequency.value=Math.min(9000,f*7);
+    const st=T()+(t||0);g.gain.setValueAtTime(v,st);g.gain.exponentialRampToValueAtTime(.0001,st+1.7);
+    s.connect(lp);lp.connect(g);out(g,.5);s.start(st);s.stop(st+1.8);
+  }
+  // C major scale up from C5: each back-to-back clear plays the next note up
+  const HARP=[523.25,587.33,659.25,698.46,783.99,880,987.77,1046.5,1174.66,1318.51,1396.91,1567.98,1760,1975.53,2093];
+  FX.harp=n=>{const i=Math.max(0,Math.min(HARP.length-1,(n|0)-1));
+    // a quick glissando into the note, the way a harp is swept
+    if(i>0)pluck(HARP[i-1],0,.22);pluck(HARP[i],.045,.5);pluck(HARP[i]/2,.045,.18)};
+  FX.tetris=()=>{[523.25,659.25,783.99,1046.5,1318.51].forEach((f,i)=>pluck(f,i*.045,.4));
+    tone({type:'triangle',f:1046.5,d:.5,v:.08,t:.22,wet:.4});tone({type:'triangle',f:1568,d:.6,v:.06,t:.26,wet:.4})};
+  FX.b2btetris=()=>{FX.tetris();[1046.5,1318.51,1567.98,2093].forEach((f,i)=>pluck(f,.3+i*.05,.35));speak('Back to back Tetris!')};
+  // ---- announcer: the device's own voice (Web Speech) ----
+  let voice=null;
+  function pickVoice(){try{const vs=speechSynthesis.getVoices();voice=vs.find(v=>/en[-_]US/i.test(v.lang)&&/Samantha|Google US|Aaron|Alex|Jenny|Aria|Guy/i.test(v.name))||vs.find(v=>/^en/i.test(v.lang))||null}catch(e){}}
+  try{if(window.speechSynthesis){pickVoice();speechSynthesis.onvoiceschanged=pickVoice}}catch(e){}
+  function speak(text){
+    if(muted||!window.speechSynthesis||!window.SpeechSynthesisUtterance)return;
+    try{const u=new SpeechSynthesisUtterance(text);if(voice)u.voice=voice;u.lang='en-US';u.rate=1.08;u.pitch=1.15;u.volume=1;speechSynthesis.cancel();speechSynthesis.speak(u)}catch(e){}
+  }
   function play(name,arg){
     if(!ok()||!FX[name])return;
     // never stack the same sound in the same frame (8 junk tiles landing = one splat)

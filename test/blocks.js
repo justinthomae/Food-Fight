@@ -70,3 +70,9 @@ const fx=(k,setup)=>{const {g,P,B}=mk();run(g,40);run(g,1);for(let r=14;r<22;r++
 {const {g,P}=mk();run(g,40);for(let r=16;r<22;r++)P.m[r].fill(8);for(let r=16;r<22;r++)P.m[r][0]=0;P.rack=[{k:'push',id:1}];P.fire(0);check(P.rows()===2,'Push shoves the bottom 4 rows out ('+P.rows()+')');}
 {const g=new E.Game('brawl',2,{},true,{variant:'blocks',size:4});const used={};g.boards.forEach(b=>{const f=b.fire.bind(b);b.fire=i=>{const it=b.rack[i];const r=f(i);if(r&&it)used[it.k]=1;return r}});let f=0;while(!g.over&&f<60*600){g.step();f++}
  check(Object.keys(used).length>=5,'bots earn and use items ('+Object.keys(used).join(',')+')');}
+// sounds: Tetris, back-to-back Tetris (announcer) and the climbing harp on back-to-back clears
+{const heard=[];const g=new E.Game('duel',1,{sfx:(n,a)=>heard.push(n+(a!=null?':'+a:''))},false,{variant:'blocks'});const P=g.player;g.boards[1].isBot=false;run(g,40);
+ const quad=()=>{for(let r=18;r<22;r++)for(let c=0;c<9;c++)P.m[r][c]=8;P.piece={p:1,rot:1,r:0,c:7};P.state='fall';P.hardDrop();run(g,30)};
+ quad();check(heard.includes('tetris')&&P.pops.some(p=>p.text==='Tetris!'),'4 lines is a "Tetris!" with its own fanfare');
+ quad();check(heard.includes('b2btetris')&&P.pops.some(p=>p.text==='Back-to-back Tetris!'),'a second Tetris in a row plays the back-to-back Tetris callout');
+ check(heard.filter(h=>h.startsWith('harp:')).length>=1,'back-to-back clears play the harp ('+heard.filter(h=>h.startsWith('harp')).join(',')+')');}
