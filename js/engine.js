@@ -12,7 +12,7 @@ const VARIANTS=['classic','order','stack','shot','boss'];
 const BOARD_TYPES={};   // variant -> board class, filled in by stack.js / shot.js
 const ORDER_GOAL=10;
 const MARGIN=50,RACK=3,RUSH=180,CYCLE=180,CREAM=300,FREEZE=150,SPECIAL_RATE=.16;
-// rack items: pie/tower = junk, sauce = fast rise, cream = board covered, freeze = no swaps, blender = scramble top rows,
+// rack items: pie/tower = junk (drawn as trash bags), sauce = fast rise, cream = board covered, freeze = no swaps, blender = scramble top rows,
 // pin = flatten own top rows, plate = clear every tile of one food on your own board, swap = trade whole boards with your target
 const JUNK_KINDS=['pie','tower'],ATTACK_KINDS=['pie','tower','sauce','cream','freeze','blender','swap','steam','grease','lights','reverse'],SPECIALS=['cream','freeze','blender','pin','plate','swap'],SPECIAL_W=[3,2,3,2,2,1.5];
 const SELF_KINDS=['pin','plate'];
@@ -237,7 +237,7 @@ class Board{
     }
     if(JUNK_KINDS.includes(item.k)&&!item.at)item.at={c:cx,r:cy};
     item.id=++uid;this.rack.push(item);
-    const label={pie:`Pie +${item.cells}`,tower:`Pie tower +${item.cells}`,sauce:'Hot sauce earned',cream:'Whipped cream!',freeze:'Brain freeze!',blender:'Blender!',pin:'Rolling pin!',plate:'Clean plate!',swap:'Switcheroo!'}[item.k];
+    const label={pie:`Trash +${item.cells}`,tower:`Trash heap +${item.cells}`,sauce:'Hot sauce earned',cream:'Whipped cream!',freeze:'Brain freeze!',blender:'Blender!',pin:'Rolling pin!',plate:'Clean plate!',swap:'Switcheroo!'}[item.k];
     const special=!JUNK_KINDS.includes(item.k);
     this.pop(label,cx,cy,special?'#F7C548':'#EEF0FA',.85);
     this.sfx('earn',special);

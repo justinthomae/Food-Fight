@@ -15,7 +15,7 @@ check(Object.keys(used).length>=6,'bots use most item kinds');
 const g=new E.Game('duel',1,{},false,{variant:'shot'});const P=g.player,B=g.boards[1];
 B.steam(P);check(B.steamT>0,'steam fogs the target');
 B.grease(P);const a0=B.aimA;for(let i=0;i<30;i++)B.step();check(B.greaseT>0&&B.aimA!==a0,'grease makes the aim wobble');
-const rows0=B.lowest();B.rush(P);for(let i=0;i<130;i++)B.step();check(B.lowest()>rows0,'hot sauce drops the ceiling');
+const rows0=B.lowest(),wasBot=B.isBot;B.isBot=false;B.rush(P);for(let i=0;i<130;i++)B.step();B.isBot=wasBot;check(B.lowest()>rows0,'hot sauce drops the ceiling');
 B.freeze(P);check(!B.canAct(),'brain freeze stops throws');
 // rainbow: lands as the food that makes the biggest group
 P.h.forEach(r=>r.fill(null));for(let c=0;c<7;c++)P.h[0][c]={t:c<4?2:1};

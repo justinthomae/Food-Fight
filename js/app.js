@@ -1,6 +1,6 @@
 // Food Fight UI: drawing, input, settings, practice mode and the online lobby.
 (function(){
-const VERSION='1.8.2';
+const VERSION='1.9.0';
 let spec=null; // board being spectated after you're knocked out
 const $=s=>document.querySelector(s);
 const $$=s=>[...document.querySelectorAll(s)];
@@ -154,14 +154,35 @@ function drawFood(c,t,x,y,s){
     });
   }
 }
+// junk: a tied-up garbage bag with stink lines and a fly. Nobody wants that on their board
 function drawJunk(c,x,y,s){
-  const p=Math.max(1,s*.04),w=s-p*2,r=s*.12;
-  rr(c,x+p,y+p,w,w,r);c.fillStyle='#6B5141';c.fill();
+  const p=Math.max(1,s*.04),w=s-p*2,r=s*.14,X=a=>x+s*a,Y=b=>y+s*b,lw=Math.max(1,s*.045);
+  rr(c,x+p,y+p,w,w,r);c.fillStyle='#8A8F9C';c.fill();
   c.save();c.clip();
-  c.fillStyle='#B48A63';c.fillRect(x,y,s,s*.22);
-  c.fillStyle='rgba(0,0,0,.18)';
-  for(let i=0;i<3;i++){c.beginPath();c.arc(x+s*(.28+i*.22),y+s*(.5+(i%2)*.16),s*.07,0,Math.PI*2);c.fill()}
-  c.fillStyle='rgba(255,240,220,.85)';c.beginPath();c.arc(x+s*.3,y+s*.22,s*.09,0,Math.PI*2);c.arc(x+s*.62,y+s*.24,s*.06,0,Math.PI*2);c.fill();
+  c.fillStyle='rgba(255,255,255,.14)';c.fillRect(x,y,s,s*.12);
+  // stink lines
+  c.strokeStyle='#A6E05A';c.lineWidth=Math.max(1,s*.04);c.lineCap='round';
+  [[.2,.42],[.8,.42]].forEach(([a,b],k)=>{c.beginPath();c.moveTo(X(a),Y(b));
+    c.bezierCurveTo(X(a+(k?.06:-.06)),Y(b-.08),X(a-(k?.05:-.05)),Y(b-.14),X(a+(k?.02:-.02)),Y(b-.24));c.stroke()});
+  // bag body
+  c.beginPath();c.moveTo(X(.44),Y(.36));
+  c.bezierCurveTo(X(.2),Y(.42),X(.16),Y(.7),X(.24),Y(.84));
+  c.bezierCurveTo(X(.34),Y(.92),X(.66),Y(.92),X(.76),Y(.84));
+  c.bezierCurveTo(X(.84),Y(.7),X(.8),Y(.42),X(.56),Y(.36));c.closePath();
+  c.fillStyle='#26302B';c.fill();c.strokeStyle='#0B0D1B';c.lineWidth=lw;c.stroke();
+  // shine and wrinkles
+  c.strokeStyle='rgba(160,200,170,.55)';c.lineWidth=Math.max(1,s*.035);
+  c.beginPath();c.moveTo(X(.32),Y(.52));c.quadraticCurveTo(X(.27),Y(.64),X(.31),Y(.76));c.stroke();
+  c.strokeStyle='rgba(0,0,0,.45)';c.lineWidth=Math.max(1,s*.025);
+  c.beginPath();c.moveTo(X(.5),Y(.42));c.lineTo(X(.47),Y(.6));c.moveTo(X(.6),Y(.45));c.lineTo(X(.64),Y(.62));c.stroke();
+  // knotted top: two ears and a yellow twist tie
+  c.fillStyle='#26302B';c.strokeStyle='#0B0D1B';c.lineWidth=lw;
+  c.beginPath();c.moveTo(X(.46),Y(.33));c.lineTo(X(.33),Y(.16));c.lineTo(X(.47),Y(.24));c.closePath();c.fill();c.stroke();
+  c.beginPath();c.moveTo(X(.54),Y(.33));c.lineTo(X(.67),Y(.16));c.lineTo(X(.53),Y(.24));c.closePath();c.fill();c.stroke();
+  rr(c,X(.41),Y(.29),s*.18,s*.08,s*.03);c.fillStyle='#F7C548';c.fill();c.stroke();
+  // fly
+  c.fillStyle='rgba(235,240,255,.85)';c.beginPath();c.ellipse(X(.76),Y(.17),s*.05,s*.03,-.5,0,Math.PI*2);c.ellipse(X(.84),Y(.17),s*.05,s*.03,.5,0,Math.PI*2);c.fill();
+  c.fillStyle='#0B0D1B';c.beginPath();c.arc(X(.8),Y(.21),s*.035,0,Math.PI*2);c.fill();
   c.restore();
 }
 function drawTileArt(c,t,x,y,s,pal,art){
@@ -226,7 +247,7 @@ function drawTile(c,t,x,y,s,alpha,frame,simple,pal){
   if(t.clr>0){if(t.conv||t.clr>POP)flash=(Math.floor(frame/4)%2)?.55:.15;else sc=t.clr/POP}
   if(simple){
     c.globalAlpha=alpha;
-    c.fillStyle=t.t<0?'#8A6A50':pal.c[t.t];c.fillRect(x+.5,y+.5,s-1,s-1);
+    c.fillStyle=t.t<0?'#5E6472':pal.c[t.t];c.fillRect(x+.5,y+.5,s-1,s-1);
     if(flash){c.fillStyle=`rgba(255,255,255,${flash})`;c.fillRect(x+.5,y+.5,s-1,s-1)}
     c.globalAlpha=1;return;
   }
@@ -364,7 +385,7 @@ function renderMini(m){
   c.fillStyle=TOK.well;c.fillRect(0,0,w,h);
   const ro=b.rise*s,simple=s<14,fr=G?G.frame:0;
   if(G&&G.variant==='shot'){
-    const Q=SHOTGEO();if(Q)hexCells(b).forEach(p=>{c.fillStyle=p.t<0?'#B48A63':PAL.c[p.t];c.beginPath();c.arc(p.x*s,p.y*s,Q.R*s*.92,0,Math.PI*2);c.fill()});
+    const Q=SHOTGEO();if(Q)hexCells(b).forEach(p=>{c.fillStyle=p.t<0?'#5E6472':PAL.c[p.t];c.beginPath();c.arc(p.x*s,p.y*s,Q.R*s*.92,0,Math.PI*2);c.fill()});
     if(Q){c.strokeStyle='rgba(247,197,72,.5)';c.lineWidth=1;const y=(Q.DEAD_ROW*Q.RH)*s;c.beginPath();c.moveTo(0,y);c.lineTo(w,y);c.stroke()}
     if(b.frozenT>0){c.fillStyle='rgba(150,215,255,.4)';c.fillRect(0,0,w,h)}
     if(b.dead){c.fillStyle='rgba(11,13,27,.55)';c.fillRect(0,0,w,h);c.fillStyle='#EEF0FA';c.textAlign='center';c.textBaseline='middle';c.font=`${Math.round(w*.32)}px 'Lilita One',sans-serif`;c.fillText('KO',w/2,h/2)}
@@ -426,8 +447,8 @@ function renderPals(){
 
 /* ---------- rack ---------- */
 const ICONS={
-  pie:'<svg viewBox="0 0 24 24"><circle cx="12" cy="13" r="9" fill="#E0A86E"/><path d="M12 13V4a9 9 0 0 1 8.5 6z" fill="#2B1A0C" opacity=".35"/><circle cx="9" cy="15" r="1.4" fill="#2B1A0C" opacity=".35"/><circle cx="14" cy="17" r="1.2" fill="#2B1A0C" opacity=".35"/></svg>',
-  tower:'<svg viewBox="0 0 24 24"><rect x="3" y="15" width="18" height="6" rx="2" fill="#E0A86E"/><rect x="5" y="9" width="14" height="6" rx="2" fill="#B48A63"/><rect x="7" y="3" width="10" height="6" rx="2" fill="#E0A86E"/></svg>',
+  pie:'<svg viewBox="0 0 24 24"><g transform="translate(0 0)"><path d="M10.5 8.5C6 9.5 4.5 15 5.8 19.5 8 21.5 16 21.5 18.2 19.5 19.5 15 18 9.5 13.5 8.5z" fill="#557560" stroke="#0B0D1B" stroke-width="1.3"/><path d="M11 8 7.5 3.5 11.5 6.2zM13 8l3.5-4.5-4 2.7z" fill="#557560" stroke="#0B0D1B" stroke-width="1.1" stroke-linejoin="round"/><rect x="9.8" y="6.6" width="4.4" height="2.2" rx=".9" fill="#F7C548" stroke="#0B0D1B" stroke-width=".9"/><path d="M8.2 12.5c-.6 1.8-.4 3.6.2 5" stroke="#C9E8D2" stroke-width="1.1" fill="none" opacity=".7" stroke-linecap="round"/></g><path d="M3.5 9c-.8-1.2.6-2.2-.2-3.6M20.5 9c.8-1.2-.6-2.2.2-3.6" stroke="#A6E05A" stroke-width="1.2" fill="none" stroke-linecap="round"/></svg>',
+  tower:'<svg viewBox="0 0 24 24"><g transform="translate(-1.5 4.5) scale(.62)"><path d="M10.5 8.5C6 9.5 4.5 15 5.8 19.5 8 21.5 16 21.5 18.2 19.5 19.5 15 18 9.5 13.5 8.5z" fill="#557560" stroke="#0B0D1B" stroke-width="1.3"/><path d="M11 8 7.5 3.5 11.5 6.2zM13 8l3.5-4.5-4 2.7z" fill="#557560" stroke="#0B0D1B" stroke-width="1.1" stroke-linejoin="round"/><rect x="9.8" y="6.6" width="4.4" height="2.2" rx=".9" fill="#F7C548" stroke="#0B0D1B" stroke-width=".9"/><path d="M8.2 12.5c-.6 1.8-.4 3.6.2 5" stroke="#C9E8D2" stroke-width="1.1" fill="none" opacity=".7" stroke-linecap="round"/></g><g transform="translate(10.5 4.5) scale(.62)"><path d="M10.5 8.5C6 9.5 4.5 15 5.8 19.5 8 21.5 16 21.5 18.2 19.5 19.5 15 18 9.5 13.5 8.5z" fill="#4A6654" stroke="#0B0D1B" stroke-width="1.3"/><path d="M11 8 7.5 3.5 11.5 6.2zM13 8l3.5-4.5-4 2.7z" fill="#4A6654" stroke="#0B0D1B" stroke-width="1.1" stroke-linejoin="round"/><rect x="9.8" y="6.6" width="4.4" height="2.2" rx=".9" fill="#F7C548" stroke="#0B0D1B" stroke-width=".9"/><path d="M8.2 12.5c-.6 1.8-.4 3.6.2 5" stroke="#C9E8D2" stroke-width="1.1" fill="none" opacity=".7" stroke-linecap="round"/></g><g transform="translate(4.5 -1) scale(.62)"><path d="M10.5 8.5C6 9.5 4.5 15 5.8 19.5 8 21.5 16 21.5 18.2 19.5 19.5 15 18 9.5 13.5 8.5z" fill="#557560" stroke="#0B0D1B" stroke-width="1.3"/><path d="M11 8 7.5 3.5 11.5 6.2zM13 8l3.5-4.5-4 2.7z" fill="#557560" stroke="#0B0D1B" stroke-width="1.1" stroke-linejoin="round"/><rect x="9.8" y="6.6" width="4.4" height="2.2" rx=".9" fill="#F7C548" stroke="#0B0D1B" stroke-width=".9"/><path d="M8.2 12.5c-.6 1.8-.4 3.6.2 5" stroke="#C9E8D2" stroke-width="1.1" fill="none" opacity=".7" stroke-linecap="round"/></g></svg>',
   sauce:'<svg viewBox="0 0 24 24"><path d="M10 2h4v4l2.5 3.5V20a2 2 0 0 1-2 2h-5a2 2 0 0 1-2-2V9.5L10 6z" fill="#E5682A"/><rect x="9.5" y="12" width="5" height="5" rx="1" fill="#F0E442"/></svg>'
 };
 ICONS.cream='<svg viewBox="0 0 24 24"><ellipse cx="12" cy="18" rx="8" ry="4" fill="#FFF6E8" stroke="#2A1A12" stroke-width="1.3"/><ellipse cx="12" cy="12.5" rx="6" ry="3.4" fill="#FFF6E8" stroke="#2A1A12" stroke-width="1.3"/><ellipse cx="12" cy="7.5" rx="3.6" ry="2.4" fill="#FFF6E8" stroke="#2A1A12" stroke-width="1.3"/><path d="M12 5l1.5-3" stroke="#2A1A12" stroke-width="1.3" stroke-linecap="round"/></svg>';
@@ -442,7 +463,7 @@ ICONS.rainbow='<svg viewBox="0 0 24 24" fill="none" stroke-width="2.4" stroke-li
 ICONS.bomb='<svg viewBox="0 0 24 24"><circle cx="11" cy="14" r="7" fill="#D7263D" stroke="#2A1A12" stroke-width="1.3"/><path d="M15 8l2-2" stroke="#2A1A12" stroke-width="2" stroke-linecap="round"/><path d="M18 4l1-1M20 6h1M18 2v1" stroke="#F7C548" stroke-width="1.6" stroke-linecap="round"/><ellipse cx="8.5" cy="11.5" rx="1.6" ry="1" fill="rgba(255,255,255,.6)"/></svg>';
 ICONS.lights='<svg viewBox="0 0 24 24"><path d="M12 2a6.5 6.5 0 0 0-3.8 11.8c.6.5.8 1.1.8 1.8V17h6v-1.4c0-.7.3-1.3.8-1.8A6.5 6.5 0 0 0 12 2z" fill="#5A5F7A" stroke="#2A1A12" stroke-width="1.3"/><rect x="9" y="18" width="6" height="3" rx="1" fill="#9AA3BC" stroke="#2A1A12" stroke-width="1.1"/><path d="M4 4l16 16" stroke="#E5682A" stroke-width="2.2" stroke-linecap="round"/></svg>';
 ICONS.reverse='<svg viewBox="0 0 24 24" fill="none" stroke="#CC79A7" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h14l-3-3M20 16H6l3 3"/></svg>';
-const LABEL={pie:'Pie',tower:'Tower',sauce:'Sauce',cream:'Cream',freeze:'Freeze',blender:'Blender',pin:'Pin',plate:'Plate',swap:'Swap',steam:'Steam',grease:'Grease',rainbow:'Rainbow',bomb:'Bomb',lights:'Lights',reverse:'Flip'};
+const LABEL={pie:'Trash',tower:'Heap',sauce:'Sauce',cream:'Cream',freeze:'Freeze',blender:'Blender',pin:'Pin',plate:'Plate',swap:'Swap',steam:'Steam',grease:'Grease',rainbow:'Rainbow',bomb:'Bomb',lights:'Lights',reverse:'Flip'};
 const VALUE={sauce:'3s',cream:'5s',freeze:'2.5s',blender:'Mix',pin:'Self',plate:'Pick',swap:'Board',steam:'6s',grease:'6s',rainbow:'Self',bomb:'Self',lights:'All',reverse:'7s'};
 let rackIds='';
 function renderRack(){
@@ -530,7 +551,7 @@ function renderBoss(){
   const b=G&&G.boss;if(!b)return;
   const bar=$('#bossBar');bar.classList.toggle('hit',b.hitT>0);bar.classList.toggle('phase3',b.phase>=3);
   const nx=b.next,to=nx&&G.byId(nx.to),secs=Math.max(0,Math.ceil((b.nextAt-G.frame)/60));
-  const what=nx?({pie:'Pie barrage',sauce:'Hot sauce',cream:'Whipped cream',freeze:'Brain freeze',blender:'Blender'}[nx.k]||'Attack'):'';
+  const what=nx?({pie:'Trash barrage',sauce:'Hot sauce',cream:'Whipped cream',freeze:'Brain freeze',blender:'Blender'}[nx.k]||'Attack'):'';
   const key=b.hp+'|'+b.phase+'|'+(nx?nx.k+nx.to+secs:'');
   if(key===bossKey)return;bossKey=key;
   $('#bossHp').style.width=(b.hp/b.max*100)+'%';
@@ -580,7 +601,7 @@ function updateOpps(){
   });
 }
 
-/* ---------- flying pies ---------- */
+/* ---------- flying trash ---------- */
 function pointFor(b,isTarget,slot){
   if(b===G.player){
     if(isTarget){const r=$('#tray').getBoundingClientRect();return[r.right-30,r.top+r.height/2]}
@@ -593,7 +614,7 @@ function pointFor(b,isTarget,slot){
 function fly(src,tgt,it,slot){
   if(G&&G.ffMode)return;
   const [x,y]=pointFor(src,false,slot),[tx,ty]=pointFor(tgt,true);
-  const d=document.createElement('div');d.className='fly'+(JUNK_KINDS.includes(it.k)?(it.cells>=6?' big':''):' '+it.k);document.body.appendChild(d);
+  const d=document.createElement('div');d.className='fly'+(JUNK_KINDS.includes(it.k)?' junk'+(it.cells>=6?' big':''):' '+it.k);document.body.appendChild(d);
   d.style.transform=`translate(${x}px,${y}px)`;
   requestAnimationFrame(()=>requestAnimationFrame(()=>{d.style.transform=`translate(${tx}px,${ty}px) scale(.8)`}));
   setTimeout(()=>d.remove(),600);
@@ -675,7 +696,7 @@ function drawSteam(B,W,H,f){
   for(let i=0;i<7;i++){const x=((i*.17+f*.0015*(i%2?1:-1))%1+1)%1*W,y=H*(.12+(i%4)*.13),r=S*(1.4+(i%3)*.5);
     const g=ctx.createRadialGradient(x,y,0,x,y,r);g.addColorStop(0,`rgba(245,246,252,${.9*a})`);g.addColorStop(1,'rgba(245,246,252,0)');ctx.fillStyle=g;ctx.fillRect(x-r,y-r,r*2,r*2)}
 }
-// incoming junk as a little pie stack in the board's top-left corner (Snack Stack has no tray row)
+// incoming junk as a little row of trash bags in the board's top-left corner (Snack Stack has no tray row)
 function drawIncoming(B){
   if(!B.inc||!B.inc.length)return;
   const x0=S*.12,y0=S*.12,h=S*.5;let x=x0;
@@ -683,8 +704,8 @@ function drawIncoming(B){
   const tw=ctx.measureText('INCOMING').width,w=tw+S*.42+B.inc.length*S*.62;
   ctx.fillStyle=B.inc.some(i=>i.t<70)?'rgba(229,104,42,.95)':'rgba(11,13,27,.82)';rr(ctx,x0,y0,w,h,h/2);ctx.fill();
   ctx.fillStyle='#EEF0FA';ctx.fillText('INCOMING',x0+S*.15,y0+h/2);x=x0+S*.3+tw;
-  B.inc.forEach(it=>{const r=S*.24;ctx.fillStyle=it.cells>=6?'#B5652D':'#E0A86E';ctx.beginPath();ctx.arc(x+r,y0+h/2,r,0,Math.PI*2);ctx.fill();
-    ctx.fillStyle='#2A1A12';ctx.textAlign='center';ctx.font=`800 ${Math.round(S*.24)}px Figtree,sans-serif`;ctx.fillText(it.cells,x+r,y0+h/2+1);
+  B.inc.forEach(it=>{const r=S*.24;ctx.fillStyle=it.cells>=6?'#3E5546':'#557560';ctx.beginPath();ctx.arc(x+r,y0+h/2,r,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='#EEF0FA';ctx.textAlign='center';ctx.font=`800 ${Math.round(S*.24)}px Figtree,sans-serif`;ctx.fillText(it.cells,x+r,y0+h/2+1);
     ctx.strokeStyle='#EEF0FA';ctx.lineWidth=2;ctx.beginPath();ctx.arc(x+r,y0+h/2,r+2,-Math.PI/2,-Math.PI/2+Math.PI*2*(it.t/it.T));ctx.stroke();
     x+=S*.62;ctx.textAlign='left'});
 }
@@ -1182,7 +1203,7 @@ const champTag=b=>G&&G.champId&&b.id===G.champId?'<div class="champ">Champ</div>
 function showMatchup(seconds,go){
   clearInterval(vsTimer);
   const st=$('#vsStage'),me=G.player,others=G.boards.filter(b=>b!==me);
-  const vi=VARIANT_INFO[G.variant]||VARIANT_INFO.classic,banner=G.variant==='classic'?'':`<div class="vmode">${vi.name} · ${{order:`first to ${ORDER_GOAL} orders`,stack:'connect 4, chain for pies',shot:'aim, pop 3, drop the rest',boss:'everyone vs. the boss'}[G.variant]}</div>`;
+  const vi=VARIANT_INFO[G.variant]||VARIANT_INFO.classic,banner=G.variant==='classic'?'':`<div class="vmode">${vi.name} · ${{order:`first to ${ORDER_GOAL} orders`,stack:'connect 4, chain to dump trash',shot:'aim, pop 3, drop the rest',boss:'everyone vs. the boss'}[G.variant]}</div>`;
   if(G.boss){
     st.innerHTML=banner+`<div class="crowd">${G.boards.map((b,i)=>`<div class="fighter${b===me?' me':''}" style="animation-delay:${i*.06}s"><img src="${body(b.av)}" alt=""><div class="chunky">${esc(b.name)}</div></div>`).join('')}</div><div class="chunky vsword" style="font-size:44px">VS</div><div class="fighter boss"><img src="${body(G.boss.av)}" alt=""><div class="chunky">${esc(G.boss.name)}</div></div>`;
   }else if(others.length===1){

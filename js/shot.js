@@ -160,12 +160,17 @@ class ShotBoard{
       const got=[];
       grp.forEach(([r,c])=>{const u=this.h[r][c];if(u.sp)got.push(u.sp);this.popping.push({x:this.cx(r,c),y:this.cy(r),t:u.t,life:14});this.burst(this.cx(r,c),this.cy(r),u.t,5);this.h[r][c]=null});
       popped=grp.length;
+      // junk touching the pop breaks too (same as the other modes)
+      let broke=0;
+      grp.forEach(([r0,c0])=>{for(const [r,c] of this.nb(r0,c0)){const u=this.h[r][c];if(u&&u.t<0){this.popping.push({x:this.cx(r,c),y:this.cy(r),t:-1,life:14});this.burst(this.cx(r,c),this.cy(r),-1,5);this.h[r][c]=null;broke++}}});
+      if(broke){this.score+=broke*15;this.sfx('break')}
       dropped=this.dropFloating(got);
       got.forEach((k,i)=>this.earn({k},this.cx(s.r,s.c),this.cy(s.r)-.5-i*.6));
       const n=popped+dropped;
       this.maxCombo=Math.max(this.maxCombo,n);
       this.score+=popped*10+dropped*25+(dropped>=4?dropped*15:0);
       const cx=this.cx(s.r,s.c),cy=this.cy(s.r);
+      if(broke)this.pop(`Broke ${broke} junk!`,cx,cy+1.4,'#A6E05A',.8);
       if(dropped)this.pop(`Pop ${popped} + drop ${dropped}!`,cx,cy+.6,'#F7C548',dropped>=4?1.1:.9);else this.pop(popped>3?`Pop ${popped}!`:'Pop!',cx,cy+.6,'#EEF0FA',.85);
       this.sfx(dropped>=4?'chain':'match',dropped>=4?Math.min(6,2+Math.floor(dropped/4)):popped);
       const cells=Math.max(0,popped-3)+dropped+(dropped>=5?2:0);
