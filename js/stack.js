@@ -79,7 +79,7 @@ class StackBoard{
   speed(){return this.soft?.45:this.rushT>0?.09:(.024+this.game.level()*.006)}
   spawn(){
     const [a,b,sa,sb]=this.queue.shift();this.queue.push(this.pair());
-    this.piece={a,b,sa,sb,c:SPAWN_C,r:1,rot:0};this.lock=0;this.plan=null;if(this.isBot)this.soft=false;
+    this.piece={a,b,sa,sb,c:SPAWN_C,r:1,rot:0};this.pid=(this.pid||0)+1;this.lock=0;this.plan=null;if(this.isBot)this.soft=false;
     if(!this.fits(this.piece)){this.piece=null;return this.die()}
     this.state='fall';this.heldUsed=false;
   }
@@ -89,7 +89,7 @@ class StackBoard{
     if(!this.canAct()||this.heldUsed)return false;
     const p=this.piece,cur=[p.a,p.b,p.sa,p.sb];
     if(!this.held){this.held=cur;this.piece=null;this.spawn()}
-    else{const [a,b,sa,sb]=this.held;const np={a,b,sa,sb,c:SPAWN_C,r:1,rot:0};if(!this.fits(np))return false;this.held=cur;this.piece=np;this.lock=0}
+    else{const [a,b,sa,sb]=this.held;const np={a,b,sa,sb,c:SPAWN_C,r:1,rot:0};if(!this.fits(np))return false;this.held=cur;this.piece=np;this.pid=(this.pid||0)+1;this.lock=0}
     this.heldUsed=true;this.sfx('swap');return true;
   }
   // use the banked pair now (V)

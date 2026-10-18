@@ -1,7 +1,9 @@
 // Food Fight UI: drawing, input, settings, practice mode and the online lobby.
 (function(){
-const VERSION='1.10.0';
+const VERSION='1.11.0';
 let spec=null; // board being spectated after you're knocked out
+// how far we are between two 60Hz game steps (0..1): drawing uses it so motion is smooth on 90/120/144Hz screens too
+let ALPHA=0,lastDraw=performance.now(),drawDt=16,SIDEW=0;
 const $=s=>document.querySelector(s);
 const $$=s=>[...document.querySelectorAll(s)];
 const cv=$('#board'),ctx=cv.getContext('2d');
@@ -28,7 +30,8 @@ const VARIANT_INFO={
   order:{name:'Order Up!',tag:'Ticket race',sizes:['Duel','Race of 4','Race of 8']},
   stack:{name:'Snack Stack',tag:'Falling pairs',sizes:['Duel','Brawl','Big Brawl']},
   shot:{name:'Splat Shot',tag:'Aim and pop',sizes:['Duel','Brawl','Big Brawl']},
-  boss:{name:'Boss Brawl',tag:'Co-op vs a boss',sizes:['Duo','Team of 4','Team of 8']}};
+  boss:{name:'Boss Brawl',tag:'Co-op vs a boss',sizes:['Duo','Team of 4','Team of 8']},
+  blocks:{name:'Block Battle',tag:'Clear lines, send garbage',sizes:['Duel','Battle of 4','Battle of 8'],hidden:true}};
 const VARIANT_KEYS=Object.keys(VARIANT_INFO);
 const ART={
   logo:'assets/logo.webp',
@@ -54,7 +57,12 @@ const face=av=>ART[(FIGHTERS.includes(av)?av:'bun')+'-face'];
 const body=av=>ART[FIGHTERS.includes(av)?av:'bun'];
 const avImg=(av,cls)=>`<img class="${cls||'av'}" src="${face(av)}" alt="" width="64" height="64">`;
 try{const s=JSON.parse(localStorage.getItem('ff-prefs')||'null');if(s)prefs=Object.assign(prefs,s)}catch(e){}
-if(!VARIANT_INFO[prefs.variant])prefs.variant='classic';
+// hidden modes: only unlocked on a device that has opened the site with #admin=<passphrase> (#admin=off locks it again).
+// The check runs in the browser, so this hides the mode rather than securing it.
+const ADMIN_HASH='04bd7d84aba9e96e134563f45540fbe26c81736886973c3c2612eefc504ff10b';
+let ADMIN=false;try{ADMIN=localStorage.getItem('ff-admin')===ADMIN_HASH}catch(e){}
+const pickable=v=>!!VARIANT_INFO[v]&&(!VARIANT_INFO[v].hidden||ADMIN);
+if(!pickable(prefs.variant))prefs.variant='classic';
 if(!PALETTES[prefs.palette])prefs.palette='classic';
 if(!['food','shapes'].includes(prefs.art))prefs.art='food';
 if(!FIGHTERS.includes(prefs.av))prefs.av='bun';
@@ -258,12 +266,15 @@ function drawTile(c,t,x,y,s,alpha,frame,simple,pal){
   if(flash){const p=Math.max(1,s*.04);rr(c,x+p,y+p,s-p*2,s-p*2,s*.2);c.fillStyle=`rgba(255,255,255,${flash})`;c.fill()}
   c.restore();
 }
+// the same easing the engine applies each step, carried part of the way: tiles glide instead of stepping
+const ixo=x=>{if(!x||!ALPHA)return x||0;const s=Math.sign(x),v=x-s*.3*ALPHA;return Math.sign(v)!==s?0:v};
+const iyo=y=>{if(!y||!ALPHA)return y||0;if(y<0)return Math.min(0,y+Math.max(.3,-y*.1)*ALPHA);return Math.max(0,y-.3*ALPHA)};
 function render(){
   const W=S*COLS,H=S*ROWS;
   ctx.fillStyle=TOK.well;ctx.fillRect(0,0,W,H);
   if(!G)return;
   const mu=MODE_UI[G.variant];if(mu&&mu.render){mu.render();return}
-  const B=spec||G.player,mine=B===G.player,ro=B.rise*S,f=G.frame;
+  const B=spec||G.player,mine=B===G.player,ro=Math.min(.999,B.rise+(B.riseD||0)*ALPHA)*S,f=G.frame;
   ctx.fillStyle=TOK.grid;
   for(let r=-1;r<=ROWS;r++)for(let c=0;c<COLS;c++)if((r+c+400)%2===0)ctx.fillRect(c*S,r*S-ro,S,S);
   const danger=[];for(let c=0;c<COLS;c++)danger[c]=!!(B.g[0][c]||B.g[1][c]);
@@ -284,7 +295,7 @@ function render(){
   for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){
     const t=B.g[r][c];if(!t)continue;
     const sx=danger[c]&&live?Math.sin(f*.8+c*1.7)*S*(B.grace<GRACE?.05:.025):0;
-    drawTile(ctx,t,c*S+t.xo*S+sx,r*S-ro+t.yo*S+shakeY,S,B.dead?.45:1,f);
+    drawTile(ctx,t,c*S+ixo(t.xo)*S+sx,r*S-ro+iyo(t.yo)*S+shakeY,S,B.dead?.45:1,f);
     if(t.splat>0){const k=1-t.splat/24,x=c*S+S/2,y=r*S-ro+S/2+shakeY;ctx.globalAlpha=1-k;ctx.strokeStyle='#E0A86E';ctx.lineWidth=S*.12*(1-k)+1;ctx.beginPath();ctx.arc(x,y,S*(.35+k*.6),0,Math.PI*2);ctx.stroke();ctx.globalAlpha=1}
   }
   for(let c=0;c<COLS;c++)drawTile(ctx,{t:B.preview[c],clr:0,sp:B.previewSp&&B.previewSp[c]},c*S,ROWS*S-ro+shakeY,S,.45,f);
@@ -384,6 +395,12 @@ function renderMini(m){
   const b=m.board,c=m.ctx,w=m.cv.width,h=m.cv.height,s=w/COLS;
   c.fillStyle=TOK.well;c.fillRect(0,0,w,h);
   const ro=b.rise*s,simple=s<14,fr=G?G.frame:0;
+  if(G&&G.variant==='blocks'){
+    const v=blocksView(b),cs=w/10;for(let r=0;r<20;r++)for(let k=0;k<10;k++)if(v[r][k]){c.fillStyle=BCOL[v[r][k]];c.fillRect(k*cs+.5,r*cs+.5,cs-1,cs-1)}
+    const inc=b.remote?(b.binc|0):(b.incoming?b.incoming():0);if(inc>0){c.fillStyle='#E5484D';c.fillRect(0,h-Math.min(20,inc)*cs,Math.max(2,cs*.3),Math.min(20,inc)*cs)}
+    if(b.dead){c.fillStyle='rgba(11,13,27,.55)';c.fillRect(0,0,w,h);c.fillStyle='#EEF0FA';c.textAlign='center';c.textBaseline='middle';c.font=`${Math.round(w*.32)}px 'Lilita One',sans-serif`;c.fillText('KO',w/2,h/2)}
+    return;
+  }
   if(G&&G.variant==='shot'){
     const Q=SHOTGEO();if(Q)hexCells(b).forEach(p=>{c.fillStyle=p.t<0?'#5E6472':PAL.c[p.t];c.beginPath();c.arc(p.x*s,p.y*s,Q.R*s*.92,0,Math.PI*2);c.fill()});
     if(Q){c.strokeStyle='rgba(247,197,72,.5)';c.lineWidth=1;const y=(Q.DEAD_ROW*Q.RH)*s;c.beginPath();c.moveTo(0,y);c.lineTo(w,y);c.stroke()}
@@ -645,23 +662,44 @@ function hud(){
   if(G.variant==='order'){$('#sThird').textContent=`${G.player.orders|0}/${ORDER_GOAL}`;$('#sThirdL').textContent='Orders'}
   else if(G.boss){$('#sThird').textContent=Math.round(G.player.dmg||0);$('#sThirdL').textContent='Damage'}
   else if(G.variant==='stack'){$('#sThird').textContent=G.player.maxChain;$('#sThirdL').textContent='Best chain'}
+  else if(G.variant==='blocks'){$('#sThird').textContent=G.player.lines|0;$('#sThirdL').textContent='Lines'}
   else if(multi()){$('#sThird').textContent=G.player.kos;$('#sThirdL').textContent='KOs'}
   else{$('#sThird').textContent=G.level();$('#sThirdL').textContent='Heat'}
 }
 
 /* ---------- sizing ---------- */
+const DESK=window.matchMedia?matchMedia('(min-width:760px) and (min-aspect-ratio:1/1)'):{matches:false};
+let SIDEZ=1;
 function resize(){
+  // desktop: opponent previews grow to use the height beside the board
+  {const op=$('#opps');if(op){if(DESK.matches&&minis.length){const n=minis.length,many=op.classList.contains('many'),rows=many?Math.ceil(n/2):n,
+      avail=$('.arena').clientHeight-8,mh=Math.floor((avail-(rows-1)*8)/rows-58),mw=Math.max(36,Math.min(many?70:120,Math.floor(mh/2)));
+      op.style.setProperty('--mw',mw+'px')}else op.style.removeProperty('--mw')}}
   const w=$('#wrap');const W=w.clientWidth,H=w.clientHeight;
-  // a side column (Snack Stack's next + items) takes the right edge; the board centres in what's left
-  const mu=G&&MODE_UI[G.variant],side=mu&&mu.sideW?mu.sideW():0,left=mu&&mu.leftW?mu.leftW():0;
+  // a side column (Next, Bank, items...) sits right of the board; the board centres in what's left
+  const mu=G&&MODE_UI[G.variant];const base=mu&&mu.sideW?mu.sideW():0;let side=base;const left=mu&&mu.leftW?mu.leftW():0;
   w.style.paddingRight=side?side+'px':'';w.style.paddingLeft=left?left+'px':'';
   S=Math.max(16,Math.floor(Math.min((W-side-left)/COLS,H/ROWS)));
+  SIDEZ=1;
+  if(side&&DESK.matches){
+    // desktop: plenty of room, so the whole column (items, Next, Bank, buttons) scales up with the board
+    const want=Math.round(Math.max(base,Math.min(S*1.7,150)));
+    if(want>side&&W-S*COLS-left>=want){side=want;SIDEZ=side/base;w.style.paddingRight=side+'px'}
+  }else if(mu&&mu.growSide&&side){
+    // phone: when there's room to spare, widen the column so Next can show its pair at full tile size
+    const want=Math.min(S,72)+18;if(want>side&&W-S*COLS-left>=want){side=want;w.style.paddingRight=side+'px'}
+  }
+  SIDEW=side;
   DPR=Math.min(3,window.devicePixelRatio||1);
   cv.style.width=S*COLS+'px';cv.style.height=S*ROWS+'px';
   cv.width=Math.round(S*COLS*DPR);cv.height=Math.round(S*ROWS*DPR);
   ctx.setTransform(DPR,0,0,DPR,0,0);
   document.documentElement.style.setProperty('--bw',S*COLS+'px');
-  {const sc=$('#sideCol'),lc=$('#leftCol');if(sc)sc.style.height=S*ROWS+'px';if(lc)lc.style.height=S*ROWS+'px'}   // side column lines up with the board, items at its bottom
+  {const sc=$('#sideCol');if(sc){const z=SIDEZ;sc.style.zoom=z===1?'':String(z);
+    sc.style.height=S*ROWS/z+'px';sc.style.width=side?(side/z-4)+'px':'';
+    // sit right against the board instead of the far edge of the screen
+    if(side){sc.style.left=(cv.offsetLeft+S*COLS+6)/z+'px';sc.style.right='auto'}else{sc.style.left='';sc.style.right=''}}}
+  nextKey='';bankKey='';
   sizeMinis();render();
 }
 new ResizeObserver(resize).observe($('#wrap'));
@@ -743,9 +781,10 @@ function doBank(useOnly){
   else if(!ok&&useOnly&&B.held==null)B.pops.push({text:'Bank is empty',x:3,y:4,col:'#EEF0FA',size:.65,life:45});
   return ok;
 }
+const shot0=()=>G&&G.variant==='shot'&&typeof SHOTGEO==='function'?SHOTGEO():null;
 function drawBank(){
   const B=G.player,c=$('#bankCv'),box=$('#bankBox');if(!c||!box)return;
-  const shot=G.variant==='shot',h=B.held,s=shot?34:(prefs.stackCtl==='buttons'?34:26);
+  const Q=shot0();const shot=G.variant==='shot',h=B.held,s=shot?Math.round(Math.min(Q?Q.D*S:34,(SIDEW-22)||34)/SIDEZ):(MODE_UI.stack.ns||26);
   const key=JSON.stringify(h)+'|'+!!B.heldUsed+'|'+s+prefs.palette+prefs.art+cuisine();if(key===bankKey)return;bankKey=key;
   const rows=shot?1:2;c.width=s*DPR;c.height=s*rows*DPR;c.style.width=s+'px';c.style.height=s*rows+'px';
   const x=c.getContext('2d'),u=s*DPR;x.clearRect(0,0,c.width,c.height);
@@ -755,10 +794,120 @@ function drawBank(){
   if(shot)drawTile(x,{t:h,clr:0},0,0,u,1,0);
   else{const [a,b,sa,sb]=h;drawTile(x,{t:b,clr:0,sp:sb},0,0,u,1,0);drawTile(x,{t:a,clr:0,sp:sa},0,u,u,1,0)}
 }
+// ----- Block Battle (hidden admin mode): 10x20 well drawn inside the usual 6x12 board area (same 1:2 shape) -----
+const BCOL=['','#3FC5E8','#F7C548','#A65BD9','#5CC45C','#E5484D','#3D6FE0','#F08A2C','#6B7080'];
+function drawBlock(c,v,x,y,s,a){
+  if(!v)return;if(a!=null)c.globalAlpha=a;const p=Math.max(.5,s*.05),r=s*.2;
+  rr(c,x+p,y+p,s-2*p,s-2*p,r);c.fillStyle=BCOL[v]||BCOL[8];c.fill();
+  if(s>=7){c.fillStyle='rgba(255,255,255,.3)';rr(c,x+p*2.4,y+p*2.4,s-p*4.8,(s-p*4.8)*.36,r*.7);c.fill();
+    c.fillStyle='rgba(0,0,0,.22)';c.fillRect(x+p*2.4,y+s-p-s*.16,s-p*4.8,s*.1)}
+  if(a!=null)c.globalAlpha=1;
+}
+const BT=()=>window.FFEngine&&FFEngine.BOARD_TYPES.blocks;
+function blocksView(b){
+  if(!b.remote)return b.view();
+  const v=[],g=b.bm||'';for(let r=0;r<20;r++){const row=[];for(let c=0;c<10;c++){const ch=g[r*10+c];row.push(ch&&ch!=='.'?+ch:0)}v.push(row)}return v;
+}
+// one piece, centred in a box of w x h
+function drawPieceAt(c,p,cx,cy,s,a){
+  const K=BT();if(!K||!p)return;const cells=K.SHAPES[p][0];
+  const rs=cells.map(x=>x[0]),cs=cells.map(x=>x[1]),r0=Math.min(...rs),r1=Math.max(...rs),c0=Math.min(...cs),c1=Math.max(...cs);
+  const ox=cx-(c1-c0+1)*s/2,oy=cy-(r1-r0+1)*s/2;
+  cells.forEach(([r,cc])=>drawBlock(c,p,ox+(cc-c0)*s,oy+(r-r0)*s,s,a));
+}
+let bsideKey='';
+MODE_UI.blocks={
+  noTray:true,noRaise:true,footClass:()=>'stackbtn',
+  side(){return '<button class="nextbox bholdbox" id="holdBox" type="button" aria-label="Hold"><span>Hold</span><canvas id="holdCv"></canvas></button><div class="nextbox"><span>Next</span><canvas id="bnextCv"></canvas></div>'},
+  sideW(){return 76},
+  ctl(){return `<div class="stackrow blocksrow"><div class="movepad row" id="movePad"><span>◀</span><span>▶</span></div><button class="spin icon" id="bSoft" type="button" aria-label="Soft drop">▼</button><button class="spin icon" id="bCCW" type="button" aria-label="Turn left">↺</button><button class="spin icon" id="bCW" type="button" aria-label="Turn right">↻</button><button class="spin drop" id="bHard" type="button">Drop</button></div>`},
+  bind(){
+    bsideKey='';const P=()=>G&&G.player;
+    const hold=(id,a)=>{const el=$(id);if(!el)return;el.addEventListener('pointerdown',e=>{e.preventDefault();if(canPlay())P().press(a)});
+      ['pointerup','pointercancel','pointerleave'].forEach(ev=>el.addEventListener(ev,()=>{if(G)P().release(a)}))};
+    hold('#bSoft','SD');hold('#bCCW','CCW');hold('#bCW','CW');hold('#bHard','HD');hold('#holdBox','HOLD');
+    // the pad: left half / right half, hold to auto-repeat, slide across to switch direction
+    const pad=$('#movePad');if(!pad)return;let cur=null,pid=null;
+    const side=x=>{const r=pad.getBoundingClientRect();return x<r.left+r.width/2?'L':'R'};
+    pad.addEventListener('pointerdown',e=>{e.preventDefault();if(!canPlay())return;try{pad.setPointerCapture(e.pointerId)}catch(_){}pid=e.pointerId;cur=side(e.clientX);P().press(cur)});
+    pad.addEventListener('pointermove',e=>{if(e.pointerId!==pid||!cur||!canPlay())return;const s2=side(e.clientX);if(s2!==cur){P().release(cur);cur=s2;P().press(cur)}});
+    const up=e=>{if(e.pointerId!==pid)return;if(cur&&G)P().release(cur);cur=null;pid=null};
+    ['pointerup','pointercancel'].forEach(ev=>pad.addEventListener(ev,up));
+  },
+  held:new Set(),
+  key(k,down){
+    const B=G.player,map={ArrowLeft:'L',ArrowRight:'R',ArrowDown:'SD',' ':'HD',ArrowUp:'CW',x:'CW',X:'CW',z:'CCW',Z:'CCW',Control:'CCW',c:'HOLD',C:'HOLD',Shift:'HOLD'},a=map[k];
+    if(!a)return false;
+    if(down){if(this.held.has(k))return true;this.held.add(k);B.press(a)}   // ignore the keyboard's own auto-repeat: DAS handles it
+    else{this.held.delete(k);B.release(a)}
+    return true;
+  },
+  drawSide(B){
+    const K=BT(),hc=$('#holdCv'),nc=$('#bnextCv');if(!K||!hc||!nc)return;
+    const colW=(SIDEW||76)/SIDEZ-16,ps=Math.max(8,Math.min(colW/4.2,(S*COLS/10)/SIDEZ)),q=B.queue||[];
+    const key=[B.hold,B.holdUsed,q.slice(0,5).join(''),ps.toFixed(1)].join('|');if(key===bsideKey)return;bsideKey=key;
+    const hw=Math.round(ps*4.4),hh=Math.round(ps*2.8);
+    hc.width=hw*DPR;hc.height=hh*DPR;hc.style.width=hw+'px';hc.style.height=hh+'px';
+    let x=hc.getContext('2d');x.setTransform(DPR,0,0,DPR,0,0);x.clearRect(0,0,hw,hh);
+    if(B.hold)drawPieceAt(x,B.hold,hw/2,hh/2,ps,B.holdUsed?.35:1);
+    $('#holdBox').classList.toggle('used',!!B.holdUsed);
+    const sizes=[1,.8,.8,.7,.7],gap=ps*.6;let th=0;sizes.forEach(z=>th+=ps*z*2+gap);
+    nc.width=hw*DPR;nc.height=Math.round(th)*DPR;nc.style.width=hw+'px';nc.style.height=Math.round(th)+'px';
+    x=nc.getContext('2d');x.setTransform(DPR,0,0,DPR,0,0);x.clearRect(0,0,hw,th);
+    let y=gap/2;sizes.forEach((z,i)=>{const s2=ps*z;if(q[i])drawPieceAt(x,q[i],hw/2,y+s2,s2,1);y+=s2*2+gap});
+  },
+  render(){
+    const K=BT();if(!K)return;
+    const B=spec||G.player,mine=B===G.player,Wp=S*COLS,Hp=S*ROWS,cs=Wp/10,HID=K.GEO.HID;
+    // faint grid
+    ctx.strokeStyle='rgba(255,255,255,.045)';ctx.lineWidth=1;ctx.beginPath();
+    for(let c=1;c<10;c++){ctx.moveTo(c*cs+.5,0);ctx.lineTo(c*cs+.5,Hp)}for(let r=1;r<20;r++){ctx.moveTo(0,r*cs+.5);ctx.lineTo(Wp,r*cs+.5)}ctx.stroke();
+    const sh=B.shake?Math.sin(B.shake*2)*cs*.1:0,dim=B.dead?.45:1;
+    if(B.remote){const v=blocksView(B);for(let r=0;r<20;r++)for(let c=0;c<10;c++)drawBlock(ctx,v[r][c],c*cs,r*cs+sh,cs,dim)}
+    else{
+      for(let r=HID;r<HID+20;r++)for(let c=0;c<10;c++){const v=B.m[r][c];if(v)drawBlock(ctx,v,c*cs,(r-HID)*cs+sh,cs,dim)}
+      // rows being cleared flash white, then shrink away
+      if(B.clearRows){const k=B.clearT/14;B.clearRows.forEach(r=>{if(r<HID)return;ctx.fillStyle=`rgba(255,255,255,${.85*k})`;const hgt=cs*k;ctx.fillRect(0,(r-HID)*cs+(cs-hgt)/2,Wp,hgt)})}
+      const p=B.piece;
+      if(p){
+        // ghost
+        const gr=B.ghostRow();K.SHAPES[p.p][p.rot].forEach(([dr,dc])=>{const r=gr+dr-HID;if(r>=0){ctx.strokeStyle=BCOL[p.p];ctx.globalAlpha=.55;ctx.lineWidth=Math.max(1.5,cs*.08);rr(ctx,(p.c+dc)*cs+cs*.1,r*cs+cs*.1,cs*.8,cs*.8,cs*.18);ctx.stroke();ctx.globalAlpha=1}});
+        // the piece glides a touch between cells (~25ms) so moves read smooth without feeling floaty
+        const v=this.vis||(this.vis={});if(v.pid!==B.pid||v.b!==B){v.pid=B.pid;v.b=B;v.c=p.c;v.r=p.r}
+        const k=1-Math.exp(-drawDt/22);v.c+=(p.c-v.c)*k;v.r+=(p.r-v.r)*k;if(Math.abs(v.c-p.c)<.02)v.c=p.c;if(Math.abs(v.r-p.r)<.02)v.r=p.r;
+        if(Math.abs(v.r-p.r)>2.5)v.r=p.r;   // hard drops land instantly
+        K.SHAPES[p.p][p.rot].forEach(([dr,dc])=>{const r=v.r+dr-HID;if(r>-1)drawBlock(ctx,p.p,(v.c+dc)*cs,r*cs+sh,cs,dim)});
+      }
+    }
+    // incoming garbage: a red bar up the left edge, one cell per line
+    const inc=B.remote?(B.binc|0):B.incoming();
+    if(inc>0){const hh=Math.min(20,inc)*cs,soon=!B.remote&&B.inc.some(i=>i.t<=0);ctx.fillStyle=soon?`rgba(229,72,77,${.75+.25*Math.sin(G.frame*.5)})`:'rgba(229,72,77,.85)';ctx.fillRect(0,Hp-hh,Math.max(4,cs*.18),hh)}
+    // nearly topped out
+    if(!B.remote&&B.rows()>=17){ctx.fillStyle=`rgba(229,72,77,${.18+.12*Math.sin(G.frame*.25)})`;ctx.fillRect(0,0,Wp,cs*3)}
+    // bits from cleared lines
+    (B.parts||[]).forEach(q=>{ctx.globalAlpha=Math.min(1,q.life/12);ctx.fillStyle=BCOL[q.kind]||BCOL[8];ctx.fillRect(q.x*S-cs*.12,q.y*S-cs*.12,cs*.24,cs*.24)});ctx.globalAlpha=1;
+    drawFxLayer({parts:[],pops:B.pops||[]},0);
+    if(B.dead&&G.playerOut&&!G.over)drawKO(B,Wp,Hp);
+    if(mine)this.drawSide(B);
+  },
+  down(e,p){sd={id:e.pointerId,x0:p.x,y0:p.y,t:performance.now(),c0:G.player.piece?G.player.piece.c:3,moved:false,soft:false}},
+  move(e,p){
+    if(!sd||e.pointerId!==sd.id)return;const B=G.player,cs=S*COLS/10,dx=p.x-sd.x0,dy=p.y-sd.y0;
+    if(Math.abs(dx)>cs*.6)sd.moved=true;
+    if(sd.moved&&B.piece)B.moveTo(Math.max(-2,Math.min(9,sd.c0+Math.round(dx/(cs*.9)))));
+    if(!sd.moved&&dy>cs*1.5&&!sd.soft){sd.soft=true;B.press('SD')}
+  },
+  up(e,p){
+    if(!sd||(e&&e.pointerId!==sd.id))return;const B=G.player,dt=performance.now()-sd.t,cs=S*COLS/10;
+    if(sd.soft)B.release('SD');
+    if(p&&!sd.moved){const dy=p.y-sd.y0;if(dy>cs*3&&dt<300)B.press('HD');else if(Math.abs(dy)<cs*.8&&dt<300)B.press(p.x<sd.x0-cs?'CCW':'CW')}
+    sd=null;
+  },
+};
 // ----- Snack Stack -----
 let sd=null,nextKey='';
 MODE_UI.stack={
-  slots:true,noTray:true,footClass:()=>prefs.stackCtl==='buttons'?'stackbtn':'',
+  growSide:true,slots:true,noTray:true,footClass:()=>prefs.stackCtl==='buttons'?'stackbtn':'',
   noRaise:()=>prefs.stackCtl==='buttons',
   raiseLabel:'Drop',
   side(){return prefs.stackCtl==='buttons'?'<div class="nextbox"><span>Next</span><canvas id="nextCv"></canvas></div><button class="nextbox bankbox" id="bankBox" type="button" aria-label="Bank: tap to save this piece, tap again to bring it back"><span>Bank</span><canvas id="bankCv"></canvas></button><div id="slotHost"></div>':''},
@@ -793,6 +942,8 @@ MODE_UI.stack={
   },
   drawNext(){
     const B=G.player,c=$('#nextCv');if(!c||!B.queue)return;
+    // the pair is shown at the size it'll be on the board (as far as the column allows)
+    {const want=prefs.stackCtl==='buttons'?Math.round(Math.max(26,Math.min(S,(SIDEW-18)||S,SIDEZ>1?S:72))/SIDEZ):26;if(want!==this.ns){this.ns=want;c.width=want*DPR;c.height=want*2*DPR;c.style.width=want+'px';c.style.height=want*2+'px';nextKey='';bankKey=''}}
     const hide=B.greaseT>0||B.lightsT>0;
     const key=(hide?'hidden':B.queue[0].join(''))+prefs.palette+prefs.art+cuisine();if(key===nextKey)return;nextKey=key;
     const x=c.getContext('2d'),s=(this.ns||26)*DPR;x.clearRect(0,0,c.width,c.height);
@@ -806,16 +957,26 @@ MODE_UI.stack={
     ctx.strokeStyle='rgba(204,121,167,.55)';ctx.lineWidth=Math.max(2,S*.06);const xc=2*S+S/2,yc=S/2,k=S*.18;
     ctx.beginPath();ctx.moveTo(xc-k,yc-k);ctx.lineTo(xc+k,yc+k);ctx.moveTo(xc+k,yc-k);ctx.lineTo(xc-k,yc+k);ctx.stroke();
     const sh=B.shake?Math.sin(B.shake*2)*S*.04:0;
-    for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){const t=B.g[r][c];if(t)drawTile(ctx,t,c*S,(r+(t.yo||0))*S+sh,S,B.dead?.45:1,f)}
+    for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){const t=B.g[r][c];if(t)drawTile(ctx,t,c*S,(r+(t.yo<0?Math.min(0,t.yo+.34*ALPHA):(t.yo||0)))*S+sh,S,B.dead?.45:1,f)}
     const p=B.piece;
     if(p&&B.cells){
       // ghost where it will land
       let g=Object.assign({},p);while(B.fits(Object.assign({},g,{r:Math.floor(g.r)+1})))g.r=Math.floor(g.r)+1;
       if(!(B.greaseT>0))B.cells(Object.assign({},g,{r:Math.floor(g.r)})).forEach(([r,c,t])=>{if(r>=0)drawTile(ctx,{t,clr:0},c*S,r*S,S,.22,f)});
       const off=[[-1,0],[0,1],[1,0],[0,-1]][p.rot];
-      drawTile(ctx,{t:p.a,clr:0,sp:p.sa},p.c*S,p.r*S+sh,S,1,f);
-      drawTile(ctx,{t:p.b,clr:0,sp:p.sb},(p.c+off[1])*S,(p.r+off[0])*S+sh,S,1,f);
-      if(mine){ctx.strokeStyle='rgba(255,255,255,.85)';ctx.lineWidth=2.5;rr(ctx,p.c*S+1.5,p.r*S+1.5+sh,S-3,S-3,S*.2);ctx.stroke()}
+      // smooth motion: fall carried between steps; slides and spins glide over ~50ms instead of snapping
+      let pr=p.r;if(ALPHA&&typeof B.speed==='function'){const bl=Math.floor(p.r)+1;if(B.fits(Object.assign({},p,{r:bl})))pr=Math.min(bl,p.r+B.speed()*ALPHA)}
+      const v=this.vis||(this.vis={});
+      const ta=Math.atan2(off[0],off[1]);
+      if(v.pid!==B.pid||v.b!==B){v.pid=B.pid;v.b=B;v.c=p.c;v.a=ta}
+      const k=1-Math.exp(-drawDt/28);v.c+=(p.c-v.c)*k;
+      let da=ta-v.a;while(da>Math.PI)da-=2*Math.PI;while(da<-Math.PI)da+=2*Math.PI;v.a+=da*k;
+      if(Math.abs(p.c-v.c)<.01)v.c=p.c;if(Math.abs(da)<.01)v.a=ta;
+      // the partner swings round the pivot on a circle, not a straight line
+      const dr=Math.sin(v.a),dc=Math.cos(v.a);
+      drawTile(ctx,{t:p.a,clr:0,sp:p.sa},v.c*S,pr*S+sh,S,1,f);
+      drawTile(ctx,{t:p.b,clr:0,sp:p.sb},(v.c+dc)*S,(pr+dr)*S+sh,S,1,f);
+      if(mine){ctx.strokeStyle='rgba(255,255,255,.85)';ctx.lineWidth=2.5;rr(ctx,v.c*S+1.5,pr*S+1.5+sh,S-3,S-3,S*.2);ctx.stroke()}
     }
     drawEffects(ctx,B,W,H,f);drawSteam(B,W,H,f);
     if(mine)drawIncoming(B);
@@ -915,7 +1076,7 @@ MODE_UI.shot={
     }else if(!B.dead&&!(mine&&B.greaseT>0)){
       ctx.strokeStyle='rgba(247,197,72,.5)';ctx.lineWidth=2;ctx.setLineDash([2,6]);ctx.beginPath();ctx.moveTo(Q.SX*u,(Q.SY-.55)*u);ctx.lineTo((Q.SX+Math.cos(a)*2.2)*u,(Q.SY-.55+Math.sin(a)*2.2)*u);ctx.stroke();ctx.setLineDash([]);
     }
-    if(B.ball){if(B.ball.bomb||B.ball.wild){ctx.save();ctx.shadowColor=B.ball.bomb?'#E5682A':'#F7C548';ctx.shadowBlur=16}drawTile(ctx,{t:B.ball.t,clr:0},(B.ball.x-Q.R)*u,(B.ball.y-Q.R)*u,sz*.96,1,f);if(B.ball.bomb||B.ball.wild)ctx.restore()}
+    if(B.ball){if(B.ball.bomb||B.ball.wild){ctx.save();ctx.shadowColor=B.ball.bomb?'#E5682A':'#F7C548';ctx.shadowBlur=16}{const bx=Math.max(Q.R,Math.min(Q.HC*Q.D-Q.R,B.ball.x+(mine?B.ball.vx*ALPHA:0))),by=Math.max(Q.R,B.ball.y+(mine?B.ball.vy*ALPHA:0));drawTile(ctx,{t:B.ball.t,clr:0},(bx-Q.R)*u,(by-Q.R)*u,sz*.96,1,f)}if(B.ball.bomb||B.ball.wild)ctx.restore()}
     if(B.cur!=null&&!B.dead){
       // launcher: a plate holding the food you're about to throw, big and ringed in its colour
       const lx=Q.SX*u,ly=(Q.SY-.55)*u,big=sz*1.18;
@@ -1082,6 +1243,11 @@ const baseHooks={
     $('#eTitle').textContent=res.coop?(won?'Boss beaten!':'The boss wins'):won?'You win':(n>2?`${placeName(res.place)} of ${n}`:G.variant==='order'?'Outcooked':'Topped out');
     // your own fighter: the victory pose when you win, dizzy when you don't
     hideKO();$('#eHero').src=pose(B.av,won?'win':'ko')||body(B.av);$('#eHero').alt=won?'Your fighter celebrates':'Your fighter is dizzy';
+    // everyone you knocked out this match, dizzy, in a little group
+    {const mine=(G.koLog&&G.koLog[B.id])||[],box=$('#eVic');
+     if(box){box.hidden=!mine.length;if(mine.length){
+       $('#eVicCap').textContent=mine.length===1?`You KO'd ${mine[0].name}`:`You KO'd ${mine.length} cooks`;
+       const L=$('#eVicLosers');L.innerHTML=mine.slice(-7).map((v,i)=>`<img src="${pose(v.av,'ko')}" alt="${esc(v.name)} is dizzy" title="${esc(v.name)}" style="z-index:${10-i}">`).join('');L.classList.toggle('many',mine.length>2)}}}
     $('#eHero').style.animation='none';void $('#eHero').offsetWidth;$('#eHero').style.animation='';
     const modeLine=res.coop?(won?`${G.boss.name} is down! You did ${Math.round(B.dmg||0)} damage (${placeName(res.place)} on the team).`:`${G.boss.name} cleaned out the whole kitchen.`)
       :G.variant==='order'?(won?`First to ${ORDER_GOAL} orders. Kitchen of the day!`:`${res.winner?res.winner.name:'Someone'} filled ${ORDER_GOAL} orders first. You filled ${B.orders|0}.`):null;
@@ -1113,7 +1279,7 @@ let koTimer=null;
 function showKO(k,b){
   if(!G)return;
   const log=G.koLog||(G.koLog={});(log[k.id]=log[k.id]||[]).push(b);
-  if(G.ffMode)return;   // fast-forwarding: no banners
+  return;   // no banner mid-game: it covered the boards. Your own KOs are shown on the end screen instead
   const list=log[k.id],you=k===G.player,youOut=b===G.player;
   const ban=$('#koBanner');
   $('#koWin').src=pose(k.av,'win');$('#koWin').alt=`${k.name} celebrates`;
@@ -1170,7 +1336,7 @@ function recordScore(res){
   const localLine=pb&&B.score>0?'New personal best!':`Your best here: ${list[0].score}`;
   el.textContent=localLine;
   const duration=Math.round(G.frame/60);
-  if(!SCORES||B.score<=0||duration<10)return;
+  if(!SCORES||B.score<=0||duration<10||G.variant==='blocks')return;   // hidden mode: kept on this device only
   const entry={deviceId,name:ME.name,avatar:prefs.av,mode,difficulty:d,score:B.score,maxChain:B.maxChain,kos:B.kos,won:!!res.won,place:res.place||1,duration,version:VERSION};
   if(navigator.onLine===false){queueScore(entry);el.textContent=localLine+' · Offline: it goes on the leaderboard when you reconnect';return}
   el.textContent='Saving your score…';
@@ -1241,7 +1407,7 @@ const champTag=b=>G&&G.champId&&b.id===G.champId?'<div class="champ">Champ</div>
 function showMatchup(seconds,go){
   clearInterval(vsTimer);
   const st=$('#vsStage'),me=G.player,others=G.boards.filter(b=>b!==me);
-  const vi=VARIANT_INFO[G.variant]||VARIANT_INFO.classic,banner=G.variant==='classic'?'':`<div class="vmode">${vi.name} · ${{order:`first to ${ORDER_GOAL} orders`,stack:'connect 4, chain to dump trash',shot:'aim, pop 3, drop the rest',boss:'everyone vs. the boss'}[G.variant]}</div>`;
+  const vi=VARIANT_INFO[G.variant]||VARIANT_INFO.classic,banner=G.variant==='classic'?'':`<div class="vmode">${vi.name} · ${{order:`first to ${ORDER_GOAL} orders`,stack:'connect 4, chain to dump trash',shot:'aim, pop 3, drop the rest',boss:'everyone vs. the boss',blocks:'clear lines, send garbage'}[G.variant]}</div>`;
   if(G.boss){
     st.innerHTML=banner+`<div class="crowd">${G.boards.map((b,i)=>`<div class="fighter${b===me?' me':''}" style="animation-delay:${i*.06}s"><img src="${body(b.av)}" alt=""><div class="chunky">${esc(b.name)}</div></div>`).join('')}</div><div class="chunky vsword" style="font-size:44px">VS</div><div class="fighter boss"><img src="${body(G.boss.av)}" alt=""><div class="chunky">${esc(G.boss.name)}</div></div>`;
   }else if(others.length===1){
@@ -1330,15 +1496,18 @@ function variantIcon(v){
   else if(v==='order'){x.fillStyle='#FFFDF6';x.beginPath();x.roundRect?x.roundRect(22,6,68,68,8):x.rect(22,6,68,68);x.fill();drawTile(x,{t:0,clr:0},28,14,24,1,0);drawTile(x,{t:3,clr:0},28,44,24,1,0);x.fillStyle='#16A34A';x.fillRect(56,24,28,5);x.fillStyle='#E8DCC6';x.fillRect(56,54,28,5);x.fillStyle='#16A34A';x.fillRect(56,54,12,5)}
   else if(v==='stack'){drawTile(x,{t:2,clr:0},38,2,s,1,0);drawTile(x,{t:4,clr:0},38,40,s,1,0);x.fillStyle='#F7C548';x.font='bold 22px sans-serif';x.fillText('↻',80,30)}
   else if(v==='shot'){[[18,16,0],[50,16,2],[34,40,2],[66,40,2]].forEach(([a,b,t])=>drawTile(x,{t,clr:0},a,b,28,1,0));x.strokeStyle='#F7C548';x.lineWidth=3;x.setLineDash([2,6]);x.beginPath();x.moveTo(56,80);x.lineTo(80,48);x.stroke()}
+  else if(v==='blocks'){const sh=[[3,[[0,1],[1,0],[1,1],[1,2]],20,40],[1,[[0,0],[0,1],[0,2],[0,3]],28,14]];sh.forEach(([p,cells,ox,oy])=>cells.forEach(([r,c])=>drawBlock(x,p,ox+c*16,oy+r*16,16)));drawBlock(x,8,76,56,16);drawBlock(x,8,92,56,16)}
   else{const im=new Image();im.src=body('fudge');im.onload=()=>{x.drawImage(im,24,0,64,80)};x.fillStyle='#F7C548';x.beginPath();x.moveTo(30,14);x.lineTo(38,2);x.lineTo(46,12);x.lineTo(56,0);x.lineTo(66,12);x.lineTo(74,2);x.lineTo(82,14);x.closePath();x.fill()}
   return c;
 }
+const pickers=[];
 function buildVariants(box,current,onPick){
+  if(!pickers.some(p=>p.box===box))pickers.push({box,onPick});
   box.innerHTML='';
-  VARIANT_KEYS.forEach(v=>{
+  VARIANT_KEYS.filter(pickable).forEach(v=>{
     const b=document.createElement('button');b.type='button';b.className='vcard';b.dataset.v=v;b.setAttribute('role','radio');
     b.appendChild(variantIcon(v));
-    b.insertAdjacentHTML('beforeend',`<b>${VARIANT_INFO[v].name}</b><span>${VARIANT_INFO[v].tag}</span>${v==='classic'?'':'<span class="new">NEW</span>'}`);
+    b.insertAdjacentHTML('beforeend',`<b>${VARIANT_INFO[v].name}</b><span>${VARIANT_INFO[v].tag}</span>${v==='classic'?'':VARIANT_INFO[v].hidden?'<span class="new admin">ADMIN</span>':'<span class="new">NEW</span>'}`);
     b.addEventListener('click',()=>{onPick(v);sfx('tap')});
     box.appendChild(b);
   });
@@ -1697,6 +1866,19 @@ document.querySelectorAll('[data-icon]').forEach(e=>e.innerHTML=ICONS[e.dataset.
 try{$('#year').textContent=new Date().getFullYear()}catch(e){}
 showMute();showBest();renderPicker();showConnection();
 demo();applyLook();show('#ovLoad');preload();
+async function checkAdmin(){
+  const m=(location.hash||'').match(/admin=([^&]+)/);if(!m)return;
+  const v=decodeURIComponent(m[1]);try{history.replaceState(null,'',location.pathname+location.search)}catch(e){}
+  if(v==='off'){ADMIN=false;try{localStorage.removeItem('ff-admin')}catch(e){}}
+  else{try{const h=[...new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(v)))].map(b=>b.toString(16).padStart(2,'0')).join('');
+    if(h===ADMIN_HASH){ADMIN=true;try{localStorage.setItem('ff-admin',h)}catch(e){}}}catch(e){}}
+  if(!pickable(prefs.variant))prefs.variant='classic';
+  pickers.forEach(p=>{const cur=p.box.querySelector('[aria-checked="true"]');buildVariants(p.box,cur&&pickable(cur.dataset.v)?cur.dataset.v:prefs.variant,p.onPick)});
+  if(typeof labelSizes==='function')labelSizes();
+}
+checkAdmin();window.addEventListener('hashchange',checkAdmin);
+// keys held while the window loses focus never get their keyup: let go of everything
+window.addEventListener('blur',()=>{const mu=MODE_UI.blocks;mu.held.clear();const B=G&&G.player;if(B&&B.release)['L','R','SD'].forEach(x=>B.release(x))});
 window.__ff={get game(){return G}}; // handy for debugging in the console
 
 let acc=0,last=performance.now(),hf=0,lastMargin=1,lastG=null;
@@ -1707,6 +1889,7 @@ function loop(now){
     for(let i=0;i<60&&!G.over;i++)G.step();
     if(!G.over&&G.frame-G.ffStart>60*600)G.resolveByHeight();
   }
+  ALPHA=G&&!G.paused&&!G.over&&!G.ffMode?Math.max(0,Math.min(1,acc/(1000/60))):0;drawDt=Math.min(50,now-lastDraw);lastDraw=now;
   if(G!==lastG){lastG=G;lastMargin=1}
   if(G&&!G.over&&!G.paused&&!G.player.dead){const m=G.margin();if(m>lastMargin){lastMargin=m;G.player.pops.push({text:`Overtime · throws ×${m.toFixed(1)}`,x:3,y:4,col:'#F7C548',size:.85,life:90});sfx('overtime')}}
   if(G&&!G.over&&!G.paused&&!G.player.dead&&hf%48===0&&(G.player.g[0].some(Boolean)||G.player.g[1].some(Boolean)))sfx('heart');

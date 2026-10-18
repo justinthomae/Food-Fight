@@ -8,7 +8,7 @@ const DIFFS=[
   {name:'Hard',  think:[21,32],  miss:.13, raiseH:6, fire:[75,190],  noise:1.4, hit:.66},
 ];
 // game modes. Classic, Order Up! and Boss Brawl use the swap board; Snack Stack and Splat Shot bring their own boards (stack.js, shot.js)
-const VARIANTS=['classic','order','stack','shot','boss'];
+const VARIANTS=['classic','order','stack','shot','boss','blocks'];
 const BOARD_TYPES={};   // variant -> board class, filled in by stack.js / shot.js
 const ORDER_GOAL=10;
 const MARGIN=50,RACK=3,RUSH=180,CYCLE=180,CREAM=300,FREEZE=150,SPECIAL_RATE=.16;
@@ -209,11 +209,12 @@ class Board{
     if(!busy&&this.stop>0)this.stop--;
     if(this.rushT>0)this.rushT--;
     const top=g[0].some(Boolean);
+    this.riseD=0;
     if(!busy&&(this.stop<=0||this.rushT>0)){
       if(top){if(!moving){this.grace--;if(this.grace<=0)return this.die()}}
       else{
         this.grace=GRACE;
-        this.rise+=this.raising?.1:this.rushT>0?.012:(.10+game.level()*.045)/60;
+        this.riseD=this.raising?.1:this.rushT>0?.012:(.10+game.level()*.045)/60;this.rise+=this.riseD;
         if(this.rise>=1){this.rise-=1;this.shiftUp()}
       }
     }else if(!top)this.grace=GRACE;
@@ -520,6 +521,7 @@ class RemoteBoard{
     for(let r=0;r<ROWS;r++)this.g.push(new Array(COLS).fill(null));
   }
   height(){
+    if(this.bm){const i=this.bm.search(/[^.]/);return i<0?0:Math.round((20-Math.floor(i/10))/20*ROWS)}
     if(this.hex){const Q=BOARD_TYPES.shot&&BOARD_TYPES.shot.GEO;if(!Q)return 0;for(let r=Q.NR-1;r>=0;r--)if(/[^.]/.test(this.hex.slice(r*Q.HC,(r+1)*Q.HC)))return Math.round((r+1)/Q.NR*ROWS);return 0}
     for(let r=0;r<ROWS;r++)if(this.g[r].some(Boolean))return ROWS-r;return 0;
   }
@@ -531,6 +533,10 @@ class RemoteBoard{
       this.ball=Array.isArray(s.b)?{x:+s.b[0]||0,y:+s.b[1]||0,t:s.b[2]|0}:null;
       this.rushT=s.h?1:0;this.creamT=s.c?1:0;this.frozenT=s.z?1:0;this.kos=s.o|0;this.dmg=s.x|0;this.lastSnap=this.game.frame;
       return;
+    }
+    // Block Battle boards send their 10x20 well
+    if(s&&s.v==='blocks'&&typeof s.g==='string'&&s.g.length===200){
+      this.bm=s.g;this.binc=s.i|0;this.bhold=s.hd|0;this.bnext=typeof s.nx==='string'?s.nx:'';this.kos=s.o|0;this.lastSnap=this.game.frame;return;
     }
     if(!s||typeof s.g!=='string'||s.g.length!==ROWS*COLS)return;
     for(let i=0;i<ROWS*COLS;i++){
@@ -756,7 +762,8 @@ class Game{
   aim(){if(this.boss)return this.bossObj;const o=this.alive().filter(b=>b!==this.player);return o.length?o[Math.floor(this.frame/CYCLE)%o.length]:null}
   launch(src,item,tgt,slot){
     const it={k:item.k,cells:item.cells||0,at:item.at||null};
-    if(JUNK_KINDS.includes(it.k)){it.cells=Math.max(1,Math.round(it.cells*(1+.25*src.kos)*this.margin()*(src.isBot?(DIFFS[this.d].hit||1):1)));src.sent+=it.cells}
+    if(JUNK_KINDS.includes(it.k)&&src.blocks)src.sent+=it.cells;   // Block Battle: garbage lines go out exactly as earned
+    else if(JUNK_KINDS.includes(it.k)){it.cells=Math.max(1,Math.round(it.cells*(1+.25*src.kos)*this.margin()*(src.isBot?(DIFFS[this.d].hit||1):1)));src.sent+=it.cells}
     if(tgt.boss){
       if(this.hooks.fly)this.hooks.fly(src,tgt,it,slot);
       const amt=this.bossDamage(it);

@@ -4,7 +4,7 @@ const {JSDOM}=require('jsdom');
 const fs=require('fs'),path=require('path');
 const root=path.join(__dirname,'..');
 const html=fs.readFileSync(path.join(root,'index.html'),'utf8').replace(/<script[^>]*src=[^>]*><\/script>/g,'');
-const scripts=['js/sfx.js','js/cuisines.js','js/engine.js','js/stack.js','js/shot.js','js/net.js','js/scores.js','js/app.js'].map(f=>fs.readFileSync(path.join(root,f),'utf8'));
+const scripts=['js/sfx.js','js/cuisines.js','js/engine.js','js/stack.js','js/shot.js','js/blocks.js','js/net.js','js/scores.js','js/app.js'].map(f=>fs.readFileSync(path.join(root,f),'utf8'));
 
 // ---- fake Supabase Realtime: one shared bus per channel name ----
 const buses={},rpcLog=[],rpcRows=[{mode:'brawl',diff:1,name:'Top Chef',score:99999,device:'d-other-device'}];
@@ -50,6 +50,8 @@ function page(url){
   w.FF_CONFIG={supabaseUrl:'https://x.supabase.co',supabaseAnonKey:'k'};
   Object.defineProperty(w.navigator,'clipboard',{value:{writeText:async()=>{}}});
   w.crypto.randomUUID=()=>'id-'+Math.random().toString(36).slice(2,9);
+  if(!w.crypto.subtle)Object.defineProperty(w.crypto,'subtle',{value:require('crypto').webcrypto.subtle});
+  if(!w.TextEncoder)w.TextEncoder=TextEncoder;
   w.Element.prototype.getBoundingClientRect=function(){return{left:0,top:0,right:300,bottom:600,width:300,height:600}};
   // browsers share one global scope across classic <script> tags; one eval reproduces that
   try{w.eval(scripts.join('\n;\n'))}catch(e){errors.push(String(e.stack||e))}
@@ -95,11 +97,12 @@ const check=(cond,msg)=>{console.log((cond?'PASS ':'FAIL ')+msg);if(!cond)proces
   // finish a game -> score recorded locally and submitted, end screen shows ranks
   await sleep(2000); // match-up screen, then the game starts
   check(!vis(solo,'#ovVs')&&!solo.w.__ff.game.paused,'game starts after the match-up screen');
-  {const SG=solo.w.__ff.game;SG.frame=60*40;SG.player.score=4321;SG.player.lastAttacker=SG.boards[2];SG.player.die();
+  {const SG=solo.w.__ff.game;SG.frame=60*40;SG.boards[3].lastAttacker=SG.player;SG.boards[3].die();await sleep(100);
+   check(solo.$('#koBanner').hidden,'no KO banner covering the screen mid-game');
+   SG.player.score=4321;SG.player.lastAttacker=SG.boards[2];SG.player.die();
    await sleep(300);
    check(!SG.over&&!solo.$('#outToast').hidden,'practice brawl keeps going after you are out');
    check(new RegExp(SG.boards[2].name+'</b> knocked you out').test(solo.$('#outText').innerHTML),'out bar names who knocked you out');
-   check(!solo.$('#koBanner').hidden&&/bun-ko|crunch-ko|sprinkles-ko|slice-ko|fudge-ko|splat-ko|guac-ko|glaze-ko/.test(solo.$('#koLosers').innerHTML)&&/-win/.test(solo.$('#koWin').src)&&/KO'd <b>you<\/b>/.test(solo.$('#koCap').innerHTML),'KO banner: winner pose + your dizzy pose');
    check(solo.$('#bOutLeave').textContent==='Menu'&&!solo.$('#bFF').hidden,'offline: Menu and Fast forward offered');
    const cards=solo.w.document.querySelectorAll('#opps .foe');
    check(cards[0].classList.contains('watchable'),'opponent cards become tappable');
@@ -116,6 +119,7 @@ const check=(cond,msg)=>{console.log((cond?'PASS ':'FAIL ')+msg);if(!cond)proces
    check(SG.over&&solo.$('#specBar').hidden,'fast forward ends the practice brawl and stops spectating');}
   await sleep(900);
   check(vis(solo,'#ovEnd'),'end screen after topping out');
+  check(!solo.$('#eVic').hidden&&new RegExp("You KO'd "+solo.w.__ff.game.boards[3].name).test(solo.$('#eVicCap').textContent)&&solo.$('#eVicLosers img').src.includes(solo.w.__ff.game.boards[3].av+'-ko'),'end screen: the cook you KO\'d, dizzy');
   check(rpcLog.length===1&&rpcLog[0].p_score===4321&&rpcLog[0].p_mode==='brawl'&&rpcLog[0].p_duration_s>=40,'score submitted with mode and duration');
   check(/#2 today · #2 all time/.test(solo.$('#eRank').textContent),'end screen shows today and all-time rank');
   check(JSON.parse(solo.w.localStorage.getItem('ff-scores'))['brawl-1'][0].score===4321,'score kept on device too');
@@ -383,6 +387,28 @@ const check=(cond,msg)=>{console.log((cond?'PASS ':'FAIL ')+msg);if(!cond)proces
     oh.errors.concat(og.errors).slice(0,3).forEach(e=>console.log('  ',e));
     check(oh.errors.length===0&&og.errors.length===0,`${v} online: no script errors`);
   }
+  // hidden Block Battle: invisible without the admin passphrase; an admin host can run it and a guest joins by room code
+  {const plain=page('https://foodfight.grudgematchgames.com/');await sleep(2400);
+   check(!plain.$('#variants [data-v="blocks"]')&&!plain.$('#lobbyVariants [data-v="blocks"]'),'blocks: hidden from everyone else');
+   const oh=page('https://foodfight.grudgematchgames.com/#admin=waffle-pickle-waffle-29');await sleep(2600);
+   check(!!oh.$('#variants [data-v="blocks"]')&&oh.w.location.hash==='','blocks: the passphrase unlocks it (and leaves the address bar)');
+   const wrong=page('https://foodfight.grudgematchgames.com/#admin=nope');await sleep(2400);
+   check(!wrong.$('#variants [data-v="blocks"]'),'blocks: a wrong passphrase does nothing');
+   oh.$('#nameIn').value='Admin';oh.$('#nameIn').dispatchEvent(new oh.w.Event('input'));
+   oh.$('#bOnline').click();oh.$('#bCreate').click();await sleep(150);
+   oh.$('#lobbyVariants [data-v="blocks"]').click();await sleep(100);
+   const og=page('https://foodfight.grudgematchgames.com/?room='+oh.$('#roomCode').textContent);await sleep(2600);
+   check(og.$('#lobbyVarNote').textContent.includes('Block Battle')&&!og.$('#variants [data-v="blocks"]'),'blocks online: the guest (no passphrase) sees the mode by room code only');
+   setBots(oh,1);oh.$('#bStart').click();await sleep(4700);
+   const H=oh.w.__ff.game,Gg=og.w.__ff.game;
+   check(H&&Gg&&H.variant==='blocks'&&Gg.variant==='blocks'&&H.boards.length===3,'blocks online: everyone in a Block Battle match');
+   await sleep(800);const rem=Gg.byId(H.player.id);
+   check(rem&&rem.remote&&rem.bm&&rem.bm.length===200,'blocks online: guest sees the host\'s well');
+   const P=Gg.player;for(let r=18;r<22;r++)for(let c=0;c<9;c++)P.m[r][c]=8;P.piece={p:1,rot:1,r:0,c:7};P.state='fall';P.hardDrop();
+   await sleep(1500);
+   const hp=H.player;check(hp.incoming()>0||hp.m.some(r=>r.filter(v=>v===8).length===9)||H.boards.some(b=>!b.remote&&b.incoming&&b.incoming()>0),'blocks online: the guest\'s quad sends garbage across');
+   oh.errors.concat(og.errors,plain.errors).slice(0,3).forEach(e=>console.log('  ',e));
+   check(oh.errors.length===0&&og.errors.length===0&&plain.errors.length===0,'blocks online: no script errors');}
   host.errors.concat(guest.errors,solo.errors).slice(0,5).forEach(e=>console.log('  ',e));
   check(host.errors.length===0&&guest.errors.length===0&&solo.errors.length===0,'no script errors');
   process.exit();
