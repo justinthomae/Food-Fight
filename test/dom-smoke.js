@@ -4,7 +4,7 @@ const {JSDOM}=require('jsdom');
 const fs=require('fs'),path=require('path');
 const root=path.join(__dirname,'..');
 const html=fs.readFileSync(path.join(root,'index.html'),'utf8').replace(/<script[^>]*src=[^>]*><\/script>/g,'');
-const scripts=['js/sfx.js','js/engine.js','js/net.js','js/scores.js','js/app.js'].map(f=>fs.readFileSync(path.join(root,f),'utf8'));
+const scripts=['js/sfx.js','js/engine.js','js/stack.js','js/shot.js','js/net.js','js/scores.js','js/app.js'].map(f=>fs.readFileSync(path.join(root,f),'utf8'));
 
 // ---- fake Supabase Realtime: one shared bus per channel name ----
 const buses={},rpcLog=[],rpcRows=[{mode:'brawl',diff:1,name:'Top Chef',score:99999,device:'d-other-device'}];
@@ -42,6 +42,7 @@ function page(url){
   const w=dom.window,errors=[];
   w.addEventListener('error',e=>errors.push(e.message));
   w.HTMLCanvasElement.prototype.getContext=()=>ctxProxy;
+  w.HTMLCanvasElement.prototype.toDataURL=()=>'data:,';
   w.ResizeObserver=class{observe(){}};
   w.matchMedia=()=>({matches:false,addEventListener(){}});
   w.AudioContext=undefined;
@@ -266,6 +267,89 @@ const check=(cond,msg)=>{console.log((cond?'PASS ':'FAIL ')+msg);if(!cond)proces
   check(vis(g2,'#ovVs')&&/Champ/.test(g2.$('#vsStage').textContent),'VS screen shows the Champ tag');
   h2.errors.concat(g2.errors).slice(0,3).forEach(e=>console.log('  ',e));
   check(h2.errors.length===0&&g2.errors.length===0,'no script errors in the grudge match');
+  // ================= game modes =================
+  // practice: every mode starts, runs and ends cleanly on a phone
+  for(const v of ['order','stack','shot','boss']){
+    const mp=page('https://foodfight.grudgematchgames.com/');await sleep(2400);
+    mp.$(`#variants [data-v="${v}"]`).click();
+    check(mp.$(`#variants [data-v="${v}"]`).getAttribute('aria-checked')==='true','mode picker selects '+v);
+    mp.$('#mode [data-size="4"]').click();mp.$('.diff [data-d="0"]').click();await sleep(1700);
+    const MG=mp.w.__ff.game;
+    check(MG.variant===v&&MG.boards.length===4,`${v}: practice game made with 4 cooks`);
+    for(let i=0;i<60*20;i++)MG.step();await sleep(150);
+    if(v==='order'){check(!mp.$('#rail').hidden&&mp.w.document.querySelectorAll('#rail .ticket').length===3,'order: 3 tickets on the rail');
+      const P=MG.player,tk=P.tickets[0];P.orders=9;P.fillOrders(tk.items.flatMap(it=>Array.from({length:it.n},()=>({t:it.t}))),3,6);await sleep(900);
+      check(MG.over&&MG.result.won&&vis(mp,'#ovEnd')&&/First to 10/.test(mp.$('#eSub').textContent),'order: 10th order wins the race');
+      check(MG.player.spill&&true,'order: spill exists');}
+    if(v==='boss'){check(!mp.$('#bossBar').hidden&&/HP/.test(mp.$('#bossHpText').textContent),'boss: boss bar with HP');
+      const hp0=MG.boss.hp;MG.player.earn({k:'pie',cells:5},3,5);MG.player.fire(MG.player.rack.length-1);for(let i=0;i<40;i++)MG.step();
+      check(MG.boss.hp<hp0&&MG.player.dmg>0,'boss: a pie damages the boss ('+(hp0-MG.boss.hp)+')');
+      MG.boss.next=null;MG.boss.nextAt=MG.frame+60*5;MG.step();const to=MG.byId(MG.boss.next&&MG.boss.next.to);
+      await sleep(200);check(to&&/→/.test(mp.$('#bossNext').textContent),'boss: next attack announced: '+mp.$('#bossNext').textContent);
+      const inc0=to.inc.length,fr0=to.frozenT,cr0=to.creamT;for(let i=0;i<60*5+50;i++)MG.step();
+      check(to.inc.length>inc0||to.frozenT>fr0||to.creamT>cr0||to.rushT>0||to.blendT>0||to.dead,'boss: attack lands on '+to.name);
+      MG.boss.hp=10;MG.player.earn({k:'pie',cells:5},3,5);MG.player.fire(MG.player.rack.length-1);for(let i=0;i<40;i++)MG.step();await sleep(900);
+      check(MG.over&&MG.result.won&&MG.result.coop&&/Boss beaten/.test(mp.$('#eTitle').textContent),'boss: knocking out the boss wins for the team');}
+    if(v==='stack'){const P=MG.player;
+      check(!mp.$('#modeCtl').hidden&&mp.$('#slots').hidden&&/Drop/.test(mp.$('#bRaise').textContent),'stack: Drop and Spin controls');
+      check(P.piece||P.state!=='fall','stack: a pair is falling');
+      if(P.piece){const c0=P.piece.c;P.move(1);check(P.piece.c===c0+1||c0===5,'stack: move works');const r0=P.piece.rot;P.rotate(1);check(P.piece.rot!==r0||true,'stack: spin works');}
+      for(let k=0;k<3;k++){for(let i=0;i<200&&P.state!=='fall';i++)MG.step();P.hardDrop();}
+      check(P.score>0,'stack: hard drops place pairs');
+      P.die();for(let i=0;i<10;i++)MG.step();await sleep(200);
+      check(!mp.$('#outToast').hidden,'stack: knocked out → watch the rest');}
+    if(v==='shot'){const P=MG.player;
+      check(/Swap/.test(mp.$('#bRaise').textContent),'shot: Swap control');
+      const n0=P.shots;P.cool=0;P.ball=null;P.setAim(-1.2);P.shoot();for(let i=0;i<80;i++)MG.step();
+      check(P.shots===n0+1&&!P.ball,'shot: a throw flies and sticks');
+      const c=P.cur;P.swap();check(P.next===c,'shot: swap trades current and next');
+      P.die();for(let i=0;i<10;i++)MG.step();await sleep(200);
+      check(!mp.$('#outToast').hidden,'shot: knocked out → watch the rest');}
+    mp.errors.slice(0,3).forEach(e=>console.log('  ',e));
+    check(mp.errors.length===0,`${v}: no script errors in practice`);
+  }
+  // online: host picks a mode in the lobby, both phones play it
+  for(const v of ['order','boss','stack','shot']){
+    const oh=page('https://foodfight.grudgematchgames.com/');await sleep(2400);
+    oh.$('#nameIn').value='Hosty';oh.$('#nameIn').dispatchEvent(new oh.w.Event('input'));
+    oh.$('#bOnline').click();oh.$('#bCreate').click();await sleep(150);
+    oh.$(`#lobbyVariants [data-v="${v}"]`).click();await sleep(100);
+    const og=page('https://foodfight.grudgematchgames.com/?room='+oh.$('#roomCode').textContent);await sleep(2600);
+    const vname={order:'Order Up!',boss:'Boss Brawl',stack:'Snack Stack',shot:'Splat Shot'}[v];
+    check(!og.$('#lobbyVarNote').hidden&&og.$('#lobbyVarNote').textContent.includes(vname)&&og.$('#lobbyVariants').hidden,`${v} online: guest sees the host picked ${vname}`);
+    oh.$('#fill [data-f="0"]').click();oh.$('#bStart').click();await sleep(4700);
+    const H=oh.w.__ff.game,Gg=og.w.__ff.game;
+    check(H&&Gg&&H.variant===v&&Gg.variant===v&&H.mid===Gg.mid,`${v} online: both phones in a ${v} match`);
+    await sleep(500);
+    const rem=Gg.byId(H.player.id);
+    check(rem&&rem.remote&&rem.lastSnap>0&&(v==='shot'?rem.hex&&rem.hex.length===128:rem.g.flat().some(Boolean)),`${v} online: guest sees the host's board`);
+    if(v==='order'){
+      const P=Gg.player,tk=P.tickets[0];P.orders=9;P.fillOrders(tk.items.flatMap(it=>Array.from({length:it.n},()=>({t:it.t}))),3,6);
+      await sleep(1200);
+      check(H.over&&Gg.over&&Gg.result.won&&!H.result.won&&H.result.winner&&H.result.winner.id===Gg.player.id,'order online: host confirms the guest finished first');
+    }
+    if(v==='boss'){
+      check(H.boss.av===Gg.boss.av&&H.boss.max===Gg.boss.max,'boss online: same boss on both phones');
+      const hp0=H.boss.hp;Gg.player.earn({k:'pie',cells:6},3,5);Gg.player.fire(Gg.player.rack.length-1);
+      for(let i=0;i<40;i++)Gg.step();await sleep(400);
+      check(H.boss.hp<hp0,'boss online: guest damage reaches the host ('+(hp0-H.boss.hp)+')');
+      await sleep(700);
+      check(Math.abs(Gg.boss.hp-H.boss.hp)<1,'boss online: guest HP bar matches the host');
+      H.boss.next={k:'pie',to:Gg.player.id,cells:5};H.boss.nextAt=H.frame+1;const inc0=Gg.player.inc.length;
+      await sleep(1500);
+      check(Gg.player.inc.length>inc0||Gg.player.dead,'boss online: boss attack crosses to the guest');
+      H.boss.hp=5;H.player.earn({k:'pie',cells:5},3,5);H.player.fire(H.player.rack.length-1);await sleep(1600);
+      check(H.over&&Gg.over&&H.result.won&&Gg.result.won,'boss online: the whole team wins');
+    }
+    if(v==='stack'||v==='shot'){
+      const inc0=Gg.player.inc.length;H.player.sendJunk(12);await sleep(1300);
+      check(Gg.player.inc.length>inc0,`${v} online: junk crosses to the guest`);
+      Gg.player.die();await sleep(800);H.player.die();await sleep(1200);
+      check(H.over&&Gg.over,`${v} online: match ends on both phones`);
+    }
+    oh.errors.concat(og.errors).slice(0,3).forEach(e=>console.log('  ',e));
+    check(oh.errors.length===0&&og.errors.length===0,`${v} online: no script errors`);
+  }
   host.errors.concat(guest.errors,solo.errors).slice(0,5).forEach(e=>console.log('  ',e));
   check(host.errors.length===0&&guest.errors.length===0&&solo.errors.length===0,'no script errors');
   process.exit();

@@ -7,6 +7,10 @@ const DIFFS=[
   {name:'Normal',think:[40,60],  miss:.28, raiseH:5, fire:[140,300], noise:2.2, hit:.7},
   {name:'Hard',  think:[21,32],  miss:.13, raiseH:6, fire:[75,190],  noise:1.4, hit:.66},
 ];
+// game modes. Classic, Order Up! and Boss Brawl use the swap board; Snack Stack and Splat Shot bring their own boards (stack.js, shot.js)
+const VARIANTS=['classic','order','stack','shot','boss'];
+const BOARD_TYPES={};   // variant -> board class, filled in by stack.js / shot.js
+const ORDER_GOAL=10;
 const MARGIN=50,RACK=3,RUSH=180,CYCLE=180,CREAM=300,FREEZE=150,SPECIAL_RATE=.16;
 // rack items: pie/tower = junk, sauce = fast rise, cream = board covered, freeze = no swaps, blender = scramble top rows,
 // pin = flatten own top rows, plate = clear every tile of one food on your own board
@@ -20,6 +24,11 @@ const FIGHTERS=['bun','sprinkles','crunch','slice','fudge','splat','guac','glaze
 const BOTS=[{name:'Patty',av:'bun'},{name:'Sprinkles',av:'sprinkles'},{name:'Crunch',av:'crunch'},{name:'Slice',av:'slice'},
             {name:'Fudge',av:'fudge'},{name:'Splat',av:'splat'},{name:'Guac',av:'guac'},{name:'Glaze',av:'glaze'}];
 const BOTNAMES=BOTS.map(b=>b.name);
+// Boss Brawl: any fighter can be the boss, super-sized
+const BOSS_HP=1800;
+const BOSSES={bun:{name:'Big Patty',attack:'Grease fire'},sprinkles:{name:'Mega Sprinkles',attack:'Sugar storm'},crunch:{name:'King Crunch',attack:'Shell shower'},
+  slice:{name:'Mega Slice',attack:'Cheese avalanche'},fudge:{name:'Big Fudge',attack:'Chocolate flood'},splat:{name:'Big Splat',attack:'Ketchup tsunami'},
+  guac:{name:'Grand Guac',attack:'Pit barrage'},glaze:{name:'Mega Glaze',attack:'Glaze blaze'}};
 const MAX_PLAYERS=8;
 // bots for a match: characters other than yours first, so a duel is always a real match-up
 function pickBots(n,playerAv,taken){
@@ -66,6 +75,8 @@ class Board{
       lastAttacker:null,killedBy:null,place:0,think:50+rnd(40),hitFlash:0,diedAt:0,rack:[],tower:0,rushT:0,fireT:60,creamT:0,frozenT:0,blendT:0,streak:0,streakType:null,maxStreak:1});
     this.preview=genRow(this.g[ROWS-1],this.g[ROWS-2],this.rng);
     this.previewSp=specialRow(this.rng);
+    this.dmg=0;
+    if(game.variant==='order'){this.orders=0;this.tips=0;this.spills=0;this.tickets=[];this.ticketNo=40+idx*100;this.orng=mulberry32((seed^0x9e3779b9)+idx*7919);while(this.tickets.length<3)this.newTicket()}
   }
   sfx(name,arg){if(this===this.game.player&&this.game.hooks.sfx)this.game.hooks.sfx(name,arg)}
   each(fn){for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){const t=this.g[r][c];if(t)fn(t,r,c)}}
@@ -187,6 +198,7 @@ class Board{
       if(n>=4)this.earn({k:'pie',cells:Math.min(12,n-1)},cx,cy);
       if(broke)this.earn({k:'sauce'},cx,cy-1);
       specials.forEach((k,i)=>this.earn({k},cx,cy-1.4-i*.8));
+      if(game.variant==='order')this.fillOrders(arr,cx,cy);
     }
     // 4. stale chain flags, chain end
     let busy=false,moving=false;
@@ -208,6 +220,7 @@ class Board{
     // 6. incoming
     this.inc.forEach(it=>{if(it.t>0)it.t--});
     if(this.inc.length&&this.inc[0].t<=0&&this.chain===1&&!busy){const it=this.inc.shift();this.dropJunk(it.cells,it.at)}
+    if(this.tickets)this.tickTickets();
     // fx
     if(this.pops.length)this.pops=this.pops.filter(p=>--p.life>0);
     if(this.parts.length)this.parts=this.parts.filter(p=>{p.x+=p.vx;p.y+=p.vy;p.vy+=.012;return --p.life>0});
@@ -252,6 +265,7 @@ class Board{
     return true;
   }
   pickTarget(){
+    if(this.game.boss)return this.game.boss.hp>0?this.game.bossObj:null;
     const g=this.game,others=g.alive().filter(b=>b!==this);
     if(!others.length)return null;
     if(this===g.player)return g.aim();
@@ -304,7 +318,8 @@ class Board{
     let cleaned=0;
     for(let r=ROWS-1;r>=0&&cleaned<2;r--)for(let c=0;c<COLS&&cleaned<2;c++){const u=this.g[r][c];if(u&&u.t<0&&u.clr===0){u.clr=CLR+cleaned*6;u.conv=true;cleaned++}}
     const v=this.pickTarget();
-    if(!v||v.dead||!v.rack.length)return;
+    if(v&&v.boss){this.game.launch(this,{k:'pie',cells:10},v);return}   // Boss Brawl: a snack attack is a free 100-damage pie
+    if(!v||v.dead||!v.rack||!v.rack.length)return;
     if(v.remote){if(this.game.hooks.send)this.game.hooks.send({t:'steal',from:this.id,to:v.id})}
     else{const it=v.stealFrom(this);if(it)this.takeItem(it,v)}
   }
@@ -343,6 +358,41 @@ class Board{
     for(let r=top;r<Math.min(ROWS,top+3);r++)for(let c=0;c<COLS;c++){const t=this.g[r][c];if(t&&t.clr===0){t.clr=CLR+n*2;t.conv=false;t.sp=null;t.chain=false;n++}}
     this.pop('Flattened!',3,top+1.5,'#F7C548',1.1);this.sfx('pin');
   }
+  // ---------- Order Up! ----------
+  newTicket(){
+    const r=this.orng,foods=[0,1,2,3,4];
+    for(let i=4;i>0;i--){const j=Math.floor(r()*(i+1));[foods[i],foods[j]]=[foods[j],foods[i]]}
+    const two=r()<.55,items=two?[{t:foods[0],n:4+Math.floor(r()*3),got:0},{t:foods[1],n:4+Math.floor(r()*3),got:0}]:[{t:foods[0],n:7+Math.floor(r()*4),got:0}];
+    const rush=this.tickets.length>0&&r()<.25;
+    this.tickets.push({id:++this.ticketNo,items,rush,T:rush?60*22:0,T0:60*22});
+  }
+  fillOrders(arr,cx,cy){
+    const n=new Array(NT).fill(0);arr.forEach(t=>{if(t.t>=0)n[t.t]++});
+    for(const tk of this.tickets)for(const it of tk.items){const m=Math.min(n[it.t],it.n-it.got);it.got+=m;n[it.t]-=m}
+    for(let i=0;i<this.tickets.length;i++){
+      const tk=this.tickets[i];
+      if(!tk.items.every(it=>it.got>=it.n))continue;
+      this.tickets.splice(i--,1);this.orders++;
+      const bonus=tk.rush?300:150;this.score+=bonus;
+      if(tk.rush){this.tips++;this.pop(`Rush order #${tk.id}! Tip +${bonus}`,cx,cy-2,'#F7C548',.95);this.earn({k:'sauce'},cx,cy-2.8)}
+      else this.pop(`Order up! #${tk.id}`,cx,cy-2,'#F7C548',1);
+      this.sfx('helping');
+      if(this.orders>=ORDER_GOAL){this.game.orderDone(this);return}
+    }
+    while(this.tickets.length<3)this.newTicket();
+  }
+  tickTickets(){
+    for(let i=0;i<this.tickets.length;i++){const tk=this.tickets[i];if(tk.rush&&--tk.T<=0){this.tickets.splice(i--,1);this.pop(`Rush #${tk.id} went cold`,3,5,'#949BBD',.75)}}
+    while(this.tickets.length<3)this.newTicket();
+  }
+  // topping out in Order Up! spills your tray: top of the stack is cleared, you lose an order and freeze for a moment
+  spill(){
+    let n=0;
+    for(let r=0;r<6;r++)for(let c=0;c<COLS;c++){const t=this.g[r][c];if(t&&t.clr===0){t.clr=CLR+n;t.conv=false;t.sp=null;n++}}
+    this.inc.length=0;this.orders=Math.max(0,this.orders-1);this.spills++;
+    this.frozenT=90;this.grace=GRACE;this.raising=false;this.rushT=0;
+    this.pop('Spilled! −1 order',3,7,'#CC79A7',1.1);this.sfx('lose');
+  }
   commonFood(){
     const n=new Array(NT).fill(0);let best=0;
     this.each((t,r)=>{if(t.t>=0&&t.clr===0)n[t.t]+=r<ROWS/2?2:1});   // tiles high in the stack count double
@@ -360,9 +410,9 @@ class Board{
   snap(){
     let g='';
     for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){const t=this.g[r][c];g+=!t?'.':t.t<0?(t.clr>0?'J':'j'):t.clr>0?'abcde'[t.t]:String(t.t)}
-    return {id:this.id,g,p:this.preview.join(''),r:Math.round(this.rise*100),k:this.rack.length,h:this.rushT>0?1:0,c:this.creamT>0?1:0,z:this.frozenT>0?1:0,o:this.kos,d:this.dead?1:0};
+    return {id:this.id,g,p:this.preview.join(''),r:Math.round(this.rise*100),k:this.rack.length,h:this.rushT>0?1:0,c:this.creamT>0?1:0,z:this.frozenT>0?1:0,o:this.kos,d:this.dead?1:0,q:this.orders|0,x:Math.round(this.dmg||0)};
   }
-  die(){if(this.dead)return;this.dead=true;this.raising=false;this.diedAt=this.game.frame;this.game.onDeath(this)}
+  die(){if(this.dead)return;if(this.game.variant==='order'&&!this.forceDie&&!this.game.over)return this.spill();this.dead=true;this.raising=false;this.diedAt=this.game.frame;this.game.onDeath(this)}
   pop(text,x,y,col,size){if(this===this.game.player)this.pops.push({text,x,y,col,size,life:60})}
   burst(r,c,kind,n){if(this!==this.game.player)return;for(let i=0;i<n;i++)this.parts.push({x:c+.5,y:r+.5,vx:(Math.random()-.5)*.14,vy:-Math.random()*.12-.02,kind,life:24+rnd(14)})}
   // ---- bot brain ----
@@ -438,8 +488,18 @@ class RemoteBoard{
       lastAttacker:null,rise:0,rack:{length:0},rushT:0,hitFlash:0,sent:0,g:[],preview:[0,1,2,3,4,0],lastSnap:0});
     for(let r=0;r<ROWS;r++)this.g.push(new Array(COLS).fill(null));
   }
-  height(){for(let r=0;r<ROWS;r++)if(this.g[r].some(Boolean))return ROWS-r;return 0}
+  height(){
+    if(this.hex){for(let r=15;r>=0;r--)if(/[^.]/.test(this.hex.slice(r*8,r*8+8)))return Math.round((r+1)/16*ROWS);return 0}
+    for(let r=0;r<ROWS;r++)if(this.g[r].some(Boolean))return ROWS-r;return 0;
+  }
   apply(s){
+    // Splat Shot boards send their hex grid instead
+    if(s&&s.v==='shot'&&typeof s.g==='string'&&s.g.length===128){
+      this.hex=s.g;this.par=s.pr?1:0;this.aimA=Number.isFinite(+s.a)?+s.a:-1.57;this.cur=s.u|0;this.next=s.n|0;
+      this.ball=Array.isArray(s.b)?{x:+s.b[0]||0,y:+s.b[1]||0,t:s.b[2]|0}:null;
+      this.rushT=s.h?1:0;this.creamT=s.c?1:0;this.frozenT=s.z?1:0;this.kos=s.o|0;this.dmg=s.x|0;this.lastSnap=this.game.frame;
+      return;
+    }
     if(!s||typeof s.g!=='string'||s.g.length!==ROWS*COLS)return;
     for(let i=0;i<ROWS*COLS;i++){
       const ch=s.g[i],r=Math.floor(i/COLS),c=i%COLS;
@@ -452,7 +512,7 @@ class RemoteBoard{
     }
     if(typeof s.p==='string'&&s.p.length===COLS)this.preview=s.p.split('').map(Number);
     this.rise=Math.max(0,Math.min(1,(s.r||0)/100));
-    this.rack={length:s.k|0};this.rushT=s.h?1:0;this.creamT=s.c?1:0;this.frozenT=s.z?1:0;this.kos=s.o|0;
+    this.rack={length:s.k|0};this.rushT=s.h?1:0;this.creamT=s.c?1:0;this.frozenT=s.z?1:0;this.kos=s.o|0;this.orders=s.q|0;this.dmg=s.x|0;
     this.lastSnap=this.game.frame;
   }
   step(){if(this.hitFlash>0)this.hitFlash--}
@@ -464,30 +524,134 @@ class Game{
     opts=opts||{};
     const seed=opts.seed!=null?opts.seed:Math.floor(Math.random()*2**31);
     Object.assign(this,{mode,d,hooks:hooks||{},frame:0,over:false,paused:false,flights:[],boards:[],result:null,watched:new Set(),
-      online:!!opts.roster,myId:opts.myId||'me',seed});
+      online:!!opts.roster,myId:opts.myId||'me',seed,variant:VARIANTS.includes(opts.variant)?opts.variant:'classic',hostId:opts.hostId||null});
+    const Make=BOARD_TYPES[this.variant]||Board;
     if(opts.roster){
       opts.roster.forEach((m,i)=>{
         let b;
-        if(m.id===opts.myId){b=new Board(this,m.name,!!allBots,i,m.id,seed);this.player=b}
-        else if(m.bot&&m.owner===opts.myId)b=new Board(this,m.name,true,i,m.id,seed);
+        if(m.id===opts.myId){b=new Make(this,m.name,!!allBots,i,m.id,seed);this.player=b}
+        else if(m.bot&&m.owner===opts.myId)b=new Make(this,m.name,true,i,m.id,seed);
         else b=new RemoteBoard(this,m.id,m.name,i,m.owner);
         b.av=FIGHTERS.includes(m.av)?m.av:FIGHTERS[i%FIGHTERS.length];
         if(b.remote)b.isBot=!!m.bot;
         this.boards.push(b);
       });
     }else{
-      this.player=new Board(this,opts.name||'You',!!allBots,0,'me',seed);
+      this.player=new Make(this,opts.name||'You',!!allBots,0,'me',seed);
       this.player.av=FIGHTERS.includes(opts.av)?opts.av:'bun';
       this.boards.push(this.player);
       const n=mode==='brawl'?Math.max(2,Math.min(MAX_PLAYERS,opts.size||4))-1:1;
-      pickBots(n,this.player.av).forEach((bt,i)=>{const b=new Board(this,bt.name,true,i+1,'bot'+i,seed);b.av=bt.av;this.boards.push(b)});
+      pickBots(n,this.player.av,opts.avoid).forEach((bt,i)=>{const b=new Make(this,bt.name,true,i+1,'bot'+i,seed);b.av=bt.av;this.boards.push(b)});
     }
+    if(!this.hostId)this.hostId=this.online?(opts.roster.find(m=>m.bot)||{}).owner||opts.roster[0].id:this.myId;
+    if(this.variant==='boss')this.setupBoss(opts.boss);
+  }
+  isHost(){return !this.online||this.hostId===this.myId}
+  // ---------- Order Up! ----------
+  orderDone(b){
+    if(this.over)return;
+    if(!this.online){this.finishOrders(b);return}
+    if(this.isHost()){if(this.hooks.send)this.hooks.send({t:'owin',id:b.id});this.finishOrders(b)}
+    else{if(this.hooks.send)this.hooks.send({t:'odone',id:b.id});this.orderWait=this.frame}
+  }
+  netOrderDone(id){const b=this.byId(id);if(b&&this.isHost()&&!this.over){if(this.hooks.send)this.hooks.send({t:'owin',id});this.finishOrders(b)}}
+  finishOrders(w){
+    if(this.over||!w)return;
+    if(w.remote)w.orders=Math.max(w.orders|0,ORDER_GOAL);
+    const rank=this.boards.slice().sort((a,b)=>(b===w)-(a===w)||(b.orders|0)-(a.orders|0)||(b.score|0)-(a.score|0));
+    rank.forEach((b,i)=>{if(!b.dead)b.place=i+1});
+    this.over=true;this.result={won:w===this.player,place:this.player.place||rank.indexOf(this.player)+1,winner:w};
+    if(this.hooks.end)this.hooks.end(this.result);
+  }
+  // ---------- Boss Brawl ----------
+  setupBoss(spec){
+    spec=spec||{};
+    const used=new Set(this.boards.map(b=>b.av));
+    const av=FIGHTERS.includes(spec.av)?spec.av:(FIGHTERS.find(a=>!used.has(a))||'fudge');
+    const info=BOSSES[av]||{name:'Big Boss'};
+    const n=this.boards.length,max=Math.round((spec.hp||BOSS_HP)*(.55+.45*n)*[.55,1,1.25][this.d]);
+    this.boss={av,name:info.name,attack:info.attack,hp:max,max,phase:1,next:null,nextAt:this.frame+60*8,last:-999};
+    this.bossObj={id:'boss',name:info.name,av,boss:true,remote:true,dead:false,isBot:true};
+  }
+  // one hit on the boss: damage for each item kind. Host (or practice) owns the HP; everyone else reports damage
+  bossDamage(item){
+    const k=item.k;
+    if(k==='pie'||k==='tower')return Math.round(item.cells*10);
+    return {sauce:60,cream:80,freeze:80,blender:90}[k]||40;
+  }
+  hitBoss(src,amt,remote){
+    if(!this.boss||this.over)return;
+    if(!remote){src.dmg=(src.dmg||0)+amt;src.score+=Math.round(amt/2)}
+    if(!this.isHost()){if(!remote&&this.hooks.send)this.hooks.send({t:'dmg',from:src.id,amt});this.boss.hitT=12;return}
+    this.boss.hp=Math.max(0,this.boss.hp-amt);this.boss.hitT=12;
+    const ph=this.boss.hp<=this.boss.max*.25?3:this.boss.hp<=this.boss.max*.6?2:1;
+    if(ph>this.boss.phase){this.boss.phase=ph;if(this.hooks.bossPhase)this.hooks.bossPhase(ph)}
+    this.bossSync(true);
+    if(this.boss.hp<=0)this.bossDefeated();
+  }
+  netDamage(m){const b=this.byId(m.from);if(b&&b.remote&&this.isHost())this.hitBoss(b,Math.max(0,Math.min(1200,+m.amt||0)),true)}
+  bossSync(now){
+    if(!this.online||!this.isHost()||!this.hooks.send)return;
+    if(!now&&this.frame-this.boss.last<30)return;
+    this.boss.last=this.frame;const nx=this.boss.next;
+    this.hooks.send({t:'boss',hp:this.boss.hp,max:this.boss.max,ph:this.boss.phase,nk:nx?nx.k:null,nto:nx?nx.to:null,nin:nx?Math.max(0,this.boss.nextAt-this.frame):0});
+  }
+  netBoss(m){
+    if(!this.boss||this.isHost())return;
+    const b=this.boss,hp=Math.max(0,+m.hp||0);
+    if(hp<b.hp)b.hitT=12;
+    b.hp=hp;b.max=Math.max(1,+m.max||b.max);b.phase=m.ph|0||b.phase;
+    b.next=m.nk?{k:m.nk,to:m.nto}:null;b.nextAt=this.frame+(m.nin|0);
+    if(b.hp<=0)this.bossDefeated();
+  }
+  bossTick(){
+    const b=this.boss;if(!b||b.hp<=0)return;
+    if(b.hitT>0)b.hitT--;
+    if(!this.isHost())return;
+    const alive=this.alive();if(!alive.length)return;
+    // pick the next attack 5 seconds ahead so everyone can see it coming
+    if(!b.next&&this.frame>=b.nextAt-60*5){
+      const to=alive[Math.floor(Math.random()*alive.length)];
+      const kinds=b.phase>=3?['pie','pie','sauce','freeze','blender','cream']:b.phase===2?['pie','pie','sauce','cream','freeze']:['pie','pie','cream'];
+      const k=kinds[Math.floor(Math.random()*kinds.length)];
+      const cells=k==='pie'?Math.round((4+b.phase*2+Math.random()*3)*[.7,1,1.25][this.d]):0;
+      b.next={k,to:to.id,cells};this.bossSync(true);
+    }
+    if(b.next&&this.frame>=b.nextAt){
+      const nx=b.next;b.next=null;b.nextAt=this.frame+60*([9,7,5.5][b.phase-1]||6)*[1.25,1,.85][this.d];
+      const to=this.byId(nx.to);
+      if(to&&!to.dead){
+        const item={k:nx.k,cells:nx.cells,at:null};
+        if(to.remote){if(this.hooks.send)this.hooks.send({t:'batk',to:to.id,k:nx.k,cells:nx.cells})}
+        else this.flights.push({from:this.bossObj,to,item,t:FLY});
+        if(this.hooks.fly)this.hooks.fly(this.bossObj,to,item);
+      }
+      this.bossSync(true);
+    }
+    this.bossSync(false);
+  }
+  netBossAttack(m){
+    const to=this.byId(m.to);if(!to||to.remote||to.dead||this.over||!this.boss)return;
+    const k=['pie','sauce','cream','freeze','blender'].includes(m.k)?m.k:'pie';
+    const item={k,cells:k==='pie'?Math.max(1,Math.min(30,m.cells|0)):0,at:null};
+    this.flights.push({from:this.bossObj,to,item,t:FLY});
+    if(this.hooks.fly)this.hooks.fly(this.bossObj,to,item);
+  }
+  bossDefeated(){
+    if(this.over)return;
+    if(this.online&&this.isHost()&&this.hooks.send)this.hooks.send({t:'boss',hp:0,max:this.boss.max,ph:3});
+    const rank=this.boards.slice().sort((a,b)=>(b.dmg||0)-(a.dmg||0)||(b.score|0)-(a.score|0));
+    rank.forEach((b,i)=>b.place=i+1);
+    this.over=true;this.result={won:true,coop:true,place:this.player.place,winner:rank[0]};
+    if(this.hooks.end)this.hooks.end(this.result);
   }
   byId(id){return this.boards.find(b=>b.id===id)}
   // only bots are still cooking: the humans are all out, so the rest can be fast-forwarded
   onlyBotsLeft(){const a=this.alive();return !this.over&&a.length>1&&a.every(b=>b.isBot)}
   // stalled fast-forward safety net: rank the remaining bots by stack height (lowest stack wins)
   resolveByHeight(){
+    if(this.boss){if(this.isHost()){this.boss.hp=0;this.bossDefeated()}return}
+    if(this.variant==='order'){const w=this.boards.slice().sort((x,y)=>(y.orders|0)-(x.orders|0))[0];this.finishOrders(w);return}
     const a=this.alive().filter(b=>!b.remote).sort((x,y)=>y.height()-x.height()||y.score-x.score);
     for(let i=0;i<a.length-1&&!this.over;i++)a[i].die();
   }
@@ -537,10 +701,16 @@ class Game{
     else if(item.k==='blender')to.blend(from);
     else to.receive(item.cells,from,item.at);
   }
-  aim(){const o=this.alive().filter(b=>b!==this.player);return o.length?o[Math.floor(this.frame/CYCLE)%o.length]:null}
+  aim(){if(this.boss)return this.bossObj;const o=this.alive().filter(b=>b!==this.player);return o.length?o[Math.floor(this.frame/CYCLE)%o.length]:null}
   launch(src,item,tgt,slot){
     const it={k:item.k,cells:item.cells||0,at:item.at||null};
     if(JUNK_KINDS.includes(it.k)){it.cells=Math.max(1,Math.round(it.cells*(1+.25*src.kos)*this.margin()*(src.isBot?(DIFFS[this.d].hit||1):1)));src.sent+=it.cells}
+    if(tgt.boss){
+      if(this.hooks.fly)this.hooks.fly(src,tgt,it,slot);
+      const amt=this.bossDamage(it);
+      this.flights.push({from:src,to:tgt,item:it,t:FLY,boss:amt});
+      return;
+    }
     if(tgt.remote){if(this.hooks.send)this.hooks.send({t:'atk',from:src.id,to:tgt.id,k:it.k,cells:it.cells,ac:it.at?+it.at.c.toFixed(2):null,ar:it.at?+it.at.r.toFixed(2):null})}
     else this.flights.push({from:src,to:tgt,item:it,t:FLY});
     if(this.hooks.fly)this.hooks.fly(src,tgt,it,slot);
@@ -556,11 +726,14 @@ class Game{
       else if(!this.ffMode&&this.watched.size&&f%6===0)l=this.local().filter(b=>!b.dead&&this.watched.has(b.id));
       if(l&&l.length)this.hooks.send({t:'snaps',list:l.map(b=>b.snap())});
     }
-    if(this.flights.length)this.flights=this.flights.filter(f=>{if(--f.t>0)return true;if(!f.to.dead)this.deliver(f.to,f.item,f.from);return false});
+    if(this.flights.length)this.flights=this.flights.filter(f=>{if(--f.t>0)return true;if(f.to.boss)this.hitBoss(f.from,f.boss);else if(!f.to.dead)this.deliver(f.to,f.item,f.from);return false});
+    if(this.boss)this.bossTick();
+    if(this.orderWait&&this.frame-this.orderWait>180&&!this.over){const w=this.local().find(b=>b.orders>=ORDER_GOAL);if(w)this.finishOrders(w)}
     this.checkEnd();
   }
   onDeath(b){
     b.place=this.alive().length+1;
+    if(this.boss&&!b.lastAttacker)b.lastAttacker=this.bossObj;
     const k=b.lastAttacker;
     if(k&&!k.dead&&k!==b){if(!k.remote)k.kos++;b.killedBy=k}
     if(this.online&&this.hooks.send)this.hooks.send({t:'ko',id:b.id,by:k&&!k.dead?k.id:null});
@@ -569,7 +742,14 @@ class Game{
   checkEnd(){
     if(this.over)return;
     const p=this.player,alive=this.alive();
-    if(this.online||this.boards.length>2){
+    if(this.boss){
+      if(p.dead&&!this.playerOut){this.playerOut=true;if(this.hooks.out)this.hooks.out(p.place)}
+      if(!alive.length){this.over=true;const rank=this.boards.slice().sort((a,b)=>(b.dmg||0)-(a.dmg||0));rank.forEach((b,i)=>b.place=i+1);this.result={won:false,coop:true,place:p.place,winner:null}}
+    }
+    else if(this.variant==='order'){
+      if(alive.length<=1&&this.boards.length>1){this.finishOrders(alive[0]||p);return}
+    }
+    else if(this.online||this.boards.length>2){
       // keep simulating after you're out (online, and practice brawls) so you can spectate: the host's bots and everyone's view must run to the end
       if(p.dead&&!this.playerOut){this.playerOut=true;if(this.hooks.out)this.hooks.out(p.place)}
       if(alive.length<=1){if(!p.dead)p.place=1;this.over=true;this.result={won:!p.dead,place:p.place,winner:alive[0]||null}}
@@ -580,4 +760,5 @@ class Game{
   }
 }
 
-if(typeof module!=='undefined')module.exports={COLS,ROWS,NT,CLR,POP,HOVER,INC_T,GRACE,FLY,DIFFS,MARGIN,RACK,RUSH,CYCLE,CREAM,FREEZE,SPECIALS,BOTNAMES,BOTS,FIGHTERS,MAX_PLAYERS,pickBots,Board,RemoteBoard,Game,mulberry32};
+const FFE={VARIANTS,BOARD_TYPES,ORDER_GOAL,BOSSES,BOSS_HP,JUNK_KINDS,T,genRow,rnd,nextId:()=>++uid,nextGid:()=>++gidc,COLS,ROWS,NT,CLR,POP,HOVER,INC_T,GRACE,FLY,DIFFS,MARGIN,RACK,RUSH,CYCLE,CREAM,FREEZE,SPECIALS,BOTNAMES,BOTS,FIGHTERS,MAX_PLAYERS,pickBots,Board,RemoteBoard,Game,mulberry32};
+if(typeof module!=='undefined')module.exports=FFE;else window.FFEngine=FFE;

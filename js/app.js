@@ -1,6 +1,6 @@
 // Food Fight UI: drawing, input, settings, practice mode and the online lobby.
 (function(){
-const VERSION='0.9.5';
+const VERSION='1.0.0';
 let spec=null; // board being spectated after you're knocked out
 const $=s=>document.querySelector(s);
 const $$=s=>[...document.querySelectorAll(s)];
@@ -19,7 +19,14 @@ const PALETTES={
 };
 const FOOD_NAMES=['Tomato','Cheese','Donut','Avocado','Grapes'],SHAPE_NAMES=['Circle','Triangle','Diamond','Drop','Star'];
 const names=()=>prefs.art==='shapes'?SHAPE_NAMES:FOOD_NAMES;
-let prefs={palette:'classic',theme:'night',muted:false,name:'',art:'food',av:'bun'};
+let prefs={palette:'classic',theme:'night',muted:false,name:'',art:'food',av:'bun',variant:'classic'};
+const VARIANT_INFO={
+  classic:{name:'Classic',tag:'Swap and splat',sizes:['Duel','Brawl','Big Brawl']},
+  order:{name:'Order Up!',tag:'Ticket race',sizes:['Duel','Race of 4','Race of 8']},
+  stack:{name:'Snack Stack',tag:'Falling pairs',sizes:['Duel','Brawl','Big Brawl']},
+  shot:{name:'Splat Shot',tag:'Aim and pop',sizes:['Duel','Brawl','Big Brawl']},
+  boss:{name:'Boss Brawl',tag:'Co-op vs a boss',sizes:['Duo','Team of 4','Team of 8']}};
+const VARIANT_KEYS=Object.keys(VARIANT_INFO);
 const ART={
   logo:'assets/logo.webp',
   bun:'assets/bun.webp','bun-face':'assets/bun-face.webp',
@@ -36,6 +43,7 @@ const face=av=>ART[(FIGHTERS.includes(av)?av:'bun')+'-face'];
 const body=av=>ART[FIGHTERS.includes(av)?av:'bun'];
 const avImg=(av,cls)=>`<img class="${cls||'av'}" src="${face(av)}" alt="" width="64" height="64">`;
 try{const s=JSON.parse(localStorage.getItem('ff-prefs')||'null');if(s)prefs=Object.assign(prefs,s)}catch(e){}
+if(!VARIANT_INFO[prefs.variant])prefs.variant='classic';
 if(!PALETTES[prefs.palette])prefs.palette='classic';
 if(!['food','shapes'].includes(prefs.art))prefs.art='food';
 if(!FIGHTERS.includes(prefs.av))prefs.av='bun';
@@ -212,6 +220,7 @@ function render(){
   const W=S*COLS,H=S*ROWS;
   ctx.fillStyle=TOK.well;ctx.fillRect(0,0,W,H);
   if(!G)return;
+  const mu=MODE_UI[G.variant];if(mu&&mu.render){mu.render();return}
   const B=spec||G.player,mine=B===G.player,ro=B.rise*S,f=G.frame;
   ctx.fillStyle=TOK.grid;
   for(let r=-1;r<=ROWS;r++)for(let c=0;c<COLS;c++)if((r+c+400)%2===0)ctx.fillRect(c*S,r*S-ro,S,S);
@@ -324,8 +333,15 @@ function renderMini(m){
   const b=m.board,c=m.ctx,w=m.cv.width,h=m.cv.height,s=w/COLS;
   c.fillStyle=TOK.well;c.fillRect(0,0,w,h);
   const ro=b.rise*s,simple=s<14,fr=G?G.frame:0;
+  if(G&&G.variant==='shot'){
+    const Q=SHOTGEO();if(Q)hexCells(b).forEach(p=>{c.fillStyle=p.t<0?'#B48A63':PAL.c[p.t];c.beginPath();c.arc(p.x*s,p.y*s,Q.R*s*.92,0,Math.PI*2);c.fill()});
+    if(Q){c.strokeStyle='rgba(247,197,72,.5)';c.lineWidth=1;const y=(Q.DEAD_ROW*Q.RH)*s;c.beginPath();c.moveTo(0,y);c.lineTo(w,y);c.stroke()}
+    if(b.frozenT>0){c.fillStyle='rgba(150,215,255,.4)';c.fillRect(0,0,w,h)}
+    if(b.dead){c.fillStyle='rgba(11,13,27,.55)';c.fillRect(0,0,w,h);c.fillStyle='#EEF0FA';c.textAlign='center';c.textBaseline='middle';c.font=`${Math.round(w*.32)}px 'Lilita One',sans-serif`;c.fillText('KO',w/2,h/2)}
+    return;
+  }
   for(let r=0;r<ROWS;r++)for(let k=0;k<COLS;k++){const t=b.g[r][k];if(t)drawTile(c,t,k*s+(t.xo||0)*s,r*s-ro+(t.yo||0)*s,s,b.dead?.5:1,fr,simple)}
-  for(let k=0;k<COLS;k++)drawTile(c,{t:b.preview[k],clr:0},k*s,ROWS*s-ro,s,.3,0,simple);
+  if(b.preview&&G&&(G.variant==='classic'||G.variant==='order'||G.variant==='boss'))for(let k=0;k<COLS;k++)drawTile(c,{t:b.preview[k],clr:0},k*s,ROWS*s-ro,s,.3,0,simple);
   if(b.g[0].some(Boolean)||b.g[1].some(Boolean)){c.fillStyle='rgba(247,197,72,.55)';c.fillRect(0,0,w,Math.max(2,s*.2))}
   if(b.rushT>0){c.fillStyle=`rgba(229,104,42,${.4+.3*Math.sin(fr*.4)})`;c.fillRect(0,h-Math.max(3,s*.5),w,Math.max(3,s*.5))}
   if(b.frozenT>0){c.fillStyle='rgba(150,215,255,.4)';c.fillRect(0,0,w,h)}
@@ -383,12 +399,29 @@ function renderRack(){
       b.className='slot full'+(prev.has(String(it.id))?'':' new')+(plating===it.id?' arming':'');
       b.innerHTML=ICONS[it.k]+`<b>${VALUE[it.k]||it.cells}</b><span>${LABEL[it.k]}</span>`;
       b.setAttribute('aria-label',`Throw ${LABEL[it.k]}${it.cells?' '+it.cells:''}`);
-      b.addEventListener('pointerdown',e=>{e.preventDefault();if(!canPlay())return;if(plating===it.id){cancelPlate();return}G.player.fire(i)});
+      b.addEventListener('pointerdown',e=>{
+        e.preventDefault();if(!canPlay())return;if(plating===it.id){cancelPlate();return}
+        if(!G.boss||SELF_KINDS.includes(it.k)){G.player.fire(i);return}
+        // Boss Brawl: tap throws at the boss, hold for half a second to hand it to the teammate in the most trouble
+        const id=it.id;let gave=false;
+        const t=setTimeout(()=>{gave=true;b.classList.add('giving');giveItem(id)},450);
+        const up=()=>{clearTimeout(t);b.removeEventListener('pointerup',up);b.removeEventListener('pointerleave',up);b.removeEventListener('pointercancel',up);if(!gave&&G){const k=G.player.rack.findIndex(x=>x.id===id);if(k>=0)G.player.fire(k)}};
+        b.addEventListener('pointerup',up);b.addEventListener('pointerleave',up);b.addEventListener('pointercancel',up);
+      });
     }else{b.className='slot';b.disabled=true;b.setAttribute('aria-label','Empty rack slot')}
     box.appendChild(b);
   }
 }
 
+function giveItem(id){
+  const B=G.player,i=B.rack.findIndex(x=>x.id===id);if(i<0)return;
+  const mates=G.alive().filter(b=>b!==B).sort((a,b)=>b.height()-a.height());
+  const to=mates[0];if(!to){B.pops.push({text:'Nobody to help',x:3,y:6,col:'#EEF0FA',size:.75,life:50});return}
+  const it=B.rack.splice(i,1)[0];
+  if(to.remote){G.hooks.send&&G.hooks.send({t:'give',to:to.id,from:B.id,k:it.k,cells:it.cells|0,ac:null,ar:null})}
+  else to.takeItem({k:it.k,cells:it.cells,at:null},B);
+  fly(B,to,it,i);B.pops.push({text:`Passed to ${to.name}!`,x:3,y:6,col:'#56B4E9',size:.85,life:60});sfx('earn',true);renderRack();
+}
 /* ---------- clean plate: tap it, then tap a food on your board ---------- */
 let plating=null;
 function plateIndex(){return G&&plating!=null?G.player.rack.findIndex(x=>x.id===plating):-1}
@@ -413,7 +446,38 @@ function buildOpps(){
     const cvm=el.querySelector('canvas');
     return {board:b,el,cv:cvm,ctx:cvm.getContext('2d'),st:el.querySelector('.st'),meta:el.querySelector('.meta'),tag:el.querySelector('.tag')};
   });
+  $('#rail').hidden=G.variant!=='order';railKey='';setControls();
+  const bb=$('#bossBar');bb.hidden=!G.boss;
+  if(G.boss){$('#bossImg').src=body(G.boss.av);$('#bossImg').alt=G.boss.name;$('#bossName').textContent=G.boss.name.toUpperCase();bossKey=''}
   sizeMinis();updateAim();
+}
+/* ---------- Order Up! tickets ---------- */
+let railKey='';
+const ticketIcon={};
+function foodIcon(t){if(!ticketIcon[t]){const c=document.createElement('canvas');c.width=c.height=36;drawTile(c.getContext('2d'),{t,clr:0},0,0,36,1,0);ticketIcon[t]=c.toDataURL()}return ticketIcon[t]}
+function renderRail(){
+  const B=G&&G.player;if(!B||!B.tickets)return;
+  const key=B.tickets.map(t=>t.id+':'+t.items.map(i=>i.got).join('.')+(t.rush?':'+Math.ceil(t.T/60):'')).join('|')+'|'+prefs.palette+prefs.art;
+  if(key===railKey)return;railKey=key;
+  $('#rail').innerHTML=B.tickets.map(tk=>{
+    const secs=Math.ceil(tk.T/60);
+    return `<div class="ticket${tk.rush?' rush':''}${tk.rush&&secs<=5?' cold':''}"><div class="th"><span>#${tk.id}${tk.rush?' 🔥':''}</span>${tk.rush?`<em>0:${String(secs).padStart(2,'0')}</em>`:''}</div>`+
+      tk.items.map(it=>`<div class="ln${it.got>=it.n?' done':''}"><img src="${foodIcon(it.t)}" width="18" height="18" alt="${names()[it.t]}"><b>${it.got}/${it.n}</b><i><u style="width:${it.got/it.n*100}%"></u></i></div>`).join('')+'</div>';
+  }).join('');
+}
+/* ---------- Boss Brawl bar ---------- */
+let bossKey='';
+function renderBoss(){
+  const b=G&&G.boss;if(!b)return;
+  const bar=$('#bossBar');bar.classList.toggle('hit',b.hitT>0);bar.classList.toggle('phase3',b.phase>=3);
+  const nx=b.next,to=nx&&G.byId(nx.to),secs=Math.max(0,Math.ceil((b.nextAt-G.frame)/60));
+  const what=nx?({pie:'Pie barrage',sauce:'Hot sauce',cream:'Whipped cream',freeze:'Brain freeze',blender:'Blender'}[nx.k]||'Attack'):'';
+  const key=b.hp+'|'+b.phase+'|'+(nx?nx.k+nx.to+secs:'');
+  if(key===bossKey)return;bossKey=key;
+  $('#bossHp').style.width=(b.hp/b.max*100)+'%';
+  $('#bossHpText').textContent=`HP ${Math.ceil(b.hp).toLocaleString()} / ${b.max.toLocaleString()}`;
+  $('#bossPhase').textContent=b.hp<=0?'Defeated!':`Phase ${b.phase}`;
+  $('#bossNext').innerHTML=b.hp<=0?'Down for the count!':nx?`${what} → <b>${to?(to===G.player?'YOU':esc(to.name)):'someone'}</b> in 0:${String(secs).padStart(2,'0')}`:'Sizing you up…';
 }
 function sizeMinis(){minis.forEach(m=>{const r=m.cv.getBoundingClientRect();if(r.width){m.cv.width=Math.round(r.width*DPR);m.cv.height=Math.round(r.width*2*DPR)}})}
 let aimName='';
@@ -426,9 +490,9 @@ function updateAim(){
     m.el.classList.toggle('dead',m.board.dead);
   });
   if(plating!=null&&plateIndex()<0)plating=null;
-  const n=plating!=null?'\u0000plate':a?a.name:'nobody';
+  const n=(plating!=null?'\u0000plate':a?a.name:'nobody')+'|'+G.variant;
   if(n!==aimName){
-    aimName=n;$('#aimline').innerHTML=plating!=null?'<b>Clean plate:</b> tap a food on your board':`Tap to throw at <b>${esc(n)}</b>`;
+    aimName=n;$('#aimline').innerHTML=plating!=null?'<b>Clean plate:</b> tap a food on your board':(G.variant==='stack'||G.variant==='shot')?`Combos fly at <b>${esc(a?a.name:'nobody')}</b>`:`Tap to throw at <b>${esc(a?a.name:'nobody')}</b>`;
     $('#board').classList.toggle('picking',plating!=null);
     if(plating!=null)return;
     const box=$('#opps'),m=minis.find(x=>x.board===a);
@@ -442,8 +506,10 @@ function updateOpps(){
     m.el.classList.toggle('hit',b.hitFlash>0);
     const h=b.height(),bits=[];
     if(b.rack.length)bits.push(`${b.rack.length} held`);if(b.kos)bits.push(`${b.kos} KO`);
-    const st=b.dead?(b.place?placeName(b.place)+' place':'Out'):(b.frozenT>0?'Frozen':b.creamT>0?'Creamed':b.rushT>0?'Sauced!':h>=10?'Danger!':h>=8?'Stacked':'Cooking');
-    const meta=b.dead?(b.killedBy?`by ${b.killedBy===G.player?'you':b.killedBy.name}`:'Topped out'):bits.join(' · ');
+    let st=b.dead?(b.place&&!G.boss?placeName(b.place)+' place':'Out'):(b.frozenT>0?'Frozen':b.creamT>0?'Creamed':b.rushT>0?'Sauced!':h>=10?'Danger!':h>=8?'Stacked':'Cooking');
+    let meta=b.dead?(b.killedBy?`by ${b.killedBy===G.player?'you':b.killedBy.name}`:'Topped out'):bits.join(' · ');
+    if(G.variant==='order'){st=`${b.orders|0}/${ORDER_GOAL}`;meta=b.frozenT>0?'Spilled!':h>=9?'orders · stack high':'orders'}
+    if(G.boss&&!b.dead){if(h>=9)st='Needs help!';meta=`${Math.round(b.dmg||0)} dmg`}
     if(m.st.textContent!==st)m.st.textContent=st;
     if(m.meta.textContent!==meta)m.meta.textContent=meta;
     const can=!!(G.playerOut&&!G.over);
@@ -457,6 +523,7 @@ function pointFor(b,isTarget,slot){
     if(isTarget){const r=$('#tray').getBoundingClientRect();return[r.right-30,r.top+r.height/2]}
     const el=$('#slots').children[slot]||$('#slots');const r=el.getBoundingClientRect();return[r.left+r.width/2,r.top+r.height/2];
   }
+  if(b&&b.boss){const r=$('#bossImg').getBoundingClientRect();return[r.left+r.width/2,r.top+r.height/2]}
   const m=minis.find(m=>m.board===b);if(!m)return[0,0];
   const r=m.cv.getBoundingClientRect();return[r.left+r.width/2,r.top+r.height*(isTarget?.3:.6)];
 }
@@ -468,6 +535,7 @@ function fly(src,tgt,it,slot){
   requestAnimationFrame(()=>requestAnimationFrame(()=>{d.style.transform=`translate(${tx}px,${ty}px) scale(.8)`}));
   setTimeout(()=>d.remove(),600);
   if(src===G.player)sfx('throw');
+  if(src&&src.boss&&tgt===G.player)sfx('incoming');
 }
 
 /* ---------- tray + hud ---------- */
@@ -490,7 +558,10 @@ const fmt=fr=>{const s=Math.floor(fr/60);return Math.floor(s/60)+':'+String(s%60
 function hud(){
   if(!G)return;
   $('#sTime').textContent=fmt(G.frame);$('#sScore').textContent=G.player.score;
-  if(multi()){$('#sThird').textContent=G.player.kos;$('#sThirdL').textContent='KOs'}
+  if(G.variant==='order'){$('#sThird').textContent=`${G.player.orders|0}/${ORDER_GOAL}`;$('#sThirdL').textContent='Orders'}
+  else if(G.boss){$('#sThird').textContent=Math.round(G.player.dmg||0);$('#sThirdL').textContent='Damage'}
+  else if(G.variant==='stack'){$('#sThird').textContent=G.player.maxChain;$('#sThirdL').textContent='Best chain'}
+  else if(multi()){$('#sThird').textContent=G.player.kos;$('#sThirdL').textContent='KOs'}
   else{$('#sThird').textContent=G.level();$('#sThirdL').textContent='Heat'}
 }
 
@@ -507,6 +578,165 @@ function resize(){
 }
 new ResizeObserver(resize).observe($('#wrap'));
 window.addEventListener('resize',resize);
+
+/* ---------- per-mode screens: Snack Stack and Splat Shot draw and steer their own boards ---------- */
+const MODE_UI={};
+function setControls(){
+  const mu=MODE_UI[G&&G.variant];
+  $('#slots').hidden=!!(mu&&mu.ctl);$('#modeCtl').hidden=!(mu&&mu.ctl);
+  rb.innerHTML=mu&&mu.raiseLabel?mu.raiseLabel:'<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 4l8 10h-5v6H9v-6H4z"/></svg>Raise';
+  if(mu&&mu.ctl){$('#modeCtl').innerHTML=mu.ctl();if(mu.bind)mu.bind()}
+}
+function drawFxLayer(B,ro){
+  (B.parts||[]).forEach(p=>{ctx.globalAlpha=Math.min(1,p.life/14);ctx.fillStyle=p.kind<0?'#E0A86E':PAL.c[p.kind];ctx.beginPath();ctx.arc(p.x*S,p.y*S-ro,S*.07,0,Math.PI*2);ctx.fill()});
+  ctx.globalAlpha=1;ctx.textAlign='center';ctx.textBaseline='middle';
+  const W=S*COLS;
+  (B.pops||[]).forEach(p=>{
+    const a=Math.min(1,p.life/20),yy=(p.y-(60-p.life)*.012)*S-ro,xx=Math.min(Math.max(p.x*S,S*1.6),W-S*1.6);
+    ctx.globalAlpha=a;ctx.font=`${Math.round(S*.62*p.size)}px 'Lilita One','Arial Rounded MT Bold',sans-serif`;
+    ctx.lineWidth=S*.14;ctx.strokeStyle='#0B0D1B';ctx.strokeText(p.text,xx,yy);ctx.fillStyle=p.col;ctx.fillText(p.text,xx,yy);
+  });
+  ctx.globalAlpha=1;
+}
+function checker(ro){ctx.fillStyle=TOK.grid;for(let r=-1;r<=ROWS;r++)for(let c=0;c<COLS;c++)if((r+c+400)%2===0)ctx.fillRect(c*S,r*S-(ro||0),S,S)}
+// ----- Snack Stack -----
+let sd=null,nextKey='';
+MODE_UI.stack={
+  raiseLabel:'<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 20l8-10h-5V4H9v6H4z"/></svg>Drop',
+  ctl(){return `<div class="nextbox"><span>Next</span><canvas id="nextCv"></canvas></div><button class="spin" id="bSpin" type="button">↻ Spin</button>`},
+  bind(){
+    const c=$('#nextCv'),s=26;c.width=(s*2+10)*DPR;c.height=s*2*DPR;c.style.width=(s*2+10)+'px';c.style.height=s*2+'px';nextKey='';
+    $('#bSpin').addEventListener('pointerdown',e=>{e.preventDefault();if(canPlay())G.player.rotate(1)});
+  },
+  drawNext(){
+    const B=G.player,c=$('#nextCv');if(!c||!B.queue)return;
+    const key=B.queue.slice(0,2).map(q=>q.join('')).join('|')+prefs.palette+prefs.art;if(key===nextKey)return;nextKey=key;
+    const x=c.getContext('2d'),s=26*DPR;x.clearRect(0,0,c.width,c.height);
+    B.queue.slice(0,2).forEach(([a,b],i)=>{const ox=i*(s+10*DPR),al=i?.55:1;drawTile(x,{t:b,clr:0},ox,0,s,al,0);drawTile(x,{t:a,clr:0},ox,s,s,al,0)});
+  },
+  render(){
+    const B=spec||G.player,W=S*COLS,H=S*ROWS,f=G.frame,mine=B===G.player;
+    checker(0);
+    // the drop column: if it fills to the top you're out
+    ctx.strokeStyle='rgba(204,121,167,.55)';ctx.lineWidth=Math.max(2,S*.06);const xc=2*S+S/2,yc=S/2,k=S*.18;
+    ctx.beginPath();ctx.moveTo(xc-k,yc-k);ctx.lineTo(xc+k,yc+k);ctx.moveTo(xc+k,yc-k);ctx.lineTo(xc-k,yc+k);ctx.stroke();
+    const sh=B.shake?Math.sin(B.shake*2)*S*.04:0;
+    for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){const t=B.g[r][c];if(t)drawTile(ctx,t,c*S,(r+(t.yo||0))*S+sh,S,B.dead?.45:1,f)}
+    const p=B.piece;
+    if(p&&B.cells){
+      // ghost where it will land
+      let g=Object.assign({},p);while(B.fits(Object.assign({},g,{r:Math.floor(g.r)+1})))g.r=Math.floor(g.r)+1;
+      B.cells(Object.assign({},g,{r:Math.floor(g.r)})).forEach(([r,c,t])=>{if(r>=0)drawTile(ctx,{t,clr:0},c*S,r*S,S,.22,f)});
+      const off=[[-1,0],[0,1],[1,0],[0,-1]][p.rot];
+      drawTile(ctx,{t:p.a,clr:0},p.c*S,p.r*S+sh,S,1,f);
+      drawTile(ctx,{t:p.b,clr:0},(p.c+off[1])*S,(p.r+off[0])*S+sh,S,1,f);
+      if(mine){ctx.strokeStyle='rgba(255,255,255,.85)';ctx.lineWidth=2.5;rr(ctx,p.c*S+1.5,p.r*S+1.5+sh,S-3,S-3,S*.2);ctx.stroke()}
+    }
+    drawEffects(ctx,B,W,H,f);
+    drawFxLayer(B,0);
+    if(B.dead&&G.playerOut&&!G.over)drawKO(B,W,H);
+    if(mine)this.drawNext();
+  },
+  down(e,p){const B=G.player;sd={id:e.pointerId,x0:p.x,y0:p.y,t:performance.now(),c0:B.piece?B.piece.c:2,moved:false}},
+  move(e,p){
+    if(!sd||e.pointerId!==sd.id)return;const B=G.player,dx=p.x-sd.x0,dy=p.y-sd.y0;
+    if(Math.abs(dx)>S*.35)sd.moved=true;
+    if(sd.moved&&B.piece)B.moveTo(Math.max(0,Math.min(COLS-1,sd.c0+Math.round(dx/(S*.85)))));
+    if(!sd.moved&&dy>S*1.1)B.soft=true;
+  },
+  up(e,p){
+    if(!sd||(e&&e.pointerId!==sd.id))return;const B=G.player,dt=performance.now()-sd.t;
+    if(p&&!sd.moved){const dy=p.y-sd.y0;if(dy>S*1.6&&dt<450)B.hardDrop();else if(Math.abs(dy)<S*.5&&dt<350)B.rotate(1)}
+    B.soft=false;sd=null;
+  },
+  raise(){G.player.hardDrop()},
+  key(k,down){
+    const B=G.player;
+    if(k==='ArrowDown'){B.soft=down;return true}
+    if(!down)return false;
+    if(k==='ArrowLeft')B.move(-1);else if(k==='ArrowRight')B.move(1);
+    else if(k==='ArrowUp'||k==='x'||k==='X')B.rotate(1);else if(k==='z'||k==='Z')B.rotate(-1);
+    else if(k===' '||k==='Enter')B.hardDrop();else return false;
+    return true;
+  }
+};
+
+// ----- Splat Shot -----
+const SHOTGEO=()=>window.FFEngine&&FFEngine.BOARD_TYPES.shot?FFEngine.BOARD_TYPES.shot.GEO:null;
+function hexCells(B){
+  const Q=SHOTGEO(),out=[];if(!Q)return out;
+  const par=B.par|0,odd=r=>(r+par)%2===1;
+  for(let r=0;r<Q.NR;r++){const w=odd(r)?Q.HC-1:Q.HC;for(let c=0;c<w;c++){
+    let t=null;
+    if(B.h){const b=B.h[r][c];if(b)t=b.t}
+    else if(B.hex){const ch=B.hex[r*Q.HC+c];if(ch&&ch!=='.')t=ch==='j'?-1:+ch}
+    if(t!=null)out.push({x:Q.R+c*Q.D+(odd(r)?Q.R:0),y:Q.R+r*Q.RH,t,r})}}
+  return out;
+}
+let shotDrag=null;
+const shooterImg={};
+function fighterImg(av){if(!shooterImg[av]){const im=new Image();im.src=body(av);shooterImg[av]=im}return shooterImg[av]}
+MODE_UI.shot={
+  raiseLabel:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7h11l-3-3M17 17H6l3 3"/></svg>Swap',
+  ctl(){return '<div class="nextbox" style="padding:0 14px"><span style="letter-spacing:.04em;text-transform:none;font-size:12px;color:var(--ink)">Drag to aim · let go to throw</span></div>'},
+  render(){
+    const Q=SHOTGEO();if(!Q)return;
+    const B=spec||G.player,W=S*COLS,H=S*ROWS,f=G.frame,mine=B===G.player,u=S,sz=Q.D*u;
+    checker(0);
+    const sh=B.shake?Math.sin(B.shake*2)*S*.05:0;
+    // ceiling lip, red when junk is on the way
+    ctx.fillStyle=B.inc&&B.inc.length?'#E5682A':'#7B6B8F';ctx.fillRect(0,0,W,Math.max(3,S*.08));
+    // danger line
+    const dy=(Q.R+Q.DEAD_ROW*Q.RH-Q.R)*u;
+    ctx.save();ctx.setLineDash([S*.15,S*.15]);ctx.strokeStyle='rgba(247,197,72,.55)';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(0,dy);ctx.lineTo(W,dy);ctx.stroke();ctx.restore();
+    hexCells(B).forEach(b=>drawTile(ctx,{t:b.t,clr:0},(b.x-Q.R)*u+sz*.02,(b.y-Q.R)*u+sh+sz*.02,sz*.96,B.dead?.45:1,f));
+    (B.popping||[]).forEach(p=>{const k=p.life/14;drawTile(ctx,{t:p.t,clr:0},(p.x-Q.R*k)*u,(p.y-Q.R*k)*u,sz*k,k,f)});
+    (B.falling||[]).forEach(p=>drawTile(ctx,{t:p.t,clr:0},(p.x-Q.R)*u,(p.y-Q.R)*u,sz*.96,.8,f));
+    // aim guide: where this throw will stick
+    const a=B.aimA!=null?B.aimA:-Math.PI/2;
+    if(mine&&!B.dead&&B.trace&&!B.ball){
+      const pts=[[Q.SX,Q.SY]];const L=B.trace(a,(k,x,y)=>pts.push([x,y]));
+      if(L){pts.push([L.x,L.y]);
+        ctx.save();ctx.setLineDash([2,S*.22]);ctx.lineCap='round';ctx.strokeStyle='rgba(247,197,72,.9)';ctx.lineWidth=Math.max(2,S*.07);
+        ctx.beginPath();pts.forEach(([x,y],i)=>i?ctx.lineTo(x*u,y*u):ctx.moveTo(x*u,y*u));ctx.stroke();ctx.restore();
+        if(L.r!=null){const cx=Q.R+L.c*Q.D+(((L.r+B.par)%2===1)?Q.R:0),cy=Q.R+L.r*Q.RH;ctx.strokeStyle='rgba(247,197,72,.9)';ctx.lineWidth=2;ctx.setLineDash([4,4]);ctx.beginPath();ctx.arc(cx*u,cy*u,Q.R*u*.92,0,Math.PI*2);ctx.stroke();ctx.setLineDash([])}
+      }
+    }else if(!B.dead){
+      // spectating / remote: just show the aim direction
+      ctx.strokeStyle='rgba(247,197,72,.5)';ctx.lineWidth=2;ctx.setLineDash([2,6]);ctx.beginPath();ctx.moveTo(Q.SX*u,Q.SY*u);ctx.lineTo((Q.SX+Math.cos(a)*2.2)*u,(Q.SY+Math.sin(a)*2.2)*u);ctx.stroke();ctx.setLineDash([]);
+    }
+    // shooter: your fighter holding the next throw
+    const im=fighterImg(B.av||'bun');
+    if(im.complete&&im.naturalWidth)ctx.drawImage(im,(Q.SX-.95)*u,(Q.SY-.85)*u,1.9*u,1.7*u);
+    if(B.ball)drawTile(ctx,{t:B.ball.t,clr:0},(B.ball.x-Q.R)*u,(B.ball.y-Q.R)*u,sz*.96,1,f);
+    if(B.cur!=null&&!B.dead){
+      ctx.save();ctx.shadowColor='rgba(247,197,72,.9)';ctx.shadowBlur=12;drawTile(ctx,{t:B.cur,clr:0},(Q.SX-Q.R)*u,(Q.SY-.55-Q.R)*u,sz,1,f);ctx.restore();
+      drawTile(ctx,{t:B.next,clr:0},(COLS-.9)*u,(Q.SY-.15)*u,sz*.8,.9,f);
+      ctx.fillStyle='rgba(148,155,189,.9)';ctx.font=`800 ${Math.round(S*.24)}px Figtree,sans-serif`;ctx.textAlign='center';ctx.fillText('NEXT',(COLS-.9+Q.D*.4)*u,(Q.SY-.3)*u);
+    }
+    drawEffects(ctx,B,W,H,f);
+    drawFxLayer(B,0);
+    if(B.dead&&G.playerOut&&!G.over)drawKO(B,W,H);
+  },
+  down(e,p){
+    const Q=SHOTGEO(),B=G.player,x=p.x/S,y=p.y/S;
+    if(x>COLS-1.4&&y>Q.SY-.9){B.swap();shotDrag=null;return}   // tap the next food to swap
+    shotDrag={id:e.pointerId};B.aimAt(x,y);
+  },
+  move(e,p){if(!shotDrag||e.pointerId!==shotDrag.id)return;G.player.aimAt(p.x/S,p.y/S)},
+  up(e,p){
+    if(!shotDrag||(e&&e.pointerId!==shotDrag.id))return;shotDrag=null;
+    const Q=SHOTGEO();if(!p||p.y/S>Q.SY+.2)return;    // let go below your fighter = cancel
+    G.player.aimAt(p.x/S,p.y/S);G.player.shoot();
+  },
+  raise(){G.player.swap()},
+  key(k,down){
+    if(!down)return false;const B=G.player;
+    if(k==='ArrowLeft')B.setAim(B.aimA-.06);else if(k==='ArrowRight')B.setAim(B.aimA+.06);
+    else if(k==='ArrowUp'||k===' '||k==='Enter')B.shoot();else if(k==='x'||k==='X'||k==='Shift'||k==='ArrowDown')B.swap();else return false;
+    return true;
+  }
+};
 
 /* ---------- input ---------- */
 function creamAt(x,y){
@@ -532,6 +762,7 @@ cv.addEventListener('pointerdown',e=>{
   if(!canPlay())return;
   e.preventDefault();wakeAudio();
   try{cv.setPointerCapture(e.pointerId)}catch(_){}
+  {const mu=MODE_UI[G.variant];if(mu&&mu.down){mu.down(e,bp(e));return}}
   const B=G.player,p=bp(e),c=Math.floor(p.x/S),r=Math.floor((p.y+B.rise*S)/S);
   const t=r>=0&&r<ROWS&&c>=0&&c<COLS?B.g[r][c]:null;
   if(plating){usePlateOn(t);return}
@@ -539,6 +770,7 @@ cv.addEventListener('pointerdown',e=>{
   kb.on=false;
 });
 cv.addEventListener('pointermove',e=>{
+  {const mu=G&&MODE_UI[G.variant];if(mu&&mu.move){if(canPlay())mu.move(e,bp(e));return}}
   if(!drag||e.pointerId!==drag.id||!canPlay())return;
   const B=G.player,p=bp(e),dx=p.x-drag.x0,dy=p.y-drag.y0,ax=Math.abs(dx),ay=Math.abs(dy);
   if(drag.mode==='wipe'){wipe(drag.lx,drag.ly,p.x,p.y);drag.lx=p.x;drag.ly=p.y;return}
@@ -555,9 +787,10 @@ cv.addEventListener('pointermove',e=>{
   }
 });
 function endDrag(e){if(!drag||(e&&e.pointerId!==drag.id))return;if(drag.mode==='raise'&&G){G.player.raising=false;$('#bRaise').classList.remove('on')}drag=null}
-cv.addEventListener('pointerup',endDrag);cv.addEventListener('pointercancel',endDrag);
+cv.addEventListener('pointerup',e=>{const mu=G&&MODE_UI[G.variant];if(mu&&mu.up){mu.up(e,bp(e));return}endDrag(e)});
+cv.addEventListener('pointercancel',e=>{const mu=G&&MODE_UI[G.variant];if(mu&&mu.up){mu.up(e,null);return}endDrag(e)});
 const rb=$('#bRaise');
-rb.addEventListener('pointerdown',e=>{e.preventDefault();if(canPlay()){G.player.raising=true;rb.classList.add('on')}});
+rb.addEventListener('pointerdown',e=>{e.preventDefault();if(!canPlay())return;const mu=MODE_UI[G.variant];if(mu&&mu.raise){mu.raise();return}G.player.raising=true;rb.classList.add('on')});
 ['pointerup','pointercancel','pointerleave'].forEach(ev=>rb.addEventListener(ev,()=>{if(G)G.player.raising=false;rb.classList.remove('on')}));
 const anyOverlay=()=>$$('.overlay').some(o=>!o.hidden);
 document.addEventListener('keydown',e=>{
@@ -567,6 +800,7 @@ document.addEventListener('keydown',e=>{
   if(e.key==='p'||e.key==='Escape'){if(!G.over)openPause();return}
   if(!canPlay())return;
   const B=G.player,k=e.key;let used=true;
+  {const mu=MODE_UI[G.variant];if(mu&&mu.key){if(mu.key(k,true))e.preventDefault();return}}
   if(k==='ArrowLeft')kb.c=Math.max(0,kb.c-1);
   else if(k==='ArrowRight')kb.c=Math.min(COLS-2,kb.c+1);
   else if(k==='ArrowUp')kb.r=Math.max(0,kb.r-1);
@@ -578,7 +812,7 @@ document.addEventListener('keydown',e=>{
   else used=false;
   if(used){kb.on=true;e.preventDefault()}
 });
-document.addEventListener('keyup',e=>{if(G&&(e.key==='Shift'||e.key==='z'||e.key==='Z'))G.player.raising=false});
+document.addEventListener('keyup',e=>{if(!G)return;const mu=MODE_UI[G.variant];if(mu&&mu.key){mu.key(e.key,false);return}if(e.key==='Shift'||e.key==='z'||e.key==='Z')G.player.raising=false});
 if(matchMedia('(pointer:fine)').matches)$('#kbd').hidden=false;
 
 /* ---------- overlays ---------- */
@@ -599,6 +833,7 @@ const baseHooks={
   sfx,
   fly,
   rack:renderRack,
+  bossPhase(ph){if(G&&G.player){G.player.pops.push({text:ph>=3?`${G.boss.name} is ENRAGED!`:`${G.boss.name} gets angry!`,x:3,y:4,col:'#CC79A7',size:1,life:90});sfx('overtime')}},
   pickFood(item){plating=item.id;renderRack();updatePlateHint();sfx('tap');return true},
   out(){spec=null;$('#bOutLeave').textContent=G.online?'Lobby':'Menu';setOut(true);$('#outToast').hidden=false;sfx('ko')},
   shift(){if(drag&&drag.r!=null)drag.r--;kb.r=Math.max(0,kb.r-1)},
@@ -610,18 +845,20 @@ const baseHooks={
     const B=G.player,won=res.won,n=G.boards.length,D=DIFFS[G.d].name;
     if(won)best.wins++;
     best.score=Math.max(best.score,B.score);best.chain=Math.max(best.chain,B.maxChain);saveBest();
-    $('#eTitle').textContent=won?'You win':(n>2?`${placeName(res.place)} of ${n}`:'Topped out');
-    const champ=won?B:(res.winner||G.boards.find(b=>!b.dead&&b!==B)||B.killedBy||B);
+    $('#eTitle').textContent=res.coop?(won?'Boss beaten!':'The boss wins'):won?'You win':(n>2?`${placeName(res.place)} of ${n}`:G.variant==='order'?'Outcooked':'Topped out');
+    const champ=res.coop?(won?B:{av:G.boss.av,name:G.boss.name}):won?B:(res.winner||G.boards.find(b=>!b.dead&&b!==B)||B.killedBy||B);
     $('#eHero').src=body(champ.av);$('#eHero').alt=won?'Your fighter celebrates':`${champ.name} wins`;
     $('#eHero').style.animation='none';void $('#eHero').offsetWidth;$('#eHero').style.animation='';
+    const modeLine=res.coop?(won?`${G.boss.name} is down! You did ${Math.round(B.dmg||0)} damage (${placeName(res.place)} on the team).`:`${G.boss.name} cleaned out the whole kitchen.`)
+      :G.variant==='order'?(won?`First to ${ORDER_GOAL} orders. Kitchen of the day!`:`${res.winner?res.winner.name:'Someone'} filled ${ORDER_GOAL} orders first. You filled ${B.orders|0}.`):null;
     if(G.online){
       const w=res.winner;
-      $('#eSub').textContent=won?`Last kitchen standing. Nice cooking.`:(w?`${w.name} wins the match.`:'Match over.');
+      $('#eSub').textContent=modeLine||(won?`Last kitchen standing. Nice cooking.`:(w?`${w.name} wins the match.`:'Match over.'));
       if(lastMatch&&lastMatch.mid===G.mid)lastMatch.champ=res.winner?res.winner.id:null;
       setAgain('Grudge Match',`Rematch everyone who taps in${lastMatch&&lastMatch.bots?` · ${lastMatch.bots} bot${lastMatch.bots>1?'s':''}`:''}`,false);
       $('#bMenu').textContent='Leave room';$('#bLobby').hidden=false;$('#gmPanel').hidden=true;
     }else{
-      $('#eSub').textContent=won
+      $('#eSub').textContent=modeLine?modeLine+` (${D})`:won
         ?(n>2?`Last kitchen standing on ${D}.`:`${G.boards[1].name}'s stack overflowed on ${D}.`)
         :(B.killedBy?`${B.killedBy.name} knocked you out on ${D}.`:`Your stack hit the top on ${D}.`);
       setAgain('Grudge Match','Same cooks, run it back',false);
@@ -642,7 +879,7 @@ const SCORES=window.FFScores&&window.FFScores.enabled?window.FFScores:null;
 let deviceId='';
 try{deviceId=localStorage.getItem('ff-device')||''}catch(e){}
 if(!/^[\w-]{8,64}$/.test(deviceId)){deviceId='d-'+(crypto.randomUUID?crypto.randomUUID():Math.random().toString(36).slice(2)+Date.now().toString(36));try{localStorage.setItem('ff-device',deviceId)}catch(e){}}
-const boardKey=(mode,d)=>mode+'-'+(mode==='online'?1:d);
+const boardKey=(mode,d)=>mode+'-'+(/online$/.test(mode)?1:d);
 let localScores={};
 try{localScores=JSON.parse(localStorage.getItem('ff-scores')||'{}')||{}}catch(e){}
 function saveLocal(key,row){
@@ -652,7 +889,7 @@ function saveLocal(key,row){
 }
 let lastBoard={mode:'duel',d:1};
 function recordScore(res){
-  const B=G.player,mode=G.online?'online':(G.mode==='brawl'&&G.boards.length>4?'brawl8':G.mode),d=G.online?1:G.d,key=boardKey(mode,d);
+  const B=G.player,base=G.online?'online':(G.mode==='brawl'&&G.boards.length>4?'brawl8':G.mode),mode=(G.variant&&G.variant!=='classic'?G.variant+'-':'')+base,d=G.online?1:G.d,key=boardKey(mode,d);
   lastBoard={mode,d};
   const prevBest=(localScores[key]||[])[0];
   const row={name:ME.name,av:prefs.av,score:B.score,chain:B.maxChain,won:!!res.won,place:res.place||1,at:Date.now()};
@@ -670,29 +907,31 @@ function recordScore(res){
       el.textContent=`#${r.rank_day} today · #${r.rank_all} all time`+(r.personal_best?' · New personal best!':'');
     });
 }
-const lb={mode:'duel',d:1,period:'day',req:0};
+const lb={variant:'classic',mode:'duel',d:1,period:'day',req:0};
+const lbKey=()=>(lb.variant!=='classic'?lb.variant+'-':'')+lb.mode;
 function setSeg(id,v){$$(id+' button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.v===String(v))))}
 function openBoard(mode,d){
-  if(mode){lb.mode=mode;lb.d=d}
+  if(mode){const m=/^(order|stack|shot|boss)-(.+)$/.exec(mode);lb.variant=m?m[1]:'classic';lb.mode=m?m[2]:mode;lb.d=d}
+  else lb.variant=prefs.variant;
   openSub('#ovBoard');loadBoard();
 }
 const dateFmt=t=>{const d=new Date(t),now=Date.now(),h=(now-d)/36e5;return h<1?'just now':h<24?Math.floor(h)+'h ago':d.toLocaleDateString(undefined,{month:'short',day:'numeric'})};
 async function loadBoard(){
-  setSeg('#lbMode',lb.mode);setSeg('#lbDiff',lb.d);setSeg('#lbPeriod',lb.period);
+  setSeg('#lbVar',lb.variant);setSeg('#lbMode',lb.mode);setSeg('#lbDiff',lb.d);setSeg('#lbPeriod',lb.period);
   $('#lbDiff').hidden=lb.mode==='online';$('#lbPeriod').hidden=!SCORES;
   const list=$('#lbList'),req=++lb.req;
-  const meta=r=>`${r.max_chain||r.chain||1}-chain · ${r.won?'Won':placeName(r.place||2)}`;
+  const meta=r=>`${lb.variant==='boss'?(r.won?'Boss beaten':'Boss won'):(r.max_chain||r.chain||1)+'-chain · '+(r.won?'Won':placeName(r.place||2))}`;
   const row=(rank,name,score,sub,mine,av)=>`<li${mine?' class="mine"':''}><span class="rk">${rank}</span><div class="who">${av?avImg(av):''}<div><b>${esc(name)}</b><span>${sub}</span></div></div><span class="sc">${score}</span></li>`;
   if(!SCORES){
     $('#lbSrc').textContent='Your games on this device';$('#lbNote').textContent='';
-    const rows=localScores[boardKey(lb.mode,lb.d)]||[];
+    const rows=localScores[boardKey(lbKey(),lb.d)]||[];
     list.innerHTML=rows.length?rows.slice(0,10).map((r,i)=>row(i+1,r.name,r.score,meta(r)+' · '+dateFmt(r.at),false,r.av)).join(''):'<li class="lbempty">No games here yet. Finish one to set a score.</li>';
     return;
   }
   $('#lbSrc').textContent='Everyone · best score per cook';$('#lbNote').textContent=lb.period==='day'?'Last 24 hours':'';
   list.innerHTML='<li class="lbempty">Loading…</li>';
   try{
-    const rows=await SCORES.board(lb.mode,lb.d,lb.period,deviceId,50);
+    const rows=await SCORES.board(lbKey(),lb.d,lb.period,deviceId,50);
     if(req!==lb.req)return;
     let html='',prev=0;
     rows.forEach(r=>{if(r.rank>prev+1&&prev)html+='<li class="gap">⋯</li>';prev=r.rank;html+=row(r.rank,r.name,r.score,meta(r)+' · '+dateFmt(r.created_at),r.mine,r.avatar)});
@@ -702,8 +941,8 @@ async function loadBoard(){
     list.innerHTML='<li class="lbempty">Couldn\'t load the leaderboard. Check your connection and try again.</li>';
   }
 }
-['#lbMode','#lbDiff','#lbPeriod'].forEach(id=>$$(id+' button').forEach(b=>b.addEventListener('click',()=>{
-  const v=b.dataset.v;if(id==='#lbMode')lb.mode=v;else if(id==='#lbDiff')lb.d=+v;else lb.period=v;loadBoard();
+['#lbVar','#lbMode','#lbDiff','#lbPeriod'].forEach(id=>$$(id+' button').forEach(b=>b.addEventListener('click',()=>{
+  const v=b.dataset.v;if(id==='#lbVar')lb.variant=v;else if(id==='#lbMode')lb.mode=v;else if(id==='#lbDiff')lb.d=+v;else lb.period=v;loadBoard();
 })));
 $('#bBoard').addEventListener('click',()=>openBoard());
 $('#bBoardEnd').addEventListener('click',()=>openBoard(lastBoard.mode,lastBoard.d));
@@ -712,7 +951,7 @@ $('#bBoardEnd').addEventListener('click',()=>openBoard(lastBoard.mode,lastBoard.
 function startPractice(d,mode,size){
   wakeAudio();
   lastDiff=d;lastMode=mode;lastSize=size;
-  G=new Game(mode,d,baseHooks,false,{av:prefs.av,name:ME.name,size});
+  G=new Game(mode,d,baseHooks,false,{av:prefs.av,name:ME.name,size,variant:prefs.variant});
   G.paused=true;G.waiting=true;
   rackIds='~';trayKey='~';plating=null;
   buildOpps();renderRack();resize();
@@ -729,11 +968,14 @@ const champTag=b=>G&&G.champId&&b.id===G.champId?'<div class="champ">Champ</div>
 function showMatchup(seconds,go){
   clearInterval(vsTimer);
   const st=$('#vsStage'),me=G.player,others=G.boards.filter(b=>b!==me);
-  if(others.length===1){
+  const vi=VARIANT_INFO[G.variant]||VARIANT_INFO.classic,banner=G.variant==='classic'?'':`<div class="vmode">${vi.name} · ${{order:`first to ${ORDER_GOAL} orders`,stack:'connect 4, chain for pies',shot:'aim, pop 3, drop the rest',boss:'everyone vs. the boss'}[G.variant]}</div>`;
+  if(G.boss){
+    st.innerHTML=banner+`<div class="crowd">${G.boards.map((b,i)=>`<div class="fighter${b===me?' me':''}" style="animation-delay:${i*.06}s"><img src="${body(b.av)}" alt=""><div class="chunky">${esc(b.name)}</div></div>`).join('')}</div><div class="chunky vsword" style="font-size:44px">VS</div><div class="fighter boss"><img src="${body(G.boss.av)}" alt=""><div class="chunky">${esc(G.boss.name)}</div></div>`;
+  }else if(others.length===1){
     const o=others[0];
-    st.innerHTML=`<div class="duelvs"><div class="fighter l"><img src="${body(me.av)}" alt=""><div class="chunky">${esc(me.name)}</div>${champTag(me)}</div><div class="chunky vsword">VS</div><div class="fighter r"><img src="${body(o.av)}" alt=""><div class="chunky">${esc(o.name)}</div>${champTag(o)}</div></div>`;
+    st.innerHTML=banner+`<div class="duelvs"><div class="fighter l"><img src="${body(me.av)}" alt=""><div class="chunky">${esc(me.name)}</div>${champTag(me)}</div><div class="chunky vsword">VS</div><div class="fighter r"><img src="${body(o.av)}" alt=""><div class="chunky">${esc(o.name)}</div>${champTag(o)}</div></div>`;
   }else{
-    st.innerHTML=`<div class="chunky" style="font-size:40px;margin-bottom:10px">${G.boards.length}-cook brawl!</div><div class="crowd">${G.boards.map((b,i)=>`<div class="fighter${b===me?' me':''}" style="animation-delay:${i*.06}s"><img src="${body(b.av)}" alt="" style="animation-delay:${i*.06}s"><div class="chunky">${esc(b.name)}</div>${champTag(b)}</div>`).join('')}</div>`;
+    st.innerHTML=banner+`<div class="chunky" style="font-size:40px;margin-bottom:10px">${G.variant==='order'?`${G.boards.length}-kitchen race!`:`${G.boards.length}-cook brawl!`}</div><div class="crowd">${G.boards.map((b,i)=>`<div class="fighter${b===me?' me':''}" style="animation-delay:${i*.06}s"><img src="${body(b.av)}" alt="" style="animation-delay:${i*.06}s"><div class="chunky">${esc(b.name)}</div>${champTag(b)}</div>`).join('')}</div>`;
   }
   let n=seconds;
   $('#countNum').textContent=seconds>1?n:'';show('#ovVs');sfx('slam');
@@ -757,7 +999,7 @@ function closePause(){if(G&&!G.online&&!G.waiting)G.paused=false;hideAll()}
 $('#bPause').addEventListener('click',()=>{if(!$('#ovPause').hidden)closePause();else if(!anyOverlay())openPause()});
 $('#bResume').addEventListener('click',closePause);
 $('#bQuit').addEventListener('click',()=>{if(G&&G.online){leaveRoom()}else{if(G)G.over=true;toMenu()}});
-$('#bAgain').addEventListener('click',()=>{if(G&&G.online){if(lastMatch)joinGrudge(gmState(lastMatch.mid,lastMatch.bots,lastMatch.diff))}else startPractice(lastDiff,lastMode,lastSize)});
+$('#bAgain').addEventListener('click',()=>{if(G&&G.online){if(lastMatch)joinGrudge(gmState(lastMatch.mid,lastMatch.bots,lastMatch.diff,lastMatch.variant))}else startPractice(lastDiff,lastMode,lastSize)});
 $('#bLobby').addEventListener('click',backToLobby);
 $('#bMenu').addEventListener('click',()=>{if(G&&G.online)leaveRoom();else toMenu()});
 $('#bSound').addEventListener('click',()=>{prefs.muted=!prefs.muted;savePrefs();wakeAudio();showMute()});
@@ -805,6 +1047,38 @@ function fillPicker(box){
   });
 }
 
+/* ---------- game mode picker (start screen + lobby) ---------- */
+function variantIcon(v){
+  const c=document.createElement('canvas');c.width=112;c.height=80;const x=c.getContext('2d'),s=36;
+  if(v==='classic'){drawTile(x,{t:0,clr:0},14,22,s,1,0);drawTile(x,{t:1,clr:0},62,22,s,1,0);x.strokeStyle='#F7C548';x.lineWidth=4;x.lineCap='round';x.beginPath();x.moveTo(44,14);x.lineTo(68,14);x.moveTo(62,8);x.lineTo(68,14);x.lineTo(62,20);x.stroke()}
+  else if(v==='order'){x.fillStyle='#FFFDF6';x.beginPath();x.roundRect?x.roundRect(22,6,68,68,8):x.rect(22,6,68,68);x.fill();drawTile(x,{t:0,clr:0},28,14,24,1,0);drawTile(x,{t:3,clr:0},28,44,24,1,0);x.fillStyle='#16A34A';x.fillRect(56,24,28,5);x.fillStyle='#E8DCC6';x.fillRect(56,54,28,5);x.fillStyle='#16A34A';x.fillRect(56,54,12,5)}
+  else if(v==='stack'){drawTile(x,{t:2,clr:0},38,2,s,1,0);drawTile(x,{t:4,clr:0},38,40,s,1,0);x.fillStyle='#F7C548';x.font='bold 22px sans-serif';x.fillText('↻',80,30)}
+  else if(v==='shot'){[[18,16,0],[50,16,2],[34,40,2],[66,40,2]].forEach(([a,b,t])=>drawTile(x,{t,clr:0},a,b,28,1,0));x.strokeStyle='#F7C548';x.lineWidth=3;x.setLineDash([2,6]);x.beginPath();x.moveTo(56,80);x.lineTo(80,48);x.stroke()}
+  else{const im=new Image();im.src=body('fudge');im.onload=()=>{x.drawImage(im,24,0,64,80)};x.fillStyle='#F7C548';x.beginPath();x.moveTo(30,14);x.lineTo(38,2);x.lineTo(46,12);x.lineTo(56,0);x.lineTo(66,12);x.lineTo(74,2);x.lineTo(82,14);x.closePath();x.fill()}
+  return c;
+}
+function buildVariants(box,current,onPick){
+  box.innerHTML='';
+  VARIANT_KEYS.forEach(v=>{
+    const b=document.createElement('button');b.type='button';b.className='vcard';b.dataset.v=v;b.setAttribute('role','radio');
+    b.appendChild(variantIcon(v));
+    b.insertAdjacentHTML('beforeend',`<b>${VARIANT_INFO[v].name}</b><span>${VARIANT_INFO[v].tag}</span>${v==='classic'?'':'<span class="new">NEW</span>'}`);
+    b.addEventListener('click',()=>{onPick(v);sfx('tap')});
+    box.appendChild(b);
+  });
+  markVariants(box,current);
+}
+function markVariants(box,v){box.querySelectorAll('.vcard').forEach(b=>b.setAttribute('aria-checked',String(b.dataset.v===v)))}
+function labelSizes(){
+  const names=VARIANT_INFO[prefs.variant].sizes;
+  $$('#mode button').forEach((b,i)=>{b.firstChild.textContent=names[i]});
+}
+buildVariants($('#variants'),prefs.variant,v=>{prefs.variant=v;savePrefs();markVariants($('#variants'),v);labelSizes();if(NET&&inRoom&&isHost())setRoomMode(v)});
+labelSizes();
+let roomMode=prefs.variant;
+function setRoomMode(v){roomMode=v;markVariants($('#lobbyVariants'),v);if(NET&&inRoom)NET.setProfile({mode:v});renderLobby()}
+buildVariants($('#lobbyVariants'),roomMode,v=>{if(isHost())setRoomMode(v)});
+
 /* ---------- online ---------- */
 let lobbyMembers=[],fillTo=4,botSkill=1,inRoom=false;
 const onlineMsg=t=>{$('#onlineMsg').textContent=t||''};
@@ -817,7 +1091,8 @@ $('#bOnline').addEventListener('click',()=>{if(!NET)return;wakeAudio();onlineMsg
 async function enterRoom(code,invite,retry){
   onlineMsg(invite?`Joining room ${code}…`:'Connecting…');$('#bCreate').disabled=$('#bJoin').disabled=true;
   try{
-    await NET.join(code,{id:ME.id,name:ME.name,av:prefs.av});
+    roomMode=prefs.variant;markVariants($('#lobbyVariants'),roomMode);
+    await NET.join(code,{id:ME.id,name:ME.name,av:prefs.av,mode:roomMode});
     inRoom=true;
     try{history.replaceState(null,'','?room='+code)}catch(e){}
     $('#roomCode').textContent=code;lobbyMsg('');
@@ -926,6 +1201,9 @@ function renderLobby(){
   for(let i=seated.length+bots.length;i<target;i++){const li=document.createElement('li');li.className='empty';li.textContent='Open seat';ul.appendChild(li)}
   $('#seatCount').textContent=`· ${seated.length} of ${MAX_PLAYERS}`;
   $('#hostBox').hidden=!hostView;$('#bStart').hidden=!hostView;
+  const hostMode=host&&VARIANT_INFO[host.id===ME.id?roomMode:host.mode]?(host.id===ME.id?roomMode:host.mode):'classic';
+  $('#lobbyVariants').hidden=!hostView;$('#lobbyVarLab').textContent=hostView?'Game mode':'Next game';
+  const vn=$('#lobbyVarNote');vn.hidden=hostView;vn.innerHTML=`<b>${VARIANT_INFO[hostMode].name}</b> · ${VARIANT_INFO[hostMode].tag}. ${esc(host?host.name:'The host')} picks the mode.`;
   if(me>=MAX_PLAYERS)lobbyMsg('This room is full. You can wait here for an open seat.');
   else if(playing.length)lobbyMsg(playing.some(m=>m.id===ME.id)?'':'A match is in progress. You will be in the next one.');
   else if(!hostView&&host)lobbyMsg(`Waiting for ${host.name} to start.`);
@@ -944,18 +1222,20 @@ $('#bStart').addEventListener('click',()=>{
   const roster=humans.map(h=>({id:h.id,name:h.name,av:h.id===ME.id?prefs.av:h.av}));
   if(fillTo>roster.length)pickBots(fillTo-roster.length,null,[]).forEach((bt,i)=>roster.push({id:`bot:${ME.id}:${i}`,name:bt.name,av:bt.av,bot:true,owner:ME.id}));
   if(roster.length<2){lobbyMsg('Need at least one more cook. Share the code or turn on bots.');return}
-  const m={t:'start',mid:Math.random().toString(36).slice(2,10),seed:Math.floor(Math.random()*2**31),roster,diff:botSkill,delay:3000};
+  const m={t:'start',mid:Math.random().toString(36).slice(2,10),seed:Math.floor(Math.random()*2**31),roster,diff:botSkill,delay:3000,variant:roomMode,host:ME.id,boss:pickBoss(roster)};
   NET.send(m);onStart(m);
 });
+function pickBoss(roster){const used=new Set(roster.map(r=>r.av));const free=FIGHTERS.filter(a=>!used.has(a));const pool=free.length?free:FIGHTERS;return {av:pool[Math.floor(Math.random()*pool.length)]}}
 function onStart(m){
   if(!inRoom||!m||!Array.isArray(m.roster)||m.roster.length<2||m.roster.length>MAX_PLAYERS)return;
   if(!m.roster.some(r=>r.id===ME.id)){if(!$('#ovLobby').hidden)lobbyMsg('A match just started. You will be in the next one.');return}
   wakeAudio();cancelGrudge();NET.setState('playing');spec=null;watchers={};
-  lastMatch={mid:m.mid,roster:m.roster,bots:m.roster.filter(r=>r.bot).length,diff:Math.max(0,Math.min(2,m.diff|0)),champ:null};
+  const variant=VARIANT_INFO[m.variant]?m.variant:'classic';
+  lastMatch={mid:m.mid,roster:m.roster,bots:m.roster.filter(r=>r.bot).length,diff:Math.max(0,Math.min(2,m.diff|0)),champ:null,variant};
   // build the match now so everyone sees boards during the countdown
   G=new Game('online',Math.max(0,Math.min(2,m.diff|0)),Object.assign({},baseHooks,{
     send:x=>{x.mid=m.mid;NET.send(x)}
-  }),false,{roster:m.roster.map(r=>({id:String(r.id),name:String(r.name||'Cook').slice(0,14),av:String(r.av||''),bot:!!r.bot,owner:r.owner?String(r.owner):undefined})),myId:ME.id,seed:m.seed>>>0});
+  }),false,{roster:m.roster.map(r=>({id:String(r.id),name:String(r.name||'Cook').slice(0,14),av:String(r.av||''),bot:!!r.bot,owner:r.owner?String(r.owner):undefined})),myId:ME.id,seed:m.seed>>>0,variant,hostId:m.host?String(m.host):null,boss:m.boss&&FIGHTERS.includes(m.boss.av)?{av:m.boss.av}:null});
   G.mid=m.mid;G.champId=m.champ||null;G.paused=true;G.waiting=true;
   rackIds='~';trayKey='~';plating=null;buildOpps();renderRack();resize();
   showMatchup(Math.max(1,Math.round((m.delay||3000)/1000)),()=>{if(G&&G.mid===m.mid){G.paused=false;G.waiting=false}});
@@ -963,7 +1243,7 @@ function onStart(m){
 /* ---------- Grudge Match: rematch whoever taps in, with the same number of bots ---------- */
 // presence state while waiting: "gm:<last match id>:<bots>:<bot skill>"
 let lastMatch=null,gmMid=null,gmTimer=null,gmDeadline=0,gmTick=null;
-const gmState=(mid,bots,diff)=>`gm:${mid}:${bots|0}:${diff|0}`;
+const gmState=(mid,bots,diff,v)=>`gm:${mid}:${bots|0}:${diff|0}:${VARIANT_INFO[v]?v:'classic'}`;
 const gmKey=st=>st.split(':').slice(0,2).join(':');
 function setAgain(title,sub,disabled){$('#bAgain').innerHTML=`${esc(title)}<small id="againSub">${esc(sub)}</small>`;$('#bAgain').disabled=!!disabled}
 function joinGrudge(state){
@@ -1011,7 +1291,7 @@ function startGrudge(){
   gmTimer=null;
   const ins=gmIns();
   if(ins.length<2||!gmMid||ins[0].id!==ME.id){gmDeadline=0;renderGm();return}
-  const [,,b,d]=(ins[0].state||myGm).split(':');
+  const [,,b,d,gv]=(ins[0].state||myGm).split(':');
   const humans=ins.slice(0,MAX_PLAYERS);
   const roster=humans.map(h=>({id:h.id,name:h.name,av:h.id===ME.id?prefs.av:h.av}));
   const used=new Set(roster.map(r=>r.av));
@@ -1019,7 +1299,7 @@ function startGrudge(){
   BOTS.filter(x=>!used.has(x.av)).concat(BOTS.filter(x=>used.has(x.av))).slice(0,want)
     .forEach((bt,i)=>roster.push({id:`bot:${ME.id}:${i}`,name:bt.name,av:bt.av,bot:true,owner:ME.id}));
   const champ=lastMatch&&('gm:'+lastMatch.mid)===gmMid?lastMatch.champ:null;
-  const m={t:'start',mid:Math.random().toString(36).slice(2,10),seed:Math.floor(Math.random()*2**31),roster,diff:+d||1,delay:3000,champ,grudge:true};
+  const m={t:'start',mid:Math.random().toString(36).slice(2,10),seed:Math.floor(Math.random()*2**31),roster,diff:+d||1,delay:3000,champ,grudge:true,variant:VARIANT_INFO[gv]?gv:'classic',host:ME.id,boss:pickBoss(roster)};
   NET.send(m);onStart(m);
 }
 
@@ -1045,6 +1325,11 @@ if(NET){
       else if(m.t==='steal')G.netSteal(m);
       else if(m.t==='ff')startFF();
       else if(m.t==='watch')onWatch(m);
+      else if(m.t==='owin')G.finishOrders(G.byId(m.id));
+      else if(m.t==='odone')G.netOrderDone(m.id);
+      else if(m.t==='boss')G.netBoss(m);
+      else if(m.t==='dmg')G.netDamage(m);
+      else if(m.t==='batk')G.netBossAttack(m);
       else if(m.t==='give')G.netGive(m);
     },
     members(list){
@@ -1092,7 +1377,7 @@ function loop(now){
   if(G&&!G.over&&!G.paused&&!G.player.dead){const m=G.margin();if(m>lastMargin){lastMargin=m;G.player.pops.push({text:`Overtime · throws ×${m.toFixed(1)}`,x:3,y:4,col:'#F7C548',size:.85,life:90});sfx('overtime')}}
   if(G&&!G.over&&!G.paused&&!G.player.dead&&hf%48===0&&(G.player.g[0].some(Boolean)||G.player.g[1].some(Boolean)))sfx('heart');
   render();
-  if(++hf%3===0&&G){updateOpps();renderTray();hud();updateAim()}
+  if(++hf%3===0&&G){updateOpps();renderTray();hud();updateAim();if(G.variant==='order')renderRail();if(G.boss)renderBoss()}
   if(hf%15===0&&G&&!$('#outToast').hidden){
     const can=G.playerOut&&G.onlyBotsLeft();
     $('#bFF').hidden=!can||!!G.ffMode;

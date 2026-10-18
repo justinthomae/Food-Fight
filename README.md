@@ -3,11 +3,18 @@
 A fast multiplayer food-matching battle from Grudge Match Games.
 Live at **foodfight.grudgematchgames.com**.
 
+Five game modes share the fighters, lobby, online rooms, Grudge Match rematches and leaderboards:
+**Classic** (swap and splat), **Order Up!** (first kitchen to fill 10 orders), **Snack Stack** (falling pairs, connect 4, chain for junk),
+**Splat Shot** (aim and throw, pop 3, drop the rest) and **Boss Brawl** (co-op against a giant fighter). Online, the host picks the mode in the lobby.
+
 Plain static site: no build step, no framework. Online play runs on Supabase Realtime (broadcast + presence). Leaderboards use one locked-down Supabase table.
 
 ```
 index.html            page, styles, overlays
 js/engine.js          game rules (pure logic, no DOM), shared by site, artifact build and tests
+                      also Order Up! (ticket race) and Boss Brawl (co-op) rules
+js/stack.js           Snack Stack board (falling pairs, connect 4, chains)
+js/shot.js            Splat Shot board (hex bubble shooter, pops and drops)
 js/app.js             drawing, input, settings, practice mode, online lobby
 js/net.js             Supabase Realtime rooms
 js/scores.js          leaderboard calls (submit + read)
@@ -30,7 +37,7 @@ You can reuse the BoomTown Supabase project. Using the same project now makes a 
 1. Supabase → Project Settings → API: copy the **Project URL** and the **anon / publishable key** into `js/config.js`.
 2. Supabase → Realtime → Settings: make sure **"Allow public access"** is on. Food Fight uses public channels named `ff:ROOMCODE`.
    - If you'd rather keep private-only channels, that needs a Realtime authorization policy plus signed-in users, which can be done later alongside shared accounts.
-3. Run the leaderboard migrations once, in order: `20261016000001_ff_leaderboard.sql`, then `20261016000002_ff_leaderboard_v2.sql` (fighter avatars, Big Brawl board, 8-player limits), then `20261016000003_ff_leaderboard_v3.sql` (eight fighters; any fighter id accepted). Same method for both: paste `supabase/migrations/20261016000001_ff_leaderboard.sql` into the SQL editor (or apply it with the Supabase MCP / CLI). It creates one table, `ff_scores`, and two functions, `ff_submit_score` and `ff_leaderboard`. The table is locked: browsers can only go through those two functions. Everything is prefixed `ff_`, so it can't collide with BoomTown.
+3. Run the leaderboard migrations once, in order: `20261016000001_ff_leaderboard.sql`, then `20261016000002_ff_leaderboard_v2.sql` (fighter avatars, Big Brawl board, 8-player limits), then `20261016000003_ff_leaderboard_v3.sql` (eight fighters; any fighter id accepted), then `20261017000004_ff_leaderboard_v4.sql` (a set of boards per game mode: `order-*`, `stack-*`, `shot-*`, `boss-*`). Same method for both: paste `supabase/migrations/20261016000001_ff_leaderboard.sql` into the SQL editor (or apply it with the Supabase MCP / CLI). It creates one table, `ff_scores`, and two functions, `ff_submit_score` and `ff_leaderboard`. The table is locked: browsers can only go through those two functions. Everything is prefixed `ff_`, so it can't collide with BoomTown.
 
 ### 2. GitHub Pages (same setup as Fliptide and ChipWreck)
 1. Push this folder to `justinthomae/FoodFight`. The `CNAME` file already says `foodfight.grudgematchgames.com`, and `.nojekyll` makes Pages serve the files as-is.
@@ -52,9 +59,9 @@ Open the site on two devices, tap **Play online → Create a room** on one, and 
 - **Traffic:** a 4-player match is roughly 25 small messages per second per room. Check the Realtime quota for your plan if many rooms run at once.
 
 ## Leaderboards
-- Boards: Duel, Brawl (one per bot skill) and Online, each with Today (last 24 hours), This week and All time. Each cook appears once, with their best score.
+- Boards: per game mode (Classic, Order Up!, Snack Stack, Splat Shot, Boss Brawl), then Duel, Brawl, Big Brawl (one per bot skill) and Online, each with Today (last 24 hours), This week and All time. Each cook appears once, with their best score.
 - Players are identified by a random device id plus the name they type. Shared Grudge Match accounts can fill the reserved `user_id` column later.
-- Server checks: score must be plausible for the game length (at most 120 points/second), one submission per device every 15 seconds, and names are trimmed and cleaned. This stops casual cheating, not a determined one.
+- Server checks: score must be plausible for the game length (at most 200 points/second), one submission per device every 15 seconds, and names are trimmed and cleaned. This stops casual cheating, not a determined one.
 - Without Supabase configured, the board shows the player's own games on that device.
 
 ## Known limits (v0.1)
@@ -68,6 +75,7 @@ Serve the folder with any static server, for example `python3 -m http.server 517
 ```
 node test/net-sim.js                      # bot-vs-bot online matches over a fake network
 node test/specials-sim.js                 # special tiles/items get earned and used
+node test/modes-sim.js                    # every mode x size x difficulty finishes, all bots
 NODE_PATH=<dir with jsdom> node test/dom-smoke.js
 python3 tools/build-artifact.py           # single-file practice build in dist/
 ```

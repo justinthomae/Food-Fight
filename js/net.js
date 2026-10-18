@@ -15,7 +15,7 @@ window.FFNet=(function(){
   function readMembers(){
     if(!ch)return[];
     const st=ch.presenceState(),list=[];
-    for(const k in st){const p=st[k]&&st[k][0];if(p&&p.id)list.push({id:p.id,name:String(p.name||'Cook').slice(0,14),av:String(p.av||''),joinedAt:+p.joinedAt||0,state:p.state||'lobby'})}
+    for(const k in st){const p=st[k]&&st[k][0];if(p&&p.id)list.push({id:p.id,name:String(p.name||'Cook').slice(0,14),av:String(p.av||''),joinedAt:+p.joinedAt||0,state:p.state||'lobby',mode:String(p.mode||'classic')})}
     list.sort((a,b)=>a.joinedAt-b.joinedAt||(a.id<b.id?-1:1));
     return list;
   }
@@ -38,7 +38,7 @@ window.FFNet=(function(){
     });
     return code;
   }
-  function track(){if(ch&&me)return ch.track({id:me.id,name:me.name,av:me.av||'',joinedAt,state})}
+  function track(){if(ch&&me)return ch.track({id:me.id,name:me.name,av:me.av||'',mode:me.mode||'classic',joinedAt,state})}
   function setProfile(p){if(me)Object.assign(me,p);return track()}
   function setState(s){state=s;return track()}
   function send(payload){if(ch)ch.send({type:'broadcast',event:'m',payload}).catch(()=>{})}

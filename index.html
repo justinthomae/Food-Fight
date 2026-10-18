@@ -139,6 +139,55 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
 /* overlays */
 .overlay{position:fixed;inset:0;z-index:40;display:grid;place-items:center;background:var(--scrim);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);padding:calc(20px + env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) calc(20px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));overflow:auto}
 .card{width:min(430px,100%);background:var(--panel);border-radius:20px;padding:22px;display:flex;flex-direction:column;gap:14px;box-shadow:0 20px 60px rgba(0,0,0,.35)}
+
+/* game mode picker */
+.variants{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;margin:0 -4px;padding:2px 4px 4px;scroll-snap-type:x proximity}
+.variants::-webkit-scrollbar{display:none}
+.vcard{flex:0 0 104px;scroll-snap-align:start;border:2px solid var(--line);background:var(--well);border-radius:16px;padding:8px 6px 9px;display:flex;flex-direction:column;align-items:center;gap:4px;color:var(--ink);text-align:center}
+.vcard[aria-checked="true"]{border-color:var(--gold);background:var(--panel2)}
+.vcard canvas,.vcard img{width:56px;height:40px;display:block;object-fit:contain}
+.vcard b{font-family:var(--display);font-weight:400;font-size:15px;line-height:1.05}
+.vcard span{font-size:10px;color:var(--muted);font-weight:700;line-height:1.2}
+.vcard .new{font-size:8px;font-weight:800;letter-spacing:.1em;background:var(--gold);color:var(--gold-ink);border-radius:5px;padding:1px 4px;margin-top:1px}
+.varnote{font-size:13px;color:var(--muted);background:var(--well);border-radius:12px;padding:10px 12px}
+.varnote b{color:var(--ink)}
+/* Order Up! ticket rail */
+.rail{width:var(--bw,300px);max-width:100%;display:flex;gap:6px;flex:none;position:relative;padding-top:7px}
+.rail::before{content:"";position:absolute;left:0;right:0;top:1px;height:4px;border-radius:2px;background:#7B6B8F}
+.ticket{flex:1;min-width:0;background:#FFFDF6;color:#2A1A12;border-radius:3px 3px 9px 9px;padding:4px 6px 5px;box-shadow:0 3px 8px rgba(0,0,0,.35);position:relative;transition:transform .2s}
+.ticket:nth-child(1){transform:rotate(-1.5deg)}.ticket:nth-child(2){transform:rotate(1deg)}.ticket:nth-child(3){transform:rotate(-.6deg)}
+.ticket.rush{background:#FFF1D6}
+.ticket.rush.cold{animation:shake .4s infinite}
+@keyframes shake{25%{transform:translateX(-1px) rotate(-1deg)}75%{transform:translateX(1px) rotate(1deg)}}
+.ticket .th{display:flex;justify-content:space-between;font-family:var(--display);font-size:11px;line-height:1}
+.ticket .th em{font-style:normal;color:#C2410C}
+.ticket .ln{display:flex;align-items:center;gap:3px;margin-top:3px}
+.ticket .ln canvas{width:18px;height:18px;flex:none}
+.ticket .ln b{font-family:var(--display);font-weight:400;font-size:13px;min-width:26px}
+.ticket .ln i{flex:1;height:4px;border-radius:2px;background:#E8DCC6;overflow:hidden;display:block}
+.ticket .ln i u{display:block;height:100%;background:#16A34A}
+.ticket .ln.done b{color:#16A34A}
+/* Boss Brawl */
+.bossbar{flex:none;display:flex;gap:10px;align-items:center;background:linear-gradient(180deg,#3A2A4A,#262B4A);border-radius:16px;padding:6px 12px 8px 6px;position:relative;overflow:hidden}
+.bossbar img{width:74px;height:74px;object-fit:contain;filter:drop-shadow(0 4px 6px rgba(0,0,0,.5));flex:none;transition:transform .1s}
+.bossbar.hit img{transform:scale(.9) rotate(-6deg);filter:drop-shadow(0 0 10px #F7C548) brightness(1.3)}
+.bossbar.phase3{background:linear-gradient(180deg,#5A2230,#2E2440)}
+.bossinfo{flex:1;min-width:0}
+.bossname{font-family:var(--display);font-size:20px;line-height:1;color:#FFF6E8;-webkit-text-stroke:3px #3A1A10;paint-order:stroke fill;text-shadow:0 2px 0 #C2410C;letter-spacing:.02em}
+.bossnext{font-size:11px;color:#F4C6D8;font-weight:700;margin:3px 0 5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bossnext b{color:#FFF6E8}
+.hp{height:12px;border-radius:6px;background:var(--well);overflow:hidden;box-shadow:inset 0 0 0 2px #0B0D1B}
+.hp i{display:block;height:100%;width:100%;background:linear-gradient(90deg,#E5682A,#F7C548);transition:width .25s}
+.hpline{display:flex;justify-content:space-between;font-size:10px;font-weight:800;margin-top:3px;color:var(--ink)}
+.hpline span:last-child{color:var(--gold)}
+.rules.modes b{font-size:18px}
+.slot.full.giving{background:#56B4E9;color:#08131C;border-color:#56B4E9}
+.modectl{display:flex;gap:8px;align-items:center}
+.nextbox{display:flex;align-items:center;gap:6px;background:var(--panel);border-radius:14px;height:52px;padding:0 10px}
+.nextbox span{font-size:9px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.nextbox canvas{display:block}
+.spin{border:0;border-radius:14px;background:var(--panel2);height:52px;padding:0 18px;font-weight:800;font-size:15px;touch-action:none;color:var(--ink)}
+.spin:active{background:var(--gold);color:var(--gold-ink)}
 /* phones: menu screens are one solid sheet edge to edge, not a card floating on a backdrop */
 @media (max-width:600px){
   .overlay.sheet{grid-template-columns:minmax(0,1fr);background:var(--panel);-webkit-backdrop-filter:none;backdrop-filter:none;place-items:start stretch;padding-left:0;padding-right:0}
@@ -271,6 +320,9 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
 @keyframes inL{from{transform:translateX(-60vw)}to{transform:none}}
 @keyframes inR{from{transform:translateX(60vw)}to{transform:none}}
 @keyframes slam{from{transform:scale(3) rotate(-12deg);opacity:0}to{transform:none;opacity:1}}
+.vmode{font-family:var(--display);font-size:16px;color:var(--gold-ink);background:var(--gold);border-radius:10px;padding:4px 12px;margin-bottom:14px;display:inline-block}
+.fighter.boss img{width:170px;height:170px;object-fit:contain;filter:drop-shadow(0 8px 14px rgba(0,0,0,.5));animation:slam .5s cubic-bezier(.2,1.6,.4,1) .4s both}
+.fighter.boss .chunky{font-size:30px}
 .crowd{display:grid;grid-template-columns:repeat(4,1fr);gap:10px 6px;width:100%}
 .crowd .fighter img{max-width:96px;animation:pop .4s cubic-bezier(.2,1.5,.4,1) both}
 .crowd .fighter .chunky{font-size:15px;-webkit-text-stroke-width:4px}
@@ -333,8 +385,18 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
     <button class="icon" id="bPause" aria-label="Pause"><svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg></button>
   </header>
   <section class="arena">
+    <div class="bossbar" id="bossBar" hidden>
+      <img id="bossImg" src="" alt="">
+      <div class="bossinfo">
+        <div class="bossname" id="bossName">BIG FUDGE</div>
+        <div class="bossnext" id="bossNext">Warming up…</div>
+        <div class="hp"><i id="bossHp"></i></div>
+        <div class="hpline"><span id="bossHpText">HP</span><span id="bossPhase">Phase 1</span></div>
+      </div>
+    </div>
     <aside class="opps" id="opps"></aside>
     <div class="play">
+      <div class="rail" id="rail" hidden></div>
       <div class="tray" id="tray"><span class="lbl">Incoming</span><span class="none">Nothing yet</span></div>
       <div class="boardwrap" id="wrap"><canvas id="board"></canvas>
         <div class="specbar" id="specBar" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg><span id="specName">Watching</span><button id="bSpecOff" type="button">My board</button></div>
@@ -347,6 +409,7 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
     <div class="rack">
       <div class="aimline" id="aimline">Tap to throw at <b>—</b></div>
       <div class="slots" id="slots"></div>
+      <div class="modectl" id="modeCtl" hidden></div>
     </div>
   </footer>
 </div>
@@ -368,6 +431,8 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
     <div class="lab">Your fighter</div>
     <div class="picker" id="picker"></div>
     <div class="field"><label class="lab" for="nameIn">Your name · shown on leaderboards</label><input id="nameIn" maxlength="14" autocomplete="nickname" spellcheck="false"></div>
+    <div class="lab">Game mode</div>
+    <div class="variants" id="variants" role="radiogroup" aria-label="Game mode"></div>
     <button class="btn primary big" id="bOnline">Play online<small id="onlineNote">Invite friends with a room code</small></button>
     <div class="lab">Practice vs bots</div>
     <div class="seg three" id="mode">
@@ -395,6 +460,13 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
       <li><b>2</b><span>Big plays earn items for your rack, which holds 3. Tap one to throw it at the cook in the gold Aim box. Aim moves to the next cook every 3 seconds, so time your tap.</span></li>
       <li><b>3</b><span>Pies thrown at you wait in the tray, then splat into your board in the same spot they were made on the thrower's board, pushing your tiles up. Anything you earn during the countdown blocks them first.</span></li>
       <li><b>4</b><span>Break junk by matching next to it. Hold Raise for more tiles. Don't hit the top.</span></li>
+    </ul>
+    <div class="lab">Game modes</div>
+    <ul class="rules modes">
+      <li><b>🧾</b><span><strong>Order Up!</strong> Same board, new goal. Tickets on the rail ask for foods ("4 tomatoes + 5 cheese"). Matches fill the oldest ticket first, and the first kitchen to fill 10 orders wins. Rush tickets 🔥 go cold if you're slow but pay a tip and a hot sauce. Topping out doesn't knock you out here: you spill, lose an order and freeze for a moment.</span></li>
+      <li><b>🍩</b><span><strong>Snack Stack</strong> Pairs of food fall from the top. Drag sideways to slide, tap the board (or Spin) to turn, flick down or tap Drop to slam it. 4 or more of one food touching in any shape pops. When a pop makes the stack fall into another pop, that's a chain, and chains send big junk. Your pops cancel junk that's coming at you. Don't fill the ✕ column.</span></li>
+      <li><b>🎯</b><span><strong>Splat Shot</strong> Food hangs from the ceiling. Drag to aim (the dotted line shows where it'll stick, bounces included), let go to throw. Hit 3 or more of one food to pop them, and anything left hanging drops too. Drops hit hardest. Junk you receive arrives as crust rows that push the ceiling down. Tap Swap or the next food to trade throws. Past the dashed line, you're out.</span></li>
+      <li><b>👑</b><span><strong>Boss Brawl</strong> Co-op. Everyone plays their own board, and every throw hits the giant boss. The boss announces its next attack 5 seconds ahead, then fires at one of you. Hold a rack item for half a second to pass it to the teammate in the most trouble. Beat the boss before it cleans out the whole kitchen.</span></li>
     </ul>
     <div class="lab">How to earn attacks</div>
     <div class="earn">
@@ -448,6 +520,7 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
 <div class="overlay sheet" id="ovBoard" hidden>
   <div class="card">
     <div class="cardhead"><h2>Leaderboards</h2><button class="x" data-close aria-label="Close"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+    <div class="seg" id="lbVar" style="grid-template-columns:repeat(5,1fr)"><button data-v="classic">Classic</button><button data-v="order">Order</button><button data-v="stack">Stack</button><button data-v="shot">Shot</button><button data-v="boss">Boss</button></div>
     <div class="seg" id="lbMode" style="grid-template-columns:repeat(4,1fr)"><button data-v="duel">Duel</button><button data-v="brawl">Brawl</button><button data-v="brawl8">Big</button><button data-v="online">Online</button></div>
     <div class="seg three" id="lbDiff"><button data-v="0">Easy</button><button data-v="1">Normal</button><button data-v="2">Hard</button></div>
     <div class="seg three" id="lbPeriod"><button data-v="day">Today</button><button data-v="week">This week</button><button data-v="all">All time</button></div>
@@ -473,6 +546,9 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
     <div class="cardhead"><h2>Room</h2><button class="btn" id="bLeave">Leave</button></div>
     <div class="code" id="roomCode">----</div>
     <button class="btn" id="bInvite">Share invite link</button>
+    <div class="lab" id="lobbyVarLab">Game mode</div>
+    <div class="variants" id="lobbyVariants" role="radiogroup" aria-label="Game mode"></div>
+    <div class="varnote" id="lobbyVarNote" hidden></div>
     <div class="lab" id="meLab">You</div>
     <div class="merow">
       <button class="meav" id="meAv" type="button" aria-label="Change fighter" aria-expanded="false"><img id="meAvImg" src="" alt="" width="64" height="64"></button>
@@ -546,6 +622,8 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
 <script src="js/config.js" data-site-only></script>
 <script src="js/sfx.js"></script>
 <script src="js/engine.js"></script>
+<script src="js/stack.js"></script>
+<script src="js/shot.js"></script>
 <script src="js/net.js" data-site-only></script>
 <script src="js/scores.js" data-site-only></script>
 <script src="js/app.js"></script>

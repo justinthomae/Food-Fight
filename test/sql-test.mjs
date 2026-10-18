@@ -89,3 +89,25 @@ ok(lb.find(x=>x.mine).avatar==='guac','new fighter avatar stored after v3');
 r=await submit2('device-v3a2','Bad','duel',1,300,"x'; drop table ff_scores;--");
 ok(r.ok&&(await asAnon(`select * from ff_leaderboard('duel',1,'all','device-v3a2',50)`)).rows.find(x=>x.mine).avatar==='','junk avatar stored as blank');
 console.log('v3 done');
+
+// ---- v4: game modes get their own boards
+const v4=fs.readFileSync(new URL('../supabase/migrations/20261017000004_ff_leaderboard_v4.sql',import.meta.url),'utf8');
+await db.exec(v4);await db.exec(v4);
+const nBefore=(await db.query('select count(*)::int n from ff_scores')).rows[0].n;
+ok(nBefore>0,'v4 applies twice and keeps existing scores');
+r=await submit2('device-v4a1','Stacker','stack-duel',2,5000,'guac');
+ok(r.ok&&r.rank_all===1,'stack-duel score accepted');
+r=await submit2('device-v4a2','Boss Fan','boss-online',0,2000,'fudge');
+ok(r.ok,'boss-online score accepted');
+lb=(await asAnon(`select * from ff_leaderboard('boss-online',2,'all','device-v4a2',50)`)).rows;
+ok(lb.length===1&&lb[0].mine,'online mode boards ignore difficulty');
+lb=(await asAnon(`select * from ff_leaderboard('stack-duel',2,'all',null,50)`)).rows;
+ok(lb.length===1&&lb[0].name==='Stacker','each mode has its own board');
+ok((await asAnon(`select * from ff_leaderboard('duel',1,'all',null,50)`)).rows.every(x=>x.name!=='Stacker'),'classic board unaffected');
+r=await submit2('device-v4a3','Hack','stack-mega',1,100,'guac');
+ok(r.ok===false&&r.reason==='mode','unknown mode rejected');
+r=await submit2('device-v4a4','Hack','duel; drop',1,100,'guac');
+ok(r.ok===false,'junk mode string rejected');
+let bad=false;try{await db.query(`insert into ff_scores(device_id,name,mode,difficulty,score,duration_s) values('device-v4zz','x','pizza',1,1,60)`)}catch(e){bad=true}
+ok(bad,'table constraint blocks unknown modes');
+console.log('v4 done');
