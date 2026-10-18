@@ -14,7 +14,7 @@ const ORDER_GOAL=10;
 const MARGIN=50,RACK=3,RUSH=180,CYCLE=180,CREAM=300,FREEZE=150,SPECIAL_RATE=.16;
 // rack items: pie/tower = junk, sauce = fast rise, cream = board covered, freeze = no swaps, blender = scramble top rows,
 // pin = flatten own top rows, plate = clear every tile of one food on your own board, swap = trade whole boards with your target
-const JUNK_KINDS=['pie','tower'],ATTACK_KINDS=['pie','tower','sauce','cream','freeze','blender','swap'],SPECIALS=['cream','freeze','blender','pin','plate','swap'],SPECIAL_W=[3,2,3,2,2,1.5];
+const JUNK_KINDS=['pie','tower'],ATTACK_KINDS=['pie','tower','sauce','cream','freeze','blender','swap','steam','grease'],SPECIALS=['cream','freeze','blender','pin','plate','swap'],SPECIAL_W=[3,2,3,2,2,1.5];
 const SELF_KINDS=['pin','plate'];
 const SPECIAL_TOTAL=SPECIAL_W.reduce((a,b)=>a+b,0);
 function pickSpecial(rng){let x=rng()*SPECIAL_TOTAL;for(let i=0;i<SPECIALS.length;i++){x-=SPECIAL_W[i];if(x<0)return SPECIALS[i]}return SPECIALS[0]}
@@ -726,7 +726,8 @@ class Game{
     if(!to||to.dead||!to.gridCode)return;
     to.lastAttacker=from;
     if(from&&!from.remote&&!from.dead&&from.gridCode){
-      const a=to.g;to.g=from.g;from.g=a;
+      if(to.shot&&from.shot){const a=to.h,p=to.par;to.h=from.h;to.par=from.par;from.h=a;from.par=p;to.ball=from.ball=null}
+      else{const a=to.g;to.g=from.g;from.g=a}
       to.chain=from.chain=1;to.tower=from.tower=0;
       to.swapped(from);from.swapped(to);
     }else if(item&&item.g){
@@ -747,6 +748,8 @@ class Game{
     else if(item.k==='freeze')to.freeze(from);
     else if(item.k==='blender')to.blend(from);
     else if(item.k==='swap')this.swapBoards(to,from,item);
+    else if(item.k==='steam'){if(to.steam)to.steam(from);else to.cream(from)}
+    else if(item.k==='grease'){if(to.grease)to.grease(from);else to.freeze(from)}
     else to.receive(item.cells,from,item.at);
   }
   aim(){if(this.boss)return this.bossObj;const o=this.alive().filter(b=>b!==this.player);return o.length?o[Math.floor(this.frame/CYCLE)%o.length]:null}

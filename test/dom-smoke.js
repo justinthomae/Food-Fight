@@ -311,7 +311,9 @@ const check=(cond,msg)=>{console.log((cond?'PASS ':'FAIL ')+msg);if(!cond)proces
       MG.boss.hp=10;MG.player.earn({k:'pie',cells:5},3,5);MG.player.fire(MG.player.rack.length-1);for(let i=0;i<40;i++)MG.step();await sleep(900);
       check(MG.over&&MG.result.won&&MG.result.coop&&/Boss beaten/.test(mp.$('#eTitle').textContent),'boss: knocking out the boss wins for the team');}
     if(v==='stack'){const P=MG.player;
-      check(!mp.$('#modeCtl').hidden&&mp.$('#slots').hidden&&/Drop/.test(mp.$('#bRaise').textContent),'stack: Drop and Spin controls');
+      check(!mp.$('#modeCtl').hidden&&mp.$('#movePad')&&mp.$('#bSpin')&&mp.$('#bDrop')&&mp.$('#bRaise').hidden&&mp.$('#modeCtl #slots'),'stack: thumb controls (slide pad, Spin over Drop) with the item rack');
+      if(P.piece){const c0=P.piece.c;mp.$('#movePad').dispatchEvent(new mp.w.MouseEvent('pointerdown',{clientX:10,clientY:10,bubbles:true}));mp.$('#movePad').dispatchEvent(new mp.w.MouseEvent('pointerup',{bubbles:true}));check(P.piece.c===Math.max(0,c0-1),'stack: tapping the left of the pad moves left');}
+      P.earn({k:'steam'},3,5);await sleep(100);check(mp.w.document.querySelectorAll('#modeCtl .slot.full').length===1,'stack: earned item shows in the rack');
       check(P.piece||P.state!=='fall','stack: a pair is falling');
       if(P.piece){const c0=P.piece.c;P.move(1);check(P.piece.c===c0+1||c0===5,'stack: move works');const r0=P.piece.rot;P.rotate(1);check(P.piece.rot!==r0||true,'stack: spin works');}
       for(let k=0;k<3;k++){for(let i=0;i<200&&P.state!=='fall';i++)MG.step();P.hardDrop();}
