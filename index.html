@@ -251,13 +251,25 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
 .movepad.reversed{background:#4A2A44;box-shadow:inset 0 0 0 2px #CC79A7}
 .movepad.reversed span:first-child::after{content:"";}
 /* Snack Stack thumb layout: arrows centred under the board, square Spin/Drop on the right edge */
-.controls.stackbtn{position:relative;padding-right:76px;justify-content:center}
+.controls.stackbtn{position:relative;justify-content:center}
 .controls.stackbtn .rack{max-width:none}
 .controls.stackbtn .modectl{justify-content:center}
 .controls.stackbtn .ctlcol{position:absolute;right:0;bottom:0;gap:8px}
 .controls.stackbtn .ctlcol .spin{width:70px;height:70px;border-radius:16px}
 .controls.stackbtn .spin.icon{font-size:36px}
 .controls.stackbtn .spin.drop{font-size:21px}
+.stackrow{display:flex;gap:8px;width:100%;align-items:stretch}
+.movepad.row{flex:2 1 0;width:auto;height:78px;padding:0;font-size:32px;justify-content:space-around}
+.movepad.row::before{content:"";position:absolute;left:50%;top:14px;bottom:14px;width:2px;margin-left:-1px;background:rgba(255,255,255,.12)}
+.movepad.row span{flex:1;text-align:center}
+.stackrow .spin{flex:1 1 0;height:78px;border-radius:16px;padding:0;min-width:0}
+.stackrow .spin.icon{font-size:36px}
+.stackrow .spin.drop{font-size:21px}
+.movepad .revtag{display:none;position:absolute;left:50%;top:-11px;transform:translateX(-50%);background:#CC79A7;color:#fff;font-size:11px;font-weight:800;letter-spacing:.04em;padding:3px 9px;border-radius:999px;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,.4)}
+.movepad.reversed .revtag{display:block}
+.movepad.reversed{animation:revpulse 1s ease-in-out infinite}
+@keyframes revpulse{50%{box-shadow:inset 0 0 0 3px #F2A7D2,0 0 14px rgba(204,121,167,.6)}}
+.controls.stackbtn .rack{flex:1;max-width:none;width:100%}
 .movepad i{position:absolute;left:0;right:0;bottom:8px;text-align:center;font-style:normal;font-size:9px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
 .movepad:active{background:var(--line)}
 .fly.steam{background:#EEF0FA;width:28px;height:20px;border-radius:12px}
@@ -451,7 +463,7 @@ button.nextbox:active{background:var(--gold)}
   .foe canvas,.duel .foe canvas{width:60px;height:120px}
   .brand{font-size:28px}
 }
-@media (prefers-reduced-motion:reduce){.fly{transition:none}.slot.new{animation:none}}
+@media (prefers-reduced-motion:reduce){.fly{transition:none}.movepad.reversed{animation:none}.slot.new{animation:none}}
 </style>
 </head>
 <body>

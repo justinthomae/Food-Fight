@@ -177,7 +177,7 @@ class StackBoard{
   cream(from){this.steam(from)}
   steam(from){if(this.dead)return;this.steamT=360;this.lastAttacker=from;this.hitFlash=24;this.pop('Steamed up!',3,6,'#EEF0FA',1.05);this.sfx('cream')}
   lights(from){if(this.dead)return;this.lightsT=480;this.lastAttacker=from;this.hitFlash=18;this.pop('Lights out! No preview',3,6,'#EEF0FA',.95);this.sfx('freeze')}
-  reverse(from){if(this.dead)return;this.reverseT=420;this.lastAttacker=from;this.hitFlash=24;this.pop('Topsy-turvy! Left is right',3,6,'#CC79A7',.95);this.sfx('blender')}
+  reverse(from){if(this.dead)return;this.reverseT=420;this.lastAttacker=from;this.hitFlash=24;this.sfx('blender')}
   grease(from){if(this.dead)return;this.greaseT=420;this.lastAttacker=from;this.hitFlash=24;this.pop('Greasy fingers! No preview',3,6,'#F7C548',.9);this.sfx('sauce')}
   freeze(from){this.frozenT=150;this.lastAttacker=from;this.hitFlash=24;this.pop('Brain freeze!',3,9,'#56B4E9',1.1);this.sfx('freeze')}
   blend(from){this.lastAttacker=from;this.hitFlash=24;this.each(t=>{if(t.t>=0&&!t.clr&&Math.random()<.4)t.t=Math.floor(Math.random()*NT)});this.sfx('blender')}

@@ -1,6 +1,6 @@
 // Food Fight UI: drawing, input, settings, practice mode and the online lobby.
 (function(){
-const VERSION='1.9.0';
+const VERSION='1.9.1';
 let spec=null; // board being spectated after you're knocked out
 const $=s=>document.querySelector(s);
 const $$=s=>[...document.querySelectorAll(s)];
@@ -739,13 +739,13 @@ MODE_UI.stack={
   slots:true,noTray:true,footClass:()=>prefs.stackCtl==='buttons'?'stackbtn':'',
   noRaise:()=>prefs.stackCtl==='buttons',
   raiseLabel:'Drop',
-  side(){return prefs.stackCtl==='buttons'?'<div class="nextbox"><span>Next</span><canvas id="nextCv"></canvas></div><div id="slotHost"></div><div class="ctlcol"><button class="spin icon" id="bSpin" type="button" aria-label="Spin">↻</button><button class="spin drop" id="bDrop" type="button">Drop</button></div>':''},
+  side(){return prefs.stackCtl==='buttons'?'<div class="nextbox"><span>Next</span><canvas id="nextCv"></canvas></div><div id="slotHost"></div>':''},
   sideW(){return prefs.stackCtl==='buttons'?76:0},
   ctl(){
     const next='<div class="nextbox"><span>Next</span><canvas id="nextCv"></canvas></div>';
     if(prefs.stackCtl!=='buttons')return next+'<div id="slotHost"></div>';   // swipe mode: tap the board to spin, Drop on the left
-    // left thumb: a big slide pad. right thumb: Spin on top, Drop underneath. Next pair and items sit beside the board
-    return `<div class="movepad wide" id="movePad"><span>◀</span><span>▶</span></div>`;   // Spin and Drop live in the right column
+    // one row under the board: left, right (one pad, so you can also slide across it), Spin, Drop. Next pair and items sit beside the board
+    return `<div class="stackrow"><div class="movepad row" id="movePad"><span>◀</span><span>▶</span><b class="revtag">⇄ Reversed</b></div><button class="spin icon" id="bSpin" type="button" aria-label="Spin">↻</button><button class="spin drop" id="bDrop" type="button">Drop</button></div>`;
   },
   bind(){
     // just the very next pair, big
@@ -797,10 +797,17 @@ MODE_UI.stack={
     }
     drawEffects(ctx,B,W,H,f);drawSteam(B,W,H,f);
     if(mine)drawIncoming(B);
+    if(mine&&B.reverseT>360){   // first second: a big warning across the middle of the board
+      const a=Math.min(1,(B.reverseT-360)/15),t1='CONTROLS',t2='REVERSED!';
+      ctx.fillStyle=`rgba(11,13,27,${.55*a})`;ctx.fillRect(0,H*.36,W,H*.28);
+      ctx.globalAlpha=a;ctx.textAlign='center';ctx.textBaseline='middle';ctx.lineWidth=S*.16;ctx.strokeStyle='#0B0D1B';
+      [[t1,H*.44,.75],[t2,H*.55,.95]].forEach(([t,y,z])=>{ctx.font=`${Math.round(S*z)}px 'Lilita One','Arial Rounded MT Bold',sans-serif`;const tw=ctx.measureText(t).width;if(tw>W*.9)ctx.font=`${Math.round(S*z*W*.9/tw)}px 'Lilita One','Arial Rounded MT Bold',sans-serif`;ctx.strokeText(t,W/2,y);ctx.fillStyle='#F2A7D2';ctx.fillText(t,W/2,y)});
+      ctx.globalAlpha=1;
+    }
     if(mine&&B.reverseT>0){const t=`⇄ Controls reversed ${Math.ceil(B.reverseT/60)}s`;ctx.font=`800 ${Math.round(S*.3)}px Figtree,sans-serif`;const tw=ctx.measureText(t).width+S*.6;ctx.fillStyle='rgba(204,121,167,.95)';rr(ctx,W/2-tw/2,S*.78,tw,S*.5,S*.25);ctx.fill();ctx.fillStyle='#FFFFFF';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(t,W/2,S*1.03)}
     drawFxLayer(B,0);
     if(B.dead&&G.playerOut&&!G.over)drawKO(B,W,H);
-    if(mine){this.drawNext();const pad=$('#movePad');if(pad)pad.classList.toggle('reversed',B.reverseT>0)}
+    if(mine){this.drawNext();const pad=$('#movePad');if(pad){pad.classList.toggle('reversed',B.reverseT>0);const tg=pad.querySelector('.revtag');if(tg&&B.reverseT>0)tg.textContent=`⇄ Reversed ${Math.ceil(B.reverseT/60)}s`}}
   },
   down(e,p){const B=G.player;sd={id:e.pointerId,x0:p.x,y0:p.y,t:performance.now(),c0:B.piece?B.piece.c:2,moved:false}},
   move(e,p){
