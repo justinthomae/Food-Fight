@@ -1,6 +1,6 @@
 // Food Fight UI: drawing, input, settings, practice mode and the online lobby.
 (function(){
-const VERSION='1.6.0';
+const VERSION='1.6.1';
 let spec=null; // board being spectated after you're knocked out
 const $=s=>document.querySelector(s);
 const $$=s=>[...document.querySelectorAll(s)];
@@ -481,7 +481,7 @@ function buildOpps(){
   const box=$('#opps');box.innerHTML='';box.classList.toggle('duel',!multi());box.classList.toggle('many',G.boards.length>4);
   minis=G.boards.filter(b=>b!==G.player).map(b=>{
     const el=document.createElement('div');el.className='foe';el.title=b.name;
-    el.innerHTML=`<div class="nm">${esc(b.name)}</div><div class="body"><div class="mb"><canvas></canvas>${avImg(b.av)}</div><div class="who"><div class="st">Cooking</div><div class="meta"></div><div class="tag" hidden>Aim</div><div class="eye">Watching</div></div></div>`;
+    el.innerHTML=`<div class="nm">${avImg(b.av)}<span>${esc(b.name)}</span></div><div class="body"><div class="mb"><canvas></canvas></div><div class="who"><div class="st">Cooking</div><div class="meta"></div><div class="tag" hidden>Aim</div><div class="eye">Watching</div></div></div>`;
     el.addEventListener('click',()=>watchBoard(b));
     box.appendChild(el);
     const cvm=el.querySelector('canvas');
@@ -491,7 +491,7 @@ function buildOpps(){
   const bb=$('#bossBar');bb.hidden=!G.boss;
   if(G.boss){$('#bossImg').src=body(G.boss.av);$('#bossImg').alt=G.boss.name;$('#bossName').textContent=G.boss.name.toUpperCase();bossKey=''}
   sizeMinis();updateAim();
-  requestAnimationFrame(()=>minis.forEach(m=>fitText(m.el.querySelector('.nm'),m.el.closest('.duel')?18:16,10)));
+  requestAnimationFrame(()=>minis.forEach(m=>fitText(m.el.querySelector('.nm span'),m.el.closest('.duel')?18:16,10)));
 }
 /* ---------- Order Up! tickets ---------- */
 let railKey='';
@@ -622,6 +622,7 @@ function resize(){
   cv.width=Math.round(S*COLS*DPR);cv.height=Math.round(S*ROWS*DPR);
   ctx.setTransform(DPR,0,0,DPR,0,0);
   document.documentElement.style.setProperty('--bw',S*COLS+'px');
+  {const sc=$('#sideCol');if(sc)sc.style.height=S*ROWS+'px'}   // side column lines up with the board, items at its bottom
   sizeMinis();render();
 }
 new ResizeObserver(resize).observe($('#wrap'));
@@ -633,13 +634,16 @@ function setControls(){
   const mu=MODE_UI[G&&G.variant],slots=$('#slots');
   // park the rack back in its normal spot before a mode rebuilds its bar
   if(slots.parentNode!==$('.rack'))$('#aimline').after(slots);
-  $('#modeCtl').hidden=!(mu&&mu.ctl);slots.hidden=!!(mu&&mu.ctl&&!mu.slots);
+  $('#modeCtl').hidden=!(mu&&mu.ctl);slots.hidden=!!(mu&&(mu.ctl||mu.side)&&!mu.slots);
   $('#tray').hidden=!!(mu&&mu.noTray);
   const noRaise=!!(mu&&(typeof mu.noRaise==='function'?mu.noRaise():mu.noRaise));
-  rb.hidden=noRaise;const fc=mu&&mu.footClass?mu.footClass():'';document.querySelector('.controls').classList.toggle('stackbtn',fc==='stackbtn');$('#aimline').hidden=!!(mu&&mu.ctl);document.querySelector('.controls').classList.toggle('wide',noRaise);
+  rb.hidden=noRaise;const fc=mu&&mu.footClass?mu.footClass():'';document.querySelector('.controls').classList.toggle('stackbtn',fc==='stackbtn');$('#aimline').hidden=!!(mu&&(mu.ctl||mu.side));document.querySelector('.controls').classList.toggle('wide',noRaise);
   rb.innerHTML=mu&&mu.raiseLabel?mu.raiseLabel:'<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 4l8 10h-5v6H9v-6H4z"/></svg>Raise';
   const sideHtml=mu&&mu.side?mu.side():'';$('#sideCol').innerHTML=sideHtml;$('#sideCol').hidden=!sideHtml;
-  if(mu&&mu.ctl){$('#modeCtl').innerHTML=mu.ctl();const host=$('#slotHost');if(host&&mu.slots)host.appendChild(slots);if(mu.bind)mu.bind()}
+  document.querySelector('.controls').hidden=!!(mu&&mu.noFooter);
+  if(mu&&mu.ctl)$('#modeCtl').innerHTML=mu.ctl();
+  {const host=$('#slotHost');if(host&&mu&&mu.slots)host.appendChild(slots)}
+  if(mu&&mu.bind)mu.bind();
   rackIds='~';renderRack();requestAnimationFrame(resize);
 }
 // steam: soft clouds drift over the top of a board (Snack Stack and Splat Shot)
@@ -784,21 +788,11 @@ let shotDrag=null;
 const shooterImg={};
 function fighterImg(av){if(!shooterImg[av]){const im=new Image();im.src=body(av);shooterImg[av]=im}return shooterImg[av]}
 MODE_UI.shot={
-  noTray:true,slots:true,noRaise:true,
+  noTray:true,slots:true,noRaise:true,noFooter:true,
+  side(){return `<div class="sidefig"><img src="${body(G.player.av||'bun')}" alt=""></div><div id="slotHost"></div>`},
+  sideW(){return 76},
   raiseLabel:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7h11l-3-3M17 17H6l3 3"/></svg>Swap',
   // what you're throwing and what's next live down here, clear of your thumb and your fighter
-  ctl(){return '<div class="nextbox now"><span>Now</span><canvas id="nowCv"></canvas></div><button class="nextbox" id="bNextShot" type="button"><span>Next</span><canvas id="nxCv"></canvas></button><div id="slotHost"></div>'},
-  bind(){
-    const mk=(id,s)=>{const c=$(id);c.width=s*DPR;c.height=s*DPR;c.style.width=c.style.height=s+'px'};
-    mk('#nowCv',36);mk('#nxCv',28);this.key_='';
-    $('#bNextShot').addEventListener('pointerdown',e=>{e.preventDefault();if(canPlay())G.player.swap()});
-  },
-  drawCtl(B){
-    const key=B.cur+'|'+B.next+'|'+prefs.palette+prefs.art+cuisine();if(key===this.key_)return;this.key_=key;
-    const a=$('#nowCv'),b=$('#nxCv');if(!a||!b)return;
-    const x=a.getContext('2d');x.clearRect(0,0,a.width,a.height);drawTile(x,{t:B.cur,clr:0},0,0,a.width,1,0);
-    const y=b.getContext('2d');y.clearRect(0,0,b.width,b.height);drawTile(y,{t:B.next,clr:0},0,0,b.width,1,0);
-  },
   render(){
     const Q=SHOTGEO();if(!Q)return;
     const B=spec||G.player,W=S*COLS,H=S*ROWS,f=G.frame,mine=B===G.player,u=S,sz=Q.D*u;
@@ -834,9 +828,6 @@ MODE_UI.shot={
     }else if(!B.dead&&!(mine&&B.greaseT>0)){
       ctx.strokeStyle='rgba(247,197,72,.5)';ctx.lineWidth=2;ctx.setLineDash([2,6]);ctx.beginPath();ctx.moveTo(Q.SX*u,(Q.SY-.55)*u);ctx.lineTo((Q.SX+Math.cos(a)*2.2)*u,(Q.SY-.55+Math.sin(a)*2.2)*u);ctx.stroke();ctx.setLineDash([]);
     }
-    // your fighter cheers from the corner instead of sitting on top of the launcher
-    const im=fighterImg(B.av||'bun');
-    if(im.complete&&im.naturalWidth)ctx.drawImage(im,.05*u,(ROWS-1.45)*u,1.3*u,1.4*u);
     if(B.ball){if(B.ball.bomb||B.ball.wild){ctx.save();ctx.shadowColor=B.ball.bomb?'#E5682A':'#F7C548';ctx.shadowBlur=16}drawTile(ctx,{t:B.ball.t,clr:0},(B.ball.x-Q.R)*u,(B.ball.y-Q.R)*u,sz*.96,1,f);if(B.ball.bomb||B.ball.wild)ctx.restore()}
     if(B.cur!=null&&!B.dead){
       // launcher: a plate holding the food you're about to throw, big and ringed in its colour
@@ -847,19 +838,23 @@ MODE_UI.shot={
       ctx.lineWidth=Math.max(3,S*(B.armed?.14:.09));ctx.beginPath();ctx.arc(lx,ly,big*.7,0,Math.PI*2);ctx.stroke();
       if(B.armed){ctx.fillStyle=B.armed==='bomb'?'#E5682A':'#F7C548';ctx.font=`800 ${Math.round(S*.24)}px Figtree,sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(B.armed==='bomb'?'CHILI BOMB':'RAINBOW',lx,ly-big*.95)}
       if(!B.ball)drawTile(ctx,{t:B.cur,clr:0},lx-big/2,ly-big/2,big,1,f);
-      // next one waits on the left of the launcher
-      const nx=(Q.SX-1.35)*u,ny=(Q.SY-.35)*u,ns=sz*.72;
-      drawTile(ctx,{t:B.next,clr:0},nx-ns/2,ny-ns/2,ns,.85,f);
-      ctx.fillStyle='rgba(148,155,189,.95)';ctx.font=`800 ${Math.round(S*.22)}px Figtree,sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('NEXT',nx,ny-ns*.75);
+      // next one waits on the left of the launcher: tap it to swap
+      const nx=(Q.SX-1.5)*u,ny=(Q.SY-.4)*u,ns=sz*.9;
+      ctx.fillStyle='rgba(11,13,27,.55)';ctx.beginPath();ctx.arc(nx,ny,ns*.66,0,Math.PI*2);ctx.fill();
+      drawTile(ctx,{t:B.next,clr:0},nx-ns/2,ny-ns/2,ns,.95,f);
+      ctx.fillStyle='rgba(148,155,189,.95)';ctx.font=`800 ${Math.round(S*.2)}px Figtree,sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('NEXT · TAP TO SWAP',nx,ny+ns*.85);
     }
     if(mine&&B.greaseT>0){ctx.fillStyle='rgba(247,197,72,.9)';ctx.font=`800 ${Math.round(S*.3)}px Figtree,sans-serif`;ctx.textAlign='center';ctx.fillText('Greasy fingers! No aim guide',W/2,(Q.SY-1.6)*u)}
     drawEffects(ctx,B,W,H,f);drawSteam(B,W,H,f);
     drawFxLayer(B,0);
     if(B.dead&&G.playerOut&&!G.over)drawKO(B,W,H);
-    if(mine)this.drawCtl(B);
   },
   // aim by sliding your finger left/right anywhere on the board (relative, so a small slide is a small turn); let go to throw
-  down(e,p){shotDrag={id:e.pointerId,x0:p.x,y0:p.y,a0:G.player.aimA,moved:false}},
+  down(e,p){
+    const Q=SHOTGEO(),x=p.x/S,y=p.y/S;
+    if(Math.hypot(x-(Q.SX-1.5),y-(Q.SY-.4))<.62){G.player.swap();shotDrag=null;sfx('tap');return}   // tap the next food to swap
+    shotDrag={id:e.pointerId,x0:p.x,y0:p.y,a0:G.player.aimA,moved:false};
+  },
   move(e,p){
     if(!shotDrag||e.pointerId!==shotDrag.id)return;
     const dx=p.x-shotDrag.x0;if(Math.abs(dx)>4)shotDrag.moved=true;
