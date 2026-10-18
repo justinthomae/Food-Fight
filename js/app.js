@@ -1,6 +1,6 @@
 // Food Fight UI: drawing, input, settings, practice mode and the online lobby.
 (function(){
-const VERSION='1.11.0';
+const VERSION='1.12.0';
 let spec=null; // board being spectated after you're knocked out
 // how far we are between two 60Hz game steps (0..1): drawing uses it so motion is smooth on 90/120/144Hz screens too
 let ALPHA=0,lastDraw=performance.now(),drawDt=16,SIDEW=0;
@@ -480,8 +480,19 @@ ICONS.rainbow='<svg viewBox="0 0 24 24" fill="none" stroke-width="2.4" stroke-li
 ICONS.bomb='<svg viewBox="0 0 24 24"><circle cx="11" cy="14" r="7" fill="#D7263D" stroke="#2A1A12" stroke-width="1.3"/><path d="M15 8l2-2" stroke="#2A1A12" stroke-width="2" stroke-linecap="round"/><path d="M18 4l1-1M20 6h1M18 2v1" stroke="#F7C548" stroke-width="1.6" stroke-linecap="round"/><ellipse cx="8.5" cy="11.5" rx="1.6" ry="1" fill="rgba(255,255,255,.6)"/></svg>';
 ICONS.lights='<svg viewBox="0 0 24 24"><path d="M12 2a6.5 6.5 0 0 0-3.8 11.8c.6.5.8 1.1.8 1.8V17h6v-1.4c0-.7.3-1.3.8-1.8A6.5 6.5 0 0 0 12 2z" fill="#5A5F7A" stroke="#2A1A12" stroke-width="1.3"/><rect x="9" y="18" width="6" height="3" rx="1" fill="#9AA3BC" stroke="#2A1A12" stroke-width="1.1"/><path d="M4 4l16 16" stroke="#E5682A" stroke-width="2.2" stroke-linecap="round"/></svg>';
 ICONS.reverse='<svg viewBox="0 0 24 24" fill="none" stroke="#CC79A7" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h14l-3-3M20 16H6l3 3"/></svg>';
-const LABEL={pie:'Trash',tower:'Heap',sauce:'Sauce',cream:'Cream',freeze:'Freeze',blender:'Blender',pin:'Pin',plate:'Plate',swap:'Swap',steam:'Steam',grease:'Grease',rainbow:'Rainbow',bomb:'Bomb',lights:'Lights',reverse:'Flip'};
-const VALUE={sauce:'3s',cream:'5s',freeze:'2.5s',blender:'Mix',pin:'Self',plate:'Pick',swap:'Board',steam:'6s',grease:'6s',rainbow:'Self',bomb:'Self',lights:'All',reverse:'7s'};
+ICONS.scramble='<svg viewBox="0 0 24 24" fill="none" stroke="#CC79A7" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7h4l10 10h4M3 17h4l3-3M14 10l3-3h4M18 4l3 3-3 3M18 14l3 3-3 3"/></svg>';
+ICONS.twist='<svg viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18" stroke="#9AA3BC" stroke-dasharray="2 3"/><rect x="3" y="10" width="6" height="8" rx="1" fill="#A65BD9" stroke="#2A1A12" stroke-width="1.2"/><rect x="15" y="6" width="6" height="12" rx="1" fill="#3FC5E8" stroke="#2A1A12" stroke-width="1.2"/><path d="M7 5c2-2 8-2 10 0l-2 0M17 5v2" stroke="#CC79A7"/></svg>';
+ICONS.quake='<svg viewBox="0 0 24 24" fill="none" stroke="#E5682A" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12h3l2-5 3 10 3-8 2 5 2-3 5 1"/><path d="M4 20h16" stroke="#9AA3BC"/></svg>';
+ICONS.speed='<svg viewBox="0 0 24 24" fill="none" stroke="#E5682A" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4l5 6-5 6M13 8l5 6-5 6"/></svg>';
+ICONS.dark='<svg viewBox="0 0 24 24"><path d="M15 3a9 9 0 1 0 6 13 7 7 0 0 1-6-13z" fill="#3A3F5C" stroke="#9AA3BC" stroke-width="1.5" stroke-linejoin="round"/></svg>';
+ICONS.shotgun='<svg viewBox="0 0 24 24"><rect x="2" y="9" width="14" height="4" rx="1.5" fill="#6B7080" stroke="#2A1A12" stroke-width="1.2"/><circle cx="19" cy="7" r="1.6" fill="#E5484D"/><circle cx="21" cy="11" r="1.6" fill="#E5484D"/><circle cx="19" cy="15" r="1.6" fill="#E5484D"/></svg>';
+ICONS.blast='<svg viewBox="0 0 24 24"><rect x="3" y="12" width="18" height="4" rx="1" fill="#6B7080" stroke="#2A1A12" stroke-width="1.1"/><rect x="3" y="17" width="18" height="4" rx="1" fill="#6B7080" stroke="#2A1A12" stroke-width="1.1"/><path d="M12 2v7M9 6l3 3 3-3" stroke="#E5484D" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+ICONS.hide='<svg viewBox="0 0 24 24" fill="none" stroke="#9AA3BC" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/><path d="M4 20L20 4" stroke="#E5484D"/></svg>';
+ICONS.shield='<svg viewBox="0 0 24 24"><path d="M12 2l8 3v6c0 5-3.5 9-8 11-4.5-2-8-6-8-11V5z" fill="#56B4E9" stroke="#2A1A12" stroke-width="1.3" stroke-linejoin="round"/><path d="M12 5v14" stroke="#FFFFFF" stroke-width="1.5" opacity=".6"/></svg>';
+ICONS.avalanche='<svg viewBox="0 0 24 24"><rect x="4" y="3" width="5" height="5" rx="1" fill="#F7C548" stroke="#2A1A12" stroke-width="1.1"/><rect x="12" y="6" width="5" height="5" rx="1" fill="#5CC45C" stroke="#2A1A12" stroke-width="1.1"/><rect x="3" y="16" width="18" height="5" rx="1" fill="#6B7080" stroke="#2A1A12" stroke-width="1.1"/><path d="M6.5 10v4M14.5 13v1.5" stroke="#56B4E9" stroke-width="2" stroke-linecap="round"/></svg>';
+ICONS.push='<svg viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="4" rx="1" fill="#6B7080" stroke="#2A1A12" stroke-width="1.1"/><rect x="4" y="8" width="16" height="4" rx="1" fill="#6B7080" stroke="#2A1A12" stroke-width="1.1"/><path d="M12 14v7M8.5 17.5L12 21l3.5-3.5" stroke="#56B4E9" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+const LABEL={pie:'Trash',tower:'Heap',sauce:'Sauce',cream:'Cream',freeze:'Freeze',blender:'Blender',pin:'Pin',plate:'Plate',swap:'Swap',steam:'Steam',grease:'Grease',rainbow:'Rainbow',bomb:'Bomb',lights:'Lights',reverse:'Flip',scramble:'Scramble',twist:'Twist',quake:'Quake',speed:'Speed',dark:'Dark',shotgun:'Shotgun',blast:'Blast',hide:'Hide',shield:'Shield',avalanche:'Avalanche',push:'Push'};
+const VALUE={sauce:'3s',cream:'5s',freeze:'2.5s',blender:'Mix',pin:'Self',plate:'Pick',swap:'Board',steam:'6s',grease:'6s',rainbow:'Self',bomb:'Self',lights:'All',reverse:'7s',scramble:'Pieces',twist:'Flip',quake:'Shake',speed:'6s',dark:'8s',shotgun:'Junk',blast:'+4',hide:'10s',shield:'10s',avalanche:'Self',push:'Self'};
 let rackIds='';
 function renderRack(){
   const box=$('#slots'),B=G&&G.player;
@@ -803,6 +814,9 @@ function drawBlock(c,v,x,y,s,a){
     c.fillStyle='rgba(0,0,0,.22)';c.fillRect(x+p*2.4,y+s-p-s*.16,s-p*4.8,s*.1)}
   if(a!=null)c.globalAlpha=1;
 }
+// the flashing "?" block that carries an item
+function drawQ(c,x,y,s){const a=.55+.45*Math.sin((G?G.frame:0)*.25);c.fillStyle=`rgba(255,255,255,${.25*a})`;rr(c,x+s*.08,y+s*.08,s*.84,s*.84,s*.2);c.fill();
+  c.fillStyle=`rgba(11,13,27,${.55+.35*a})`;c.font=`900 ${Math.round(s*.66)}px Figtree,sans-serif`;c.textAlign='center';c.textBaseline='middle';c.fillText('?',x+s/2,y+s*.54)}
 const BT=()=>window.FFEngine&&FFEngine.BOARD_TYPES.blocks;
 function blocksView(b){
   if(!b.remote)return b.view();
@@ -817,8 +831,8 @@ function drawPieceAt(c,p,cx,cy,s,a){
 }
 let bsideKey='';
 MODE_UI.blocks={
-  noTray:true,noRaise:true,footClass:()=>'stackbtn',
-  side(){return '<button class="nextbox bholdbox" id="holdBox" type="button" aria-label="Hold"><span>Hold</span><canvas id="holdCv"></canvas></button><div class="nextbox"><span>Next</span><canvas id="bnextCv"></canvas></div>'},
+  noTray:true,noRaise:true,slots:true,footClass:()=>'stackbtn',
+  side(){return '<button class="nextbox bholdbox" id="holdBox" type="button" aria-label="Hold"><span>Hold</span><canvas id="holdCv"></canvas></button><div class="nextbox"><span>Next</span><canvas id="bnextCv"></canvas></div><div id="slotHost"></div>'},
   sideW(){return 76},
   ctl(){return `<div class="stackrow blocksrow"><div class="movepad row" id="movePad"><span>◀</span><span>▶</span></div><button class="spin icon" id="bSoft" type="button" aria-label="Soft drop">▼</button><button class="spin icon" id="bCCW" type="button" aria-label="Turn left">↺</button><button class="spin icon" id="bCW" type="button" aria-label="Turn right">↻</button><button class="spin drop" id="bHard" type="button">Drop</button></div>`},
   bind(){
@@ -837,7 +851,12 @@ MODE_UI.blocks={
   held:new Set(),
   key(k,down){
     const B=G.player,map={ArrowLeft:'L',ArrowRight:'R',ArrowDown:'SD',' ':'HD',ArrowUp:'CW',x:'CW',X:'CW',z:'CCW',Z:'CCW',Control:'CCW',c:'HOLD',C:'HOLD',Shift:'HOLD'},a=map[k];
-    if(!a)return false;
+    if(!a){
+      // items: V throws the oldest, 1-3 a specific one
+      if(down&&(k==='v'||k==='V')){if(B.rack.length)B.fire(0);return true}
+      if(down&&'123'.includes(k)&&k.length===1){B.fire(+k-1);return true}
+      return false;
+    }
     if(down){if(this.held.has(k))return true;this.held.add(k);B.press(a)}   // ignore the keyboard's own auto-repeat: DAS handles it
     else{this.held.delete(k);B.release(a)}
     return true;
@@ -845,15 +864,18 @@ MODE_UI.blocks={
   drawSide(B){
     const K=BT(),hc=$('#holdCv'),nc=$('#bnextCv');if(!K||!hc||!nc)return;
     const colW=(SIDEW||76)/SIDEZ-16,ps=Math.max(8,Math.min(colW/4.2,(S*COLS/10)/SIDEZ)),q=B.queue||[];
-    const key=[B.hold,B.holdUsed,q.slice(0,5).join(''),ps.toFixed(1)].join('|');if(key===bsideKey)return;bsideKey=key;
+    const hid=B.hideT>0;
+    const key=[B.hold,B.holdUsed,q.slice(0,5).join(''),ps.toFixed(1),hid].join('|');if(key===bsideKey)return;bsideKey=key;
     const hw=Math.round(ps*4.4),hh=Math.round(ps*2.8);
     hc.width=hw*DPR;hc.height=hh*DPR;hc.style.width=hw+'px';hc.style.height=hh+'px';
     let x=hc.getContext('2d');x.setTransform(DPR,0,0,DPR,0,0);x.clearRect(0,0,hw,hh);
-    if(B.hold)drawPieceAt(x,B.hold,hw/2,hh/2,ps,B.holdUsed?.35:1);
+    const qm=(c,w,h)=>{c.fillStyle='#9AA3BC';c.font=`800 ${Math.round(ps*1.4)}px Figtree,sans-serif`;c.textAlign='center';c.textBaseline='middle';c.fillText('?',w/2,h/2)};
+    if(hid)qm(x,hw,hh);else if(B.hold)drawPieceAt(x,B.hold,hw/2,hh/2,ps,B.holdUsed?.35:1);
     $('#holdBox').classList.toggle('used',!!B.holdUsed);
     const sizes=[1,.8,.8,.7,.7],gap=ps*.6;let th=0;sizes.forEach(z=>th+=ps*z*2+gap);
     nc.width=hw*DPR;nc.height=Math.round(th)*DPR;nc.style.width=hw+'px';nc.style.height=Math.round(th)+'px';
     x=nc.getContext('2d');x.setTransform(DPR,0,0,DPR,0,0);x.clearRect(0,0,hw,th);
+    if(hid){qm(x,hw,th);return}
     let y=gap/2;sizes.forEach((z,i)=>{const s2=ps*z;if(q[i])drawPieceAt(x,q[i],hw/2,y+s2,s2,1);y+=s2*2+gap});
   },
   render(){
@@ -865,7 +887,11 @@ MODE_UI.blocks={
     const sh=B.shake?Math.sin(B.shake*2)*cs*.1:0,dim=B.dead?.45:1;
     if(B.remote){const v=blocksView(B);for(let r=0;r<20;r++)for(let c=0;c<10;c++)drawBlock(ctx,v[r][c],c*cs,r*cs+sh,cs,dim)}
     else{
-      for(let r=HID;r<HID+20;r++)for(let c=0;c<10;c++){const v=B.m[r][c];if(v)drawBlock(ctx,v,c*cs,(r-HID)*cs+sh,cs,dim)}
+      // Darkness: your own stack goes black (just a faint outline) while it lasts
+      const dark=mine&&B.darkT>0,SPB=K.SP;
+      for(let r=HID;r<HID+20;r++)for(let c=0;c<10;c++){const v=B.m[r][c];if(!v)continue;const x0=c*cs,y0=(r-HID)*cs+sh;
+        if(dark){ctx.strokeStyle='rgba(154,163,188,.16)';ctx.lineWidth=1;rr(ctx,x0+cs*.12,y0+cs*.12,cs*.76,cs*.76,cs*.18);ctx.stroke();continue}
+        drawBlock(ctx,v&15,x0,y0,cs,dim);if(v&SPB)drawQ(ctx,x0,y0,cs)}
       // rows being cleared flash white, then shrink away
       if(B.clearRows){const k=B.clearT/14;B.clearRows.forEach(r=>{if(r<HID)return;ctx.fillStyle=`rgba(255,255,255,${.85*k})`;const hgt=cs*k;ctx.fillRect(0,(r-HID)*cs+(cs-hgt)/2,Wp,hgt)})}
       const p=B.piece;
@@ -876,12 +902,18 @@ MODE_UI.blocks={
         const v=this.vis||(this.vis={});if(v.pid!==B.pid||v.b!==B){v.pid=B.pid;v.b=B;v.c=p.c;v.r=p.r}
         const k=1-Math.exp(-drawDt/22);v.c+=(p.c-v.c)*k;v.r+=(p.r-v.r)*k;if(Math.abs(v.c-p.c)<.02)v.c=p.c;if(Math.abs(v.r-p.r)<.02)v.r=p.r;
         if(Math.abs(v.r-p.r)>2.5)v.r=p.r;   // hard drops land instantly
-        K.SHAPES[p.p][p.rot].forEach(([dr,dc])=>{const r=v.r+dr-HID;if(r>-1)drawBlock(ctx,p.p,(v.c+dc)*cs,r*cs+sh,cs,dim)});
+        K.SHAPES[p.p][p.rot].forEach(([dr,dc],i)=>{const r=v.r+dr-HID;if(r>-1){drawBlock(ctx,p.p,(v.c+dc)*cs,r*cs+sh,cs,dim);if(i===B.spCell)drawQ(ctx,(v.c+dc)*cs,r*cs+sh,cs)}});
       }
     }
     // incoming garbage: a red bar up the left edge, one cell per line
     const inc=B.remote?(B.binc|0):B.incoming();
     if(inc>0){const hh=Math.min(20,inc)*cs,soon=!B.remote&&B.inc.some(i=>i.t<=0);ctx.fillStyle=soon?`rgba(229,72,77,${.75+.25*Math.sin(G.frame*.5)})`:'rgba(229,72,77,.85)';ctx.fillRect(0,Hp-hh,Math.max(4,cs*.18),hh)}
+    // what's hitting you right now
+    if(!B.remote){
+      if(B.shieldT>0){ctx.strokeStyle=`rgba(86,180,233,${.5+.3*Math.sin(G.frame*.2)})`;ctx.lineWidth=Math.max(3,cs*.16);ctx.strokeRect(2,2,Wp-4,Hp-4)}
+      const tags=[];if(B.speedT>0)tags.push(['Speed up',B.speedT,'#E5682A']);if(B.darkT>0)tags.push(['Darkness',B.darkT,'#9AA3BC']);if(B.hideT>0)tags.push(['Hidden',B.hideT,'#9AA3BC']);if(B.shieldT>0)tags.push(['Shield',B.shieldT,'#56B4E9']);
+      tags.forEach(([t,f,col],i)=>{const txt=`${t} ${Math.ceil(f/60)}s`;ctx.font=`800 ${Math.round(cs*.42)}px Figtree,sans-serif`;const tw=ctx.measureText(txt).width+cs*.6,y=cs*.35+i*cs*.75;ctx.fillStyle=col;rr(ctx,Wp-tw-cs*.25,y,tw,cs*.62,cs*.31);ctx.fill();ctx.fillStyle='#0B0D1B';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(txt,Wp-tw/2-cs*.25,y+cs*.32)});
+    }
     // nearly topped out
     if(!B.remote&&B.rows()>=17){ctx.fillStyle=`rgba(229,72,77,${.18+.12*Math.sin(G.frame*.25)})`;ctx.fillRect(0,0,Wp,cs*3)}
     // bits from cleared lines

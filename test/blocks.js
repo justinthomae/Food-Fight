@@ -47,3 +47,26 @@ const run=(g,n)=>{for(let i=0;i<n;i++)g.step()};
 // bots play and finish a battle
 {const g=new E.Game('brawl',1,{},true,{variant:'blocks',size:4});let f=0;while(!g.over&&f<60*900){g.step();f++}
  check(g.over&&g.boards.some(b=>b.lines>20),'bots battle to a finish ('+(f/60|0)+'s)');}
+// ---------- items ----------
+{const BBI=BB.ITEMS;check(BBI.length===12,'12 items');
+ // a ? block in a cleared line racks an item
+ const {g,P,B}=mk();run(g,40);
+ for(let r=18;r<22;r++)for(let c=0;c<9;c++)P.m[r][c]=8;P.m[21][0]=8|BB.SP;
+ P.piece={p:1,rot:1,r:0,c:7};P.hardDrop();
+ check(P.rack.length===1&&BBI.includes(P.rack[0].k),'clearing a ? block racks an item ('+(P.rack[0]&&P.rack[0].k)+')');}
+const fx=(k,setup)=>{const {g,P,B}=mk();run(g,40);run(g,1);for(let r=14;r<22;r++)for(let c=0;c<10;c++)B.m[r][c]=(r+c)%3?((c%7)+1):0;run(g,40);setup&&setup(P,B);
+  P.rack=[{k,id:999}];P.fire(0);run(g,40);return {g,P,B}};
+{const {B}=fx('scramble',(P,B)=>{B.queue=[1,1,1,1,1,1]});check(B.queue.slice(0,5).some(t=>t!==1),'Scramble rewrites the target\'s pieces');}
+{let before;const {B}=fx('twist',(P,B)=>{before=B.m.map(r=>r.join(','))});check(B.m[20].join(',')===before[20].split(',').reverse().join(','),'Twist mirrors the target\'s stack');}
+{let before;const {B}=fx('quake',(P,B)=>{before=B.m.map(r=>r.join(','))});check(B.m.some((r,i)=>r.join(',')!==before[i]),'Earthquake slides the target\'s rows');}
+{const {B}=fx('speed');check(B.speedT>0,'Speed up makes the target fall faster');}
+{const {B}=fx('dark');check(B.darkT>0,'Darkness hides the target\'s stack');}
+{const {B}=fx('hide');check(B.hideT>0,'Hide covers the target\'s Next and Hold');}
+{let n0;const {B}=fx('shotgun',(P,B)=>{n0=B.m.flat().filter(v=>v===8).length});check(B.m.flat().filter(v=>v===8).length>n0,'Shotgun drops junk on the target');}
+{let n0;const {B}=fx('blast',(P,B)=>{n0=B.m.filter(r=>r.filter(v=>v===8).length===9).length});check(B.m.filter(r=>r.filter(v=>v===8).length===9).length>=n0+4,'Garbage blast adds 4 lines at once');}
+{let a,b;const {P,B}=fx('swap',(P,B)=>{a=P.m.map(r=>r.join('')).join('|');b=B.m.map(r=>r.join('')).join('|')});check(P.m.map(r=>r.join('')).join('|')===b&&B.m.map(r=>r.join('')).join('|')===a,'Switcheroo trades wells');}
+{const {g,P,B}=mk();run(g,40);P.rack=[{k:'shield',id:1}];P.fire(0);P.receive(5,B);check(P.incoming()===0&&P.blocked===5,'Shield stops incoming garbage');}
+{const {g,P}=mk();run(g,40);for(let c=0;c<10;c++){P.m[21][c]=c===3?0:5;P.m[20][c]=c===3?5:0}P.rack=[{k:'avalanche',id:1}];P.fire(0);check(P.m[21].every(v=>!v)&&P.lines===1,'Avalanche drops blocks into holes and clears');}
+{const {g,P}=mk();run(g,40);for(let r=16;r<22;r++)P.m[r].fill(8);for(let r=16;r<22;r++)P.m[r][0]=0;P.rack=[{k:'push',id:1}];P.fire(0);check(P.rows()===2,'Push shoves the bottom 4 rows out ('+P.rows()+')');}
+{const g=new E.Game('brawl',2,{},true,{variant:'blocks',size:4});const used={};g.boards.forEach(b=>{const f=b.fire.bind(b);b.fire=i=>{const it=b.rack[i];const r=f(i);if(r&&it)used[it.k]=1;return r}});let f=0;while(!g.over&&f<60*600){g.step();f++}
+ check(Object.keys(used).length>=5,'bots earn and use items ('+Object.keys(used).join(',')+')');}

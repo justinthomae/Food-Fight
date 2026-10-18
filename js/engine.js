@@ -14,7 +14,7 @@ const ORDER_GOAL=10;
 const MARGIN=50,RACK=3,RUSH=180,CYCLE=180,CREAM=300,FREEZE=150,SPECIAL_RATE=.16;
 // rack items: pie/tower = junk (drawn as trash bags), sauce = fast rise, cream = board covered, freeze = no swaps, blender = scramble top rows,
 // pin = flatten own top rows, plate = clear every tile of one food on your own board, swap = trade whole boards with your target
-const JUNK_KINDS=['pie','tower'],ATTACK_KINDS=['pie','tower','sauce','cream','freeze','blender','swap','steam','grease','lights','reverse'],SPECIALS=['cream','freeze','blender','pin','plate','swap'],SPECIAL_W=[3,2,3,2,2,1.5];
+const JUNK_KINDS=['pie','tower'],ATTACK_KINDS=['pie','tower','sauce','cream','freeze','blender','swap','steam','grease','lights','reverse','scramble','twist','quake','speed','dark','shotgun','blast','hide'],SPECIALS=['cream','freeze','blender','pin','plate','swap'],SPECIAL_W=[3,2,3,2,2,1.5];
 const SELF_KINDS=['pin','plate'];
 const SPECIAL_TOTAL=SPECIAL_W.reduce((a,b)=>a+b,0);
 function pickSpecial(rng){let x=rng()*SPECIAL_TOTAL;for(let i=0;i<SPECIALS.length;i++){x-=SPECIAL_W[i];if(x<0)return SPECIALS[i]}return SPECIALS[0]}
@@ -733,6 +733,7 @@ class Game{
     to.lastAttacker=from;
     if(from&&!from.remote&&!from.dead&&from.gridCode){
       if(to.shot&&from.shot){const a=to.h,p=to.par;to.h=from.h;to.par=from.par;from.h=a;from.par=p;to.ball=from.ball=null}
+      else if(to.blocks&&from.blocks){const a=to.m;to.m=from.m;from.m=a}
       else{const a=to.g;to.g=from.g;from.g=a}
       to.chain=from.chain=1;to.tower=from.tower=0;
       to.swapped(from);from.swapped(to);
@@ -749,6 +750,7 @@ class Game{
   margin(){const s=this.frame/60-MARGIN;return s>0?1+Math.floor(s/15)*.3:1}
   alive(){return this.boards.filter(b=>!b.dead)}
   deliver(to,item,from){
+    if(to.blocks&&item.k!=='swap'&&!JUNK_KINDS.includes(item.k)){to.effect(item.k,from);return}   // Block Battle items
     if(item.k==='sauce')to.rush(from);
     else if(item.k==='cream')to.cream(from);
     else if(item.k==='freeze')to.freeze(from);

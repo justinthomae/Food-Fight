@@ -407,6 +407,10 @@ const check=(cond,msg)=>{console.log((cond?'PASS ':'FAIL ')+msg);if(!cond)proces
    const P=Gg.player;for(let r=18;r<22;r++)for(let c=0;c<9;c++)P.m[r][c]=8;P.piece={p:1,rot:1,r:0,c:7};P.state='fall';P.hardDrop();
    await sleep(1500);
    const hp=H.player;check(hp.incoming()>0||hp.m.some(r=>r.filter(v=>v===8).length===9)||H.boards.some(b=>!b.remote&&b.incoming&&b.incoming()>0),'blocks online: the guest\'s quad sends garbage across');
+   Gg.launch(Gg.player,{k:'speed',cells:0},rem);await sleep(1200);
+   check(H.player.speedT>0||H.player.dead,'blocks online: a guest\'s item (Speed up) lands on the host');
+   Gg.player.m[21]=[7,7,7,7,0,7,7,7,7,7];const hm=H.player.m.map(r=>r.join(',')).join('|');Gg.launch(Gg.player,{k:'swap',cells:0},rem);await sleep(1500);
+   check(H.player.m[21].join(',')==='7,7,7,7,0,7,7,7,7,7'||H.player.dead,'blocks online: Switcheroo trades wells across phones');
    oh.errors.concat(og.errors,plain.errors).slice(0,3).forEach(e=>console.log('  ',e));
    check(oh.errors.length===0&&og.errors.length===0&&plain.errors.length===0,'blocks online: no script errors');}
   host.errors.concat(guest.errors,solo.errors).slice(0,5).forEach(e=>console.log('  ',e));

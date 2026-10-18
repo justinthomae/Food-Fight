@@ -26,6 +26,12 @@ const KI={'0>1':K([[0,0],[-2,0],[1,0],[-2,-1],[1,2]]),'1>0':K([[0,0],[2,0],[-1,0
 const ATK_N=[0,0,1,2,4],ATK_TS=[0,2,4,6],ATK_MINI=[0,0,1,2],COMBO=[0,1,1,2,2,3,3,4,4,4,5];
 const PTS_N=[0,100,300,500,800],PTS_TS=[400,800,1200,1600],PTS_MINI=[100,200,400,600];
 // bots: how long they think, how fast they move, how sloppy they are
+// Items, Tetris Friends Arena style: some pieces carry a flashing "?" block; clear the line it's in to rack a random item (3 max).
+// V (or tap) throws the oldest at your target. The last three only work on yourself.
+const ITEMS=['swap','scramble','twist','quake','speed','dark','shotgun','blast','hide','shield','avalanche','push'];
+const ITEM_NAME={swap:'Switcheroo',scramble:'Scramble',twist:'Twist',quake:'Earthquake',speed:'Speed up',dark:'Darkness',shotgun:'Shotgun',blast:'Garbage blast',hide:'Hide',shield:'Shield',avalanche:'Avalanche',push:'Push'};
+const SELF=['shield','avalanche','push'],RACK_N=3,SP=16;   // a locked cell value with the 16 bit set is a "?" block
+const FX_T={speed:360,dark:480,hide:600,shield:600};
 const BOT={think:[46,26,12],move:[8,4,2],noise:[.9,.35,.06],drop:[0,1,1]};
 
 class BlocksBoard{
@@ -35,7 +41,7 @@ class BlocksBoard{
       lastAttacker:null,killedBy:null,place:0,hitFlash:0,diedAt:0,rack:[],rushT:0,creamT:0,frozenT:0,blendT:0,dmg:0,
       state:'are',wait:30,piece:null,bag:[],queue:[],hold:0,holdUsed:false,lines:0,combo:-1,b2b:false,
       lockT:0,resets:0,lowest:0,gAcc:0,soft:false,dir:0,dasT:0,arrT:0,lastRot:false,lastKick:0,clearRows:null,clearT:0,
-      plan:null,think:30,moveT:0,startF:game.frame,flash:[]});
+      plan:null,think:30,moveT:0,startF:game.frame,flash:[],spCell:-1,speedT:0,darkT:0,hideT:0,shieldT:0,fireT:200});
     this.m=[];for(let r=0;r<H;r++)this.m.push(new Array(W).fill(0));
     while(this.queue.length<6)this.queue.push(this.draw());
   }
@@ -62,6 +68,7 @@ class BlocksBoard{
     const o={p,rot:0,r:p===1?HID-1:HID,c:3};
     while(!this.fits(o)&&o.r>(p===1?-1:0))o.r--;
     if(!this.fits(o)){this.piece=null;return this.die()}
+    this.spCell=this.rng()<1/6?Math.floor(this.rng()*4):-1;   // about one piece in six carries a ? block
     this.piece=o;this.pid=(this.pid||0)+1;this.lockT=0;this.resets=0;this.lowest=o.r;this.gAcc=0;this.lastRot=false;this.lastKick=0;
     this.state='fall';this.plan=null;if(this.isBot)this.soft=false;
   }
@@ -112,6 +119,7 @@ class BlocksBoard{
     if(this.dead)return;
     if(this.shake>0)this.shake--;if(this.hitFlash>0)this.hitFlash--;
     this.inc.forEach(i=>{if(i.t>0)i.t--});
+    if(this.speedT>0)this.speedT--;if(this.darkT>0)this.darkT--;if(this.hideT>0)this.hideT--;if(this.shieldT>0)this.shieldT--;
     if(this.state==='are'){if(--this.wait<=0)this.spawn()}
     else if(this.state==='clear'){if(--this.clearT<=0)this.collapse()}
     else if(this.state==='fall')this.fall();
@@ -124,7 +132,8 @@ class BlocksBoard{
     // held left/right: wait DAS frames, then repeat every ARR frames
     if(this.dir&&!this.isBot){this.dasT++;if(this.dasT>=DAS){if(++this.arrT>=ARR){this.arrT=0;this.shift(this.dir)}}}
     if(!this.piece)return;
-    const g=this.soft?Math.max(this.gravity()*20,.5):this.gravity();
+    const base=this.speedT>0?Math.max(this.gravity()*12,.34):this.gravity();
+    const g=this.soft?Math.max(base*20,.5):base;
     this.gAcc+=g;
     while(this.gAcc>=1){this.gAcc-=1;
       if(this.fitsAt(p.p,p.rot,p.r+1,p.c)){p.r++;this.lastRot=false;if(this.soft)this.score+=1;if(p.r>this.lowest){this.lowest=p.r;this.resets=0;this.lockT=0}}
@@ -143,7 +152,7 @@ class BlocksBoard{
   lock(){
     const p=this.piece;if(!p)return;
     const ts=this.tspin(),cells=this.cellsOf(p.p,p.rot,p.r,p.c);
-    cells.forEach(([r,c])=>{if(r>=0)this.m[r][c]=p.p});
+    cells.forEach(([r,c],i)=>{if(r>=0)this.m[r][c]=p.p|(i===this.spCell?SP:0)});this.spCell=-1;
     this.piece=null;this.sfx('swap');
     // locked entirely above the visible well: out
     if(cells.every(([r])=>r<HID))return this.die();
@@ -162,6 +171,9 @@ class BlocksBoard{
       if(b2b)this.pop('Back-to-back',3,y+.9,'#56B4E9',.8);
       if(this.combo>=1)this.pop(`${this.combo} combo`,3,y+(b2b?1.8:.9),'#CC79A7',.8);
       this.sfx(n===4||ts?'chain':'match',n===4?5:n+1);
+      // ? blocks in the cleared lines become items
+      let got=0;full.forEach(r=>this.m[r].forEach(v=>{if(v&SP)got++}));
+      for(let i=0;i<got;i++)this.earn({k:ITEMS[Math.floor(this.rng()*ITEMS.length)]},3,y-1-i*.8);
       if(atk>0)this.sendLines(atk);
       this.clearRows=full;this.clearT=CLEAR_T;this.state='clear';
       if(this.m.every(row=>row.every(v=>!v)))this.pop('Perfect clear!',3,6,'#F7C548',1.2);
@@ -175,7 +187,7 @@ class BlocksBoard{
   }
   collapse(){
     const rows=this.clearRows||[];
-    rows.forEach(r=>{for(let c=0;c<W;c++)this.burst(r,c,this.m[r][c])});
+    rows.forEach(r=>{for(let c=0;c<W;c++)this.burst(r,c,this.m[r][c]&15)});
     const keep=this.m.filter((row,r)=>!rows.includes(r));
     while(keep.length<H)keep.unshift(new Array(W).fill(0));
     this.m=keep;this.clearRows=null;
@@ -209,16 +221,90 @@ class BlocksBoard{
     }
     if(rows){this.shake=8;this.sfx('junk')}
   }
-  receive(cells,from){if(this.dead)return;this.inc.push({cells,t:GARB_T,T:GARB_T,from});this.lastAttacker=from;this.hitFlash=18;this.sfx('incoming')}
+  receive(cells,from){if(this.dead)return;if(this.shieldT>0){this.blocked+=cells;this.pop(`Shield blocked ${cells}`,3,9,'#56B4E9',.85);this.sfx('block');this.lastAttacker=from;return}this.inc.push({cells,t:GARB_T,T:GARB_T,from});this.lastAttacker=from;this.hitFlash=18;this.sfx('incoming')}
   incoming(){return this.inc.reduce((a,i)=>a+i.cells,0)}
   // no items in this mode
   rush(){}cream(){}steam(){}grease(){}freeze(){}blend(){}lights(){}reverse(){}
-  stealFrom(){return null}takeItem(){}earn(){}fire(){return false}
-  gridCode(){return null}loadGrid(){return false}swapped(){}
+  stealFrom(){return null}takeItem(){}
+  earn(item,cx,cy){
+    if(this.dead||!ITEMS.includes(item.k))return;
+    item.id=E.nextId();this.rack.push(item);
+    this.pop(ITEM_NAME[item.k]+'!',cx==null?3:cx,cy==null?6:cy,'#F7C548',.85);this.sfx('earn',true);
+    if(this.rack.length>RACK_N){const i=this.rack.findIndex(x=>!SELF.includes(x.k));this.fire(i<0?0:i)}
+    if(this===this.game.player&&this.game.hooks.rack)this.game.hooks.rack();
+  }
+  fire(i){
+    if(this.dead||i<0||i>=this.rack.length)return false;
+    const it=this.rack[i];
+    if(SELF.includes(it.k)){this.rack.splice(i,1);this.effect(it.k,this)}
+    else{const tgt=this.pickTarget();if(!tgt)return false;this.rack.splice(i,1);this.game.launch(this,{k:it.k,cells:0,at:null},tgt,i)}
+    if(this===this.game.player&&this.game.hooks.rack)this.game.hooks.rack();
+    return true;
+  }
+  // ---------- what each item does when it lands ----------
+  effect(k,from){
+    if(this.dead)return;
+    const mine=from===this;if(!mine){this.lastAttacker=from;this.hitFlash=24}
+    const say=(t,col)=>this.pop(t,3,6,col||'#F7C548',1.05);
+    const stackTop=()=>{for(let r=0;r<H;r++)if(this.m[r].some(Boolean))return r;return H};
+    if(k==='scramble'){
+      // your piece and the whole preview turn into awkward ones
+      const ugly=[4,5,4,5,2,1,3];
+      for(let i=0;i<this.queue.length;i++)this.queue[i]=ugly[Math.floor(this.rng()*ugly.length)];
+      const p=this.piece;if(p){const t=ugly[Math.floor(this.rng()*4)];const o={p:t,rot:0,r:p.r,c:Math.max(0,Math.min(W-BOX[t],p.c))};while(!this.fits(o)&&o.r>0)o.r--;if(this.fits(o)){this.piece=o;this.pid=(this.pid||0)+1}}
+      this.holdUsed=false;say('Scrambled!','#CC79A7');this.sfx('blender');
+    }else if(k==='twist'){
+      // the whole stack flips left to right
+      this.m=this.m.map(row=>row.slice().reverse());
+      const p=this.piece;if(p){p.c=W-BOX[p.p]-p.c;p.rot=(4-p.rot)%4;while(!this.fits(p)&&p.r>0)p.r--}
+      say('Twisted!','#CC79A7');this.shake=10;this.sfx('blender');
+    }else if(k==='quake'){
+      // every row slides a little, wrapping round: holes end up in all the wrong places
+      this.m=this.m.map(row=>{if(!row.some(Boolean))return row;const d=Math.floor(this.rng()*5)-2;if(!d)return row;return row.map((_,c)=>row[((c-d)%W+W)%W])});
+      const p=this.piece;if(p)while(!this.fits(p)&&p.r>0)p.r--;
+      say('Earthquake!','#E5682A');this.shake=18;this.sfx('junk');
+    }else if(k==='speed'){this.speedT=FX_T.speed;say('Speed up!','#E5682A');this.sfx('sauce')}
+    else if(k==='dark'){this.darkT=FX_T.dark;say('Darkness!','#9AA3BC');this.sfx('freeze')}
+    else if(k==='hide'){this.hideT=FX_T.hide;say('Next & Hold hidden!','#9AA3BC');this.sfx('freeze')}
+    else if(k==='shotgun'){
+      // pellets of junk land on top of random columns
+      for(let i=0;i<8;i++){const c=Math.floor(this.rng()*W);let r=0;while(r<H&&!this.m[r][c])r++;if(r>0)this.m[r-1][c]=8}
+      const p=this.piece;if(p)while(!this.fits(p)&&p.r>0)p.r--;
+      say('Shotgun!','#E5484D');this.shake=12;this.sfx('junk');
+    }else if(k==='blast'){
+      // 4 garbage lines straight in, no warning (a shield still stops them)
+      if(this.shieldT>0){this.receive(4,from);return}
+      const hole=Math.floor(this.rng()*W);for(let i=0;i<4;i++){if(this.m[0].some(Boolean)){this.die();return}this.m.shift();const row=new Array(W).fill(8);row[hole]=0;this.m.push(row)}
+      const p=this.piece;if(p)while(!this.fits(p)&&p.r>0)p.r--;
+      say('Garbage blast!','#E5484D');this.shake=12;this.sfx('junk');
+    }else if(k==='swap'){/* handled by the engine (boards trade wells) */}
+    else if(k==='shield'){this.shieldT=FX_T.shield;say('Shield up!','#56B4E9');this.sfx('block')}
+    else if(k==='avalanche'){
+      // everything drops straight down into the holes, then full lines clear
+      for(let c=0;c<W;c++){let w=H-1;for(let r=H-1;r>=0;r--){const v=this.m[r][c];if(!v)continue;if(r!==w){this.m[w][c]=v;this.m[r][c]=0}w--}}
+      const n=this.clearFull();say(n?`Avalanche! ${n} line${n>1?'s':''}`:'Avalanche!','#56B4E9');this.shake=10;this.sfx('feast');
+    }else if(k==='push'){
+      // the bottom 4 rows are pushed out of the well
+      for(let i=0;i<4;i++){this.m.pop();this.m.unshift(new Array(W).fill(0))}
+      say('Pushed down 4!','#56B4E9');this.sfx('feast');
+    }
+  }
+  clearFull(){const keep=this.m.filter(row=>!row.every(Boolean)),n=H-keep.length;while(keep.length<H)keep.unshift(new Array(W).fill(0));this.m=keep;this.lines+=n;return n}
+  // Switcheroo: whole wells trade places (the engine swaps .m for two local boards, or sends this code online)
+  gridCode(){let g='';for(const row of this.m)for(const v of row)g+=v?String.fromCharCode(64+v):'.';return {g,bk:1}}
+  loadGrid(code){
+    if(!code||typeof code.g!=='string'||code.g.length!==H*W)return false;
+    for(let r=0;r<H;r++)for(let c=0;c<W;c++){const ch=code.g[r*W+c];let v=ch==='.'?0:ch.charCodeAt(0)-64;if(!(v>0&&v<=8+SP))v=0;this.m[r][c]=v}
+    return true;
+  }
+  swapped(other){
+    this.hitFlash=24;this.shake=12;this.pop(`Switcheroo! You got ${other&&other.name?other.name:'their'}'s well`,3,6,'#56B4E9',.85);this.sfx('blender');
+    const p=this.piece;if(p){while(!this.fits(p)&&p.r>0)p.r--;if(!this.fits(p)){this.piece=null;this.state='are';this.wait=ARE}}
+  }
   die(){if(this.dead)return;this.dead=true;this.diedAt=this.game.frame;this.piece=null;this.game.onDeath(this)}
   // what other players see: the visible well with the falling piece drawn in
   view(){
-    const v=this.m.slice(HID).map(r=>r.slice());
+    const v=this.m.slice(HID).map(r=>r.map(x=>x&15));
     const p=this.piece;if(p)this.cellsOf(p.p,p.rot,p.r,p.c).forEach(([r,c])=>{if(r>=HID)v[r-HID][c]=p.p});
     return v;
   }
@@ -247,6 +333,11 @@ class BlocksBoard{
   ai(){
     if(this.state!=='fall'||!this.piece)return;
     const d=this.game.d|0;
+    if(this.rack.length&&--this.fireT<=0){
+      this.fireT=[600,360,220][d]+rnd(240);const h=this.rows();
+      const sh=this.rack.findIndex(x=>x.k==='shield'),av=this.rack.findIndex(x=>x.k==='avalanche'||x.k==='push'),atk=this.rack.findIndex(x=>!SELF.includes(x.k));
+      if(sh>=0&&this.incoming()>0)this.fire(sh);else if(av>=0&&h>=11)this.fire(av);else if(atk>=0)this.fire(atk);
+    }
     if(!this.plan){
       if(--this.think>0)return;
       this.think=BOT.think[d]+rnd(Math.max(1,BOT.think[d]>>1));
@@ -267,7 +358,7 @@ class BlocksBoard{
   }
 }
 BlocksBoard.GEO={W,VH,HID};
-BlocksBoard.NAMES=NAMES;BlocksBoard.SHAPES=SHAPES;BlocksBoard.BOX=BOX;
+BlocksBoard.NAMES=NAMES;BlocksBoard.ITEMS=ITEMS;BlocksBoard.SELF=SELF;BlocksBoard.ITEM_NAME=ITEM_NAME;BlocksBoard.SP=SP;BlocksBoard.SHAPES=SHAPES;BlocksBoard.BOX=BOX;
 E.BOARD_TYPES.blocks=BlocksBoard;
 if(typeof module!=='undefined')module.exports=BlocksBoard;
 })();
