@@ -392,6 +392,12 @@ const check=(cond,msg)=>{console.log((cond?'PASS ':'FAIL ')+msg);if(!cond)proces
    check(!plain.$('#variants [data-v="blocks"]')&&!plain.$('#lobbyVariants [data-v="blocks"]'),'blocks: hidden from everyone else');
    const oh=page('https://foodfight.grudgematchgames.com/#admin=waffle-pickle-waffle-29');await sleep(2600);
    check(!!oh.$('#variants [data-v="blocks"]')&&oh.w.location.hash==='','blocks: the passphrase unlocks it (and leaves the address bar)');
+   const tapper=page('https://foodfight.grudgematchgames.com/');await sleep(2400);
+   {const w=tapper.w,ev=()=>new w.MouseEvent('pointerdown',{clientX:w.innerWidth-10,clientY:w.innerHeight-10,bubbles:true});
+    check(!tapper.$('#variants [data-v="blocks"]'),'shortcut: hidden before the taps');
+    tapper.w.document.body.dispatchEvent(ev());tapper.w.document.body.dispatchEvent(ev());check(tapper.$('#ovLobby').hidden,'shortcut: two taps do nothing');
+    tapper.w.document.body.dispatchEvent(ev());await sleep(600);
+    check(!!tapper.$('#variants [data-v="blocks"]')&&/\d{5}/.test(tapper.$('#roomCode').textContent)&&tapper.$('#lobbyVariants [data-v="blocks"]').getAttribute('aria-checked')==='true','shortcut: 3 taps bottom-right open a Block Battle room ('+tapper.$('#roomCode').textContent+')');}
    const wrong=page('https://foodfight.grudgematchgames.com/#admin=nope');await sleep(2400);
    check(!wrong.$('#variants [data-v="blocks"]'),'blocks: a wrong passphrase does nothing');
    oh.$('#nameIn').value='Admin';oh.$('#nameIn').dispatchEvent(new oh.w.Event('input'));

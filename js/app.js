@@ -1,6 +1,6 @@
 // Food Fight UI: drawing, input, settings, practice mode and the online lobby.
 (function(){
-const VERSION='1.12.1';
+const VERSION='1.12.2';
 let spec=null; // board being spectated after you're knocked out
 // how far we are between two 60Hz game steps (0..1): drawing uses it so motion is smooth on 90/120/144Hz screens too
 let ALPHA=0,lastDraw=performance.now(),drawDt=16,SIDEW=0;
@@ -1909,6 +1909,21 @@ async function checkAdmin(){
   if(typeof labelSizes==='function')labelSizes();
 }
 checkAdmin();window.addEventListener('hashchange',checkAdmin);
+// secret shortcut: three quick taps (or clicks) in the bottom-right corner of the start screen unlock Block Battle
+// on this device and open an online room already set to it
+{let taps=[];
+ document.addEventListener('pointerdown',e=>{
+   if($('#ovStart').hidden)return;
+   const W=window.innerWidth,H=window.innerHeight;if(e.clientX<W-72||e.clientY<H-72){taps=[];return}
+   const now=performance.now();taps=taps.filter(t=>now-t<900);taps.push(now);
+   if(taps.length<3)return;taps=[];
+   ADMIN=true;try{localStorage.setItem('ff-admin',ADMIN_HASH)}catch(_){}
+   prefs.variant='blocks';savePrefs();
+   pickers.forEach(p=>buildVariants(p.box,'blocks',p.onPick));if(typeof labelSizes==='function')labelSizes();
+   sfx('earn',true);
+   $('#bOnline').click();
+   if(!$('#bCreate').disabled)$('#bCreate').click();
+ },true);}
 // keys held while the window loses focus never get their keyup: let go of everything
 window.addEventListener('blur',()=>{const mu=MODE_UI.blocks;mu.held.clear();const B=G&&G.player;if(B&&B.release)['L','R','SD'].forEach(x=>B.release(x))});
 window.__ff={get game(){return G}}; // handy for debugging in the console
