@@ -1,6 +1,6 @@
 // Food Fight UI: drawing, input, settings, practice mode and the online lobby.
 (function(){
-const VERSION='1.6.1';
+const VERSION='1.7.0';
 let spec=null; // board being spectated after you're knocked out
 const $=s=>document.querySelector(s);
 const $$=s=>[...document.querySelectorAll(s)];
@@ -42,6 +42,14 @@ const ART={
   glaze:'assets/glaze.webp','glaze-face':'assets/glaze-face.webp',
 };
 const FIGHTER_INFO={bun:{name:'Patty',tag:'Burger brawler'},sprinkles:{name:'Sprinkles',tag:'Sweet and savage'},crunch:{name:'Crunch',tag:'Shell-shocker'},slice:{name:'Slice',tag:'Hot and cheesy'},fudge:{name:'Fudge',tag:'Tough cookie'},splat:{name:'Splat',tag:'Saucy striker'},guac:{name:'Guac',tag:'Ninja of the pit'},glaze:{name:'Glaze',tag:'Sugar-rush slugger'}};
+// victory and knocked-out poses, used by the KO banner and the end screen (loaded in the background, not on the loading bar)
+const POSE={
+  'bun-win':'assets/bun-win.webp','bun-ko':'assets/bun-ko.webp','sprinkles-win':'assets/sprinkles-win.webp','sprinkles-ko':'assets/sprinkles-ko.webp',
+  'crunch-win':'assets/crunch-win.webp','crunch-ko':'assets/crunch-ko.webp','slice-win':'assets/slice-win.webp','slice-ko':'assets/slice-ko.webp',
+  'fudge-win':'assets/fudge-win.webp','fudge-ko':'assets/fudge-ko.webp','splat-win':'assets/splat-win.webp','splat-ko':'assets/splat-ko.webp',
+  'guac-win':'assets/guac-win.webp','guac-ko':'assets/guac-ko.webp','glaze-win':'assets/glaze-win.webp','glaze-ko':'assets/glaze-ko.webp',
+};
+const pose=(av,kind)=>POSE[(FIGHTERS.includes(av)?av:'bun')+'-'+kind];
 const face=av=>ART[(FIGHTERS.includes(av)?av:'bun')+'-face'];
 const body=av=>ART[FIGHTERS.includes(av)?av:'bun'];
 const avImg=(av,cls)=>`<img class="${cls||'av'}" src="${face(av)}" alt="" width="64" height="64">`;
@@ -487,7 +495,7 @@ function buildOpps(){
     const cvm=el.querySelector('canvas');
     return {board:b,el,cv:cvm,ctx:cvm.getContext('2d'),st:el.querySelector('.st'),meta:el.querySelector('.meta'),tag:el.querySelector('.tag')};
   });
-  $('#rail').hidden=G.variant!=='order';railKey='';setControls();
+  hideKO();$('#rail').hidden=G.variant!=='order';railKey='';setControls();
   const bb=$('#bossBar');bb.hidden=!G.boss;
   if(G.boss){$('#bossImg').src=body(G.boss.av);$('#bossImg').alt=G.boss.name;$('#bossName').textContent=G.boss.name.toUpperCase();bossKey=''}
   sizeMinis();updateAim();
@@ -684,14 +692,13 @@ MODE_UI.stack={
   slots:true,noTray:true,footClass:()=>prefs.stackCtl==='buttons'?'stackbtn':'',
   noRaise:()=>prefs.stackCtl==='buttons',
   raiseLabel:'Drop',
-  side(){return prefs.stackCtl==='buttons'?'<div class="nextbox"><span>Next</span><canvas id="nextCv"></canvas></div><div id="slotHost"></div>':''},
+  side(){return prefs.stackCtl==='buttons'?'<div class="nextbox"><span>Next</span><canvas id="nextCv"></canvas></div><div id="slotHost"></div><div class="ctlcol"><button class="spin icon" id="bSpin" type="button" aria-label="Spin">↻</button><button class="spin drop" id="bDrop" type="button">Drop</button></div>':''},
   sideW(){return prefs.stackCtl==='buttons'?76:0},
   ctl(){
     const next='<div class="nextbox"><span>Next</span><canvas id="nextCv"></canvas></div>';
     if(prefs.stackCtl!=='buttons')return next+'<div id="slotHost"></div>';   // swipe mode: tap the board to spin, Drop on the left
     // left thumb: a big slide pad. right thumb: Spin on top, Drop underneath. Next pair and items sit beside the board
-    return `<div class="movepad wide" id="movePad"><span>◀</span><span>▶</span></div>
-      <div class="ctlcol"><button class="spin icon" id="bSpin" type="button" aria-label="Spin">↻</button><button class="spin drop" id="bDrop" type="button">Drop</button></div>`;
+    return `<div class="movepad wide" id="movePad"><span>◀</span><span>▶</span></div>`;   // Spin and Drop live in the right column
   },
   bind(){
     // just the very next pair, big
@@ -980,6 +987,7 @@ const baseHooks={
   shift(){if(drag&&drag.r!=null)drag.r--;kb.r=Math.max(0,kb.r-1)},
   ko(b,k){
     if(b!==G.player){sfx('ko');if(k===G.player)G.player.pops.push({text:'KO! Power up',x:3,y:5,col:'#F7C548',size:1.1,life:80})}
+    if(k&&k!==b&&!k.boss&&!G.boss&&G.variant!=='order')showKO(k,b);
     updateAim();
   },
   end(res){
@@ -988,7 +996,7 @@ const baseHooks={
     best.score=Math.max(best.score,B.score);best.chain=Math.max(best.chain,B.maxChain);saveBest();
     $('#eTitle').textContent=res.coop?(won?'Boss beaten!':'The boss wins'):won?'You win':(n>2?`${placeName(res.place)} of ${n}`:G.variant==='order'?'Outcooked':'Topped out');
     const champ=res.coop?(won?B:{av:G.boss.av,name:G.boss.name}):won?B:(res.winner||G.boards.find(b=>!b.dead&&b!==B)||B.killedBy||B);
-    $('#eHero').src=body(champ.av);$('#eHero').alt=won?'Your fighter celebrates':`${champ.name} wins`;
+    hideKO();$('#eHero').src=pose(champ.av,'win')||body(champ.av);$('#eHero').alt=won?'Your fighter celebrates':`${champ.name} wins`;
     $('#eHero').style.animation='none';void $('#eHero').offsetWidth;$('#eHero').style.animation='';
     const modeLine=res.coop?(won?`${G.boss.name} is down! You did ${Math.round(B.dmg||0)} damage (${placeName(res.place)} on the team).`:`${G.boss.name} cleaned out the whole kitchen.`)
       :G.variant==='order'?(won?`First to ${ORDER_GOAL} orders. Kitchen of the day!`:`${res.winner?res.winner.name:'Someone'} filled ${ORDER_GOAL} orders first. You filled ${B.orders|0}.`):null;
@@ -1014,6 +1022,27 @@ const baseHooks={
     setTimeout(()=>{if(G&&G.over){$('#outToast').hidden=true;show('#ovEnd')}},700);
   }
 };
+
+/* ---------- KO banner: the winner's victory pose next to everyone they've knocked out ---------- */
+let koTimer=null;
+function showKO(k,b){
+  if(!G)return;
+  const log=G.koLog||(G.koLog={});(log[k.id]=log[k.id]||[]).push(b);
+  if(G.ffMode)return;   // fast-forwarding: no banners
+  const list=log[k.id],you=k===G.player,youOut=b===G.player;
+  const ban=$('#koBanner');
+  $('#koWin').src=pose(k.av,'win');$('#koWin').alt=`${k.name} celebrates`;
+  $('#koLosers').innerHTML=list.slice(-7).map((v,i)=>`<img src="${pose(v.av,'ko')}" alt="${esc(v.name)} is dizzy" style="z-index:${10-i}">`).join('');
+  $('#koLosers').classList.toggle('many',list.length>2);
+  $('#koCap').innerHTML=list.length>1
+    ?`<b>${you?'You':esc(k.name)}</b> ${you?'have':'has'} KO'd <b>${list.length}</b>!`
+    :`<b>${you?'You':esc(k.name)}</b> KO'd <b>${youOut?'you':esc(b.name)}</b>!`;
+  ban.hidden=false;ban.classList.remove('go');void ban.offsetWidth;ban.classList.add('go');
+  clearTimeout(koTimer);koTimer=setTimeout(()=>{ban.hidden=true},2600);
+}
+function hideKO(){clearTimeout(koTimer);const b=$('#koBanner');if(b)b.hidden=true}
+// warm the poses so the first KO doesn't pop in late
+setTimeout(()=>Object.values(POSE).forEach(u=>{const im=new Image();im.src=u}),2500);
 
 /* ---------- scores & leaderboards ---------- */
 const SCORES=window.FFScores&&window.FFScores.enabled?window.FFScores:null;

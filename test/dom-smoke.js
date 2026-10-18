@@ -99,6 +99,7 @@ const check=(cond,msg)=>{console.log((cond?'PASS ':'FAIL ')+msg);if(!cond)proces
    await sleep(300);
    check(!SG.over&&!solo.$('#outToast').hidden,'practice brawl keeps going after you are out');
    check(new RegExp(SG.boards[2].name+'</b> knocked you out').test(solo.$('#outText').innerHTML),'out bar names who knocked you out');
+   check(!solo.$('#koBanner').hidden&&/bun-ko|crunch-ko|sprinkles-ko|slice-ko|fudge-ko|splat-ko|guac-ko|glaze-ko/.test(solo.$('#koLosers').innerHTML)&&/-win/.test(solo.$('#koWin').src)&&/KO'd <b>you<\/b>/.test(solo.$('#koCap').innerHTML),'KO banner: winner pose + your dizzy pose');
    check(solo.$('#bOutLeave').textContent==='Menu'&&!solo.$('#bFF').hidden,'offline: Menu and Fast forward offered');
    const cards=solo.w.document.querySelectorAll('#opps .foe');
    check(cards[0].classList.contains('watchable'),'opponent cards become tappable');

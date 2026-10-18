@@ -66,7 +66,24 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
 .stat span{font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);font-weight:600}
 .icon{width:36px;height:36px;border-radius:10px;border:0;background:var(--panel);display:grid;place-items:center;flex:none}
 .icon svg{width:18px;height:18px}
-.arena{flex:1;min-height:0;display:flex;flex-direction:column;gap:8px}
+.arena{flex:1;min-height:0;display:flex;flex-direction:column;gap:8px;position:relative}
+/* KO banner over the top of the screen */
+.kobanner{position:absolute;left:0;right:0;top:0;z-index:25;height:150px;display:flex;align-items:center;gap:6px;padding:0 8px;border-radius:18px;pointer-events:none;
+  background:radial-gradient(120% 140% at 30% 50%,#4A3A26,#171A2E 62%);box-shadow:0 10px 30px rgba(0,0,0,.45),inset 0 0 0 2px rgba(247,197,72,.6)}
+.kobanner.go{animation:koin .35s cubic-bezier(.2,1.5,.4,1) both, koout .35s ease-in 2.25s forwards}
+@keyframes koin{from{transform:translateY(-30px) scale(.85);opacity:0}to{transform:none;opacity:1}}
+@keyframes koout{to{transform:translateY(-20px);opacity:0}}
+.kowin{width:132px;height:142px;object-fit:contain;flex:none;filter:drop-shadow(0 6px 10px rgba(0,0,0,.5));animation:kopunch .5s cubic-bezier(.2,1.6,.4,1) .1s both}
+@keyframes kopunch{from{transform:scale(.6) rotate(-12deg)}to{transform:none}}
+.komid{flex:none;width:76px;text-align:center}
+.kox{font-family:var(--display);font-size:40px;line-height:1;color:#FFF6E8;-webkit-text-stroke:5px #3A1A10;paint-order:stroke fill;text-shadow:0 4px 0 #C2410C;animation:kopunch .45s cubic-bezier(.2,1.6,.4,1) .2s both}
+.kocap{font-size:11px;font-weight:700;color:var(--ink);line-height:1.25;margin-top:4px}
+.kocap b{color:var(--gold);font-weight:800}
+.kolosers{flex:1;min-width:0;display:flex;align-items:center;justify-content:center;height:142px}
+.kolosers img{height:120px;width:100px;object-fit:contain;filter:drop-shadow(0 4px 8px rgba(0,0,0,.5)) saturate(.9);animation:kodizzy .6s ease-out .25s both;position:relative}
+.kolosers.many img{height:92px;width:70px;margin-left:-34px}
+.kolosers.many img:first-child{margin-left:0}
+@keyframes kodizzy{from{transform:translateX(30px) rotate(18deg);opacity:0}to{transform:none;opacity:1}}
 .opps{display:flex;gap:8px;flex:none}
 .foe{flex:1;min-width:0;display:flex;flex-direction:column;align-items:stretch;gap:5px;background:var(--panel);border:2px solid transparent;border-radius:14px;padding:6px 8px;text-align:left;transition:background .15s,border-color .15s,opacity .3s}
 .foe canvas{width:32px;height:64px;border-radius:4px;flex:none;background:var(--well);display:block}
@@ -201,7 +218,11 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
 .sidecol #slotHost{margin-top:auto}
 .sidefig{width:70px;background:var(--panel);border-radius:14px;padding:4px}
 .sidefig img{width:100%;height:72px;object-fit:contain;display:block;filter:drop-shadow(0 3px 4px rgba(0,0,0,.4))}   /* items rest at the bottom, right above Spin */
-.sidecol #slotHost .slots{flex-direction:column;gap:8px}
+.sidecol #slotHost .slots{flex-direction:column-reverse;gap:8px}   /* first item sits at the bottom, nearest your thumb */
+.sidecol .ctlcol{display:flex;flex-direction:column;gap:8px}
+.sidecol .ctlcol .spin{width:70px;height:70px;border-radius:16px;padding:0}
+.sidecol .spin.icon{font-size:36px}
+.sidecol .spin.drop{font-size:21px}
 .sidecol .slot{width:68px;height:62px}
 .controls.wide .rack{flex:1;max-width:400px;min-width:0}
 .controls.wide .modectl{justify-content:space-between}
@@ -217,11 +238,11 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
 .spin.drop{background:var(--gold);color:var(--gold-ink);font-family:var(--display);font-weight:400;font-size:20px;letter-spacing:.02em}
 .spin.icon{font-size:30px;line-height:1}
 .movepad{flex:none;width:96px;height:98px;border-radius:16px;background:var(--panel2);display:flex;align-items:center;justify-content:space-between;padding:0 14px;touch-action:none;font-size:22px;color:var(--ink);position:relative;box-shadow:inset 0 -3px 0 rgba(0,0,0,.25)}
-.movepad.wide{flex:none;width:var(--bw,240px);height:96px;max-width:100%;padding:0 30px;font-size:34px}
+.movepad.wide{flex:none;width:var(--bw,240px);height:84px;max-width:100%;padding:0 30px;font-size:34px}
 .movepad.reversed{background:#4A2A44;box-shadow:inset 0 0 0 2px #CC79A7}
 .movepad.reversed span:first-child::after{content:"";}
 /* Snack Stack thumb layout: arrows centred under the board, square Spin/Drop on the right edge */
-.controls.stackbtn{position:relative;padding-right:76px;justify-content:center;min-height:148px;align-items:flex-end}
+.controls.stackbtn{position:relative;padding-right:76px;justify-content:center}
 .controls.stackbtn .rack{max-width:none}
 .controls.stackbtn .modectl{justify-content:center}
 .controls.stackbtn .ctlcol{position:absolute;right:0;bottom:0;gap:8px}
@@ -445,6 +466,11 @@ button.nextbox:active{background:var(--gold)}
         <div class="hp"><i id="bossHp"></i></div>
         <div class="hpline"><span id="bossHpText">HP</span><span id="bossPhase">Phase 1</span></div>
       </div>
+    </div>
+    <div class="kobanner" id="koBanner" hidden aria-live="polite">
+      <img class="kowin" id="koWin" src="" alt="">
+      <div class="komid"><div class="kox">KO!</div><div class="kocap" id="koCap"></div></div>
+      <div class="kolosers" id="koLosers"></div>
     </div>
     <aside class="opps" id="opps"></aside>
     <div class="play">
