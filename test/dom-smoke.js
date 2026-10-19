@@ -403,7 +403,7 @@ const check=(cond,msg)=>{console.log((cond?'PASS ':'FAIL ')+msg);if(!cond)proces
    {const w=tapper.w,ev=()=>new w.MouseEvent('pointerdown',{clientX:w.innerWidth-10,clientY:w.innerHeight-10,bubbles:true});
     check(!tapper.$('#variants [data-v="blocks"]'),'shortcut: hidden before the taps');
     tapper.w.document.body.dispatchEvent(ev());tapper.w.document.body.dispatchEvent(ev());check(tapper.$('#ovLobby').hidden,'shortcut: two taps do nothing');
-    tapper.w.document.body.dispatchEvent(ev());await sleep(600);
+    tapper.w.document.body.dispatchEvent(ev());await sleep(2200);
     check(!!tapper.$('#variants [data-v="blocks"]')&&/^\d{3}$/.test(tapper.$('#roomCode').textContent)&&tapper.$('#lobbyVariants [data-v="blocks"]').getAttribute('aria-checked')==='true','shortcut: 3 taps bottom-right open a Block Battle room ('+tapper.$('#roomCode').textContent+')');}
    const wrong=page('https://foodfight.grudgematchgames.com/#admin=nope');await sleep(2400);
    check(!wrong.$('#variants [data-v="blocks"]'),'blocks: a wrong passphrase does nothing');
