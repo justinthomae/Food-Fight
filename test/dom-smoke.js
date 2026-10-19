@@ -119,6 +119,7 @@ const check=(cond,msg)=>{console.log((cond?'PASS ':'FAIL ')+msg);if(!cond)proces
    check(SG.over&&solo.$('#specBar').hidden,'fast forward ends the practice brawl and stops spectating');}
   await sleep(900);
   check(vis(solo,'#ovEnd'),'end screen after topping out');
+  check(/'KNOCKED OUT'/.test(scripts.join('\n')),'knocked-out overlay text reads KNOCKED OUT');
   check(!solo.$('#eVic').hidden&&new RegExp("You KO'd "+solo.w.__ff.game.boards[3].name).test(solo.$('#eVicCap').textContent)&&solo.$('#eVicLosers img').src.includes(solo.w.__ff.game.boards[3].av+'-ko'),'end screen: the cook you KO\'d, dizzy');
   check(rpcLog.length===1&&rpcLog[0].p_score===4321&&rpcLog[0].p_mode==='brawl'&&rpcLog[0].p_duration_s>=40,'score submitted with mode and duration');
   check(/#2 today · #2 all time/.test(solo.$('#eRank').textContent),'end screen shows today and all-time rank');

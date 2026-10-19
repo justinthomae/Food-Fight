@@ -1,6 +1,6 @@
 // Food Fight UI: drawing, input, settings, practice mode and the online lobby.
 (function(){
-const VERSION='1.14.2';
+const VERSION='1.14.3';
 let spec=null; // board being spectated after you're knocked out
 // how far we are between two 60Hz game steps (0..1): drawing uses it so motion is smooth on 90/120/144Hz screens too
 let ALPHA=0,lastDraw=performance.now(),drawDt=16,SIDEW=0;
@@ -119,7 +119,7 @@ function shape(c,t,cx,cy,m){
 /* food art: each food has its own silhouette AND its own natural colors; the palette tints the plate behind it */
 function mix(hex,to,a){const p=h=>[1,3,5].map(i=>parseInt(h.slice(i,i+2),16)),A=p(hex),B=p(to);return'#'+A.map((v,i)=>Math.round(v+(B[i]-v)*a).toString(16).padStart(2,'0')).join('')}
 const OUT='#2A1A12';
-function outline(c,s){c.lineWidth=Math.max(1,s*.04);c.strokeStyle=FOUT;c.lineJoin='round';c.lineCap='round';c.stroke()}
+function outline(c,s){c.lineWidth=Math.max(1,s*.04);c.strokeStyle=OUT;c.lineJoin='round';c.lineCap='round';c.stroke()}
 function drawFood(c,t,x,y,s){
   const cz=cuisine();if(cz!=='market'&&CZ.CUISINES[cz]){CZ.CUISINES[cz].draw(c,t,x,y,s,()=>outline(c,s));return}
   const X=v=>x+v*s,Y=v=>y+v*s;
@@ -345,7 +345,7 @@ function drawKO(B,W,H){
     ctx.drawImage(pi,W/2-pw/2,bot-h2,pw,h2);
   }
   line(B.place?placeName(B.place)+' place':'Knocked out',H*.37,.5,'#949BBD');
-  line(mine?'KNOCKED FOUT':`${B.name} is out`,H*.45,.8,'#EEF0FA');
+  line(mine?'KNOCKED OUT':`${B.name} is out`,H*.45,.8,'#EEF0FA');
   if(k){
     const im=faceImg(k.av),sz=S*1.5;
     if(im&&im.complete&&im.naturalWidth){ctx.save();ctx.beginPath();ctx.arc(W/2,H*.56,sz/2,0,Math.PI*2);ctx.clip();ctx.drawImage(im,W/2-sz/2,H*.56-sz/2,sz,sz);ctx.restore()}
