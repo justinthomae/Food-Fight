@@ -1,6 +1,6 @@
 // Food Fight UI: drawing, input, settings, practice mode and the online lobby.
 (function(){
-const VERSION='1.13.4';
+const VERSION='1.14.0';
 let spec=null; // board being spectated after you're knocked out
 // how far we are between two 60Hz game steps (0..1): drawing uses it so motion is smooth on 90/120/144Hz screens too
 let ALPHA=0,lastDraw=performance.now(),drawDt=16,SIDEW=0;
@@ -31,7 +31,7 @@ const VARIANT_INFO={
   stack:{name:'Snack Stack',tag:'Falling pairs',sizes:['Duel','Brawl','Big Brawl']},
   shot:{name:'Splat Shot',tag:'Aim and pop',sizes:['Duel','Brawl','Big Brawl']},
   boss:{name:'Boss Brawl',tag:'Co-op vs a boss',sizes:['Duo','Team of 4','Team of 8']},
-  blocks:{name:'Block Battle',tag:'Clear lines, send garbage',sizes:['Duel','Battle of 4','Battle of 8'],hidden:true}};
+  blocks:{name:'Packed Lunch',tag:'Pack it, clear it',sizes:['Duel','Battle of 4','Battle of 8'],hidden:true}};
 const VARIANT_KEYS=Object.keys(VARIANT_INFO);
 const ART={
   logo:'assets/logo.webp',
@@ -119,7 +119,7 @@ function shape(c,t,cx,cy,m){
 /* food art: each food has its own silhouette AND its own natural colors; the palette tints the plate behind it */
 function mix(hex,to,a){const p=h=>[1,3,5].map(i=>parseInt(h.slice(i,i+2),16)),A=p(hex),B=p(to);return'#'+A.map((v,i)=>Math.round(v+(B[i]-v)*a).toString(16).padStart(2,'0')).join('')}
 const OUT='#2A1A12';
-function outline(c,s){c.lineWidth=Math.max(1,s*.04);c.strokeStyle=OUT;c.lineJoin='round';c.lineCap='round';c.stroke()}
+function outline(c,s){c.lineWidth=Math.max(1,s*.04);c.strokeStyle=FOUT;c.lineJoin='round';c.lineCap='round';c.stroke()}
 function drawFood(c,t,x,y,s){
   const cz=cuisine();if(cz!=='market'&&CZ.CUISINES[cz]){CZ.CUISINES[cz].draw(c,t,x,y,s,()=>outline(c,s));return}
   const X=v=>x+v*s,Y=v=>y+v*s;
@@ -345,7 +345,7 @@ function drawKO(B,W,H){
     ctx.drawImage(pi,W/2-pw/2,bot-h2,pw,h2);
   }
   line(B.place?placeName(B.place)+' place':'Knocked out',H*.37,.5,'#949BBD');
-  line(mine?'KNOCKED OUT':`${B.name} is out`,H*.45,.8,'#EEF0FA');
+  line(mine?'KNOCKED FOUT':`${B.name} is out`,H*.45,.8,'#EEF0FA');
   if(k){
     const im=faceImg(k.av),sz=S*1.5;
     if(im&&im.complete&&im.naturalWidth){ctx.save();ctx.beginPath();ctx.arc(W/2,H*.56,sz/2,0,Math.PI*2);ctx.clip();ctx.drawImage(im,W/2-sz/2,H*.56-sz/2,sz,sz);ctx.restore()}
@@ -491,7 +491,7 @@ ICONS.hide='<svg viewBox="0 0 24 24" fill="none" stroke="#9AA3BC" stroke-width="
 ICONS.shield='<svg viewBox="0 0 24 24"><path d="M12 2l8 3v6c0 5-3.5 9-8 11-4.5-2-8-6-8-11V5z" fill="#56B4E9" stroke="#2A1A12" stroke-width="1.3" stroke-linejoin="round"/><path d="M12 5v14" stroke="#FFFFFF" stroke-width="1.5" opacity=".6"/></svg>';
 ICONS.avalanche='<svg viewBox="0 0 24 24"><rect x="4" y="3" width="5" height="5" rx="1" fill="#F7C548" stroke="#2A1A12" stroke-width="1.1"/><rect x="12" y="6" width="5" height="5" rx="1" fill="#5CC45C" stroke="#2A1A12" stroke-width="1.1"/><rect x="3" y="16" width="18" height="5" rx="1" fill="#6B7080" stroke="#2A1A12" stroke-width="1.1"/><path d="M6.5 10v4M14.5 13v1.5" stroke="#56B4E9" stroke-width="2" stroke-linecap="round"/></svg>';
 ICONS.push='<svg viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="4" rx="1" fill="#6B7080" stroke="#2A1A12" stroke-width="1.1"/><rect x="4" y="8" width="16" height="4" rx="1" fill="#6B7080" stroke="#2A1A12" stroke-width="1.1"/><path d="M12 14v7M8.5 17.5L12 21l3.5-3.5" stroke="#56B4E9" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-const LABEL={pie:'Trash',tower:'Heap',sauce:'Sauce',cream:'Cream',freeze:'Freeze',blender:'Blender',pin:'Pin',plate:'Plate',swap:'Swap',steam:'Steam',grease:'Grease',rainbow:'Rainbow',bomb:'Bomb',lights:'Lights',reverse:'Flip',scramble:'Scramble',twist:'Twist',quake:'Quake',speed:'Speed',dark:'Dark',shotgun:'Shotgun',blast:'Blast',hide:'Hide',shield:'Shield',avalanche:'Avalanche',push:'Push'};
+const LABEL={pie:'Trash',tower:'Heap',sauce:'Sauce',cream:'Cream',freeze:'Freeze',blender:'Blender',pin:'Pin',plate:'Plate',swap:'Swap',steam:'Steam',grease:'Grease',rainbow:'Rainbow',bomb:'Bomb',lights:'Lights',reverse:'Flip',scramble:'Mystery',twist:'Pancake',quake:'Shake',speed:'Espresso',dark:'Burnt',shotgun:'Popcorn',blast:'Leftovers',hide:'Foil',shield:'Mitt',avalanche:'Crumbs',push:'Dishes'};
 const VALUE={sauce:'3s',cream:'5s',freeze:'2.5s',blender:'Mix',pin:'Self',plate:'Pick',swap:'Board',steam:'6s',grease:'6s',rainbow:'Self',bomb:'Self',lights:'All',reverse:'7s',scramble:'Pieces',twist:'Flip',quake:'Shake',speed:'6s',dark:'8s',shotgun:'Junk',blast:'+4',hide:'10s',shield:'10s',avalanche:'Self',push:'Self'};
 let rackIds='';
 function renderRack(){
@@ -830,8 +830,71 @@ function drawBank(){
   if(shot)drawTile(x,{t:h,clr:0},0,0,u,1,0);
   else{const [a,b,sa,sb]=h;drawTile(x,{t:b,clr:0,sp:sb},0,0,u,1,0);drawTile(x,{t:a,clr:0,sp:sa},0,u,u,1,0)}
 }
-// ----- Block Battle (hidden admin mode): 10x20 well drawn inside the usual 6x12 board area (same 1:2 shape) -----
-const BCOL=['','#3FC5E8','#F7C548','#A65BD9','#5CC45C','#E5484D','#3D6FE0','#F08A2C','#6B7080'];
+// ----- Packed Lunch (hidden admin mode): 10x20 well drawn inside the usual 6x12 board area (same 1:2 shape) -----
+// Packed Lunch pieces: 1 hot dog (I), 2 waffle (O), 3 birthday cake (T), 4 gummy worm (S), 5 bacon (Z), 6 candy cane (J), 7 carrot (L), 8 trash
+const BCOL=['','#D9823F','#E3A84A','#F2A7D2','#5CC45C','#C9473A','#F2F2F2','#F08A2C','#6B7080'];
+const FOUT='#2A1A12';
+// each food is drawn once, whole, in its piece's shape (box units u), then each cell shows its own slice of it
+function drawFoodShape(c,p,u){
+  const X=a=>a*u,lw=Math.max(1,u*.07);c.lineJoin='round';c.lineCap='round';
+  const stroke=(w,col)=>{c.lineWidth=w;c.strokeStyle=col;c.stroke()};
+  if(p===1){   // hot dog in a bun, mustard zigzag
+    rr(c,X(.22),X(1.1),X(3.56),X(.8),X(.4));c.fillStyle='#E8A85C';c.fill();stroke(lw,FOUT);
+    rr(c,X(.08),X(1.3),X(3.84),X(.4),X(.2));c.fillStyle='#C2412D';c.fill();stroke(lw,FOUT);
+    c.beginPath();for(let i=0;i<=14;i++){const x=X(.45+i*3.1/14),y=X(1.5+(i%2?.09:-.09));i?c.lineTo(x,y):c.moveTo(x,y)}stroke(X(.07),'#F7D13C');
+    c.beginPath();c.moveTo(X(.5),X(1.2));c.lineTo(X(3.5),X(1.2));stroke(X(.05),'rgba(255,255,255,.45)');
+  }else if(p===2){   // waffle with butter and syrup
+    rr(c,X(1.06),X(.06),X(1.88),X(1.88),X(.32));c.fillStyle='#E3A84A';c.fill();stroke(lw,FOUT);
+    c.fillStyle='#B8782A';for(let i=0;i<4;i++)for(let j=0;j<4;j++)c.fillRect(X(1.2+i*.44),X(.2+j*.44),X(.3),X(.3));
+    c.fillStyle='rgba(122,62,20,.6)';c.beginPath();c.ellipse(X(2),X(1.05),X(.6),X(.42),.3,0,Math.PI*2);c.fill();
+    rr(c,X(1.78),X(.78),X(.44),X(.34),X(.06));c.fillStyle='#FFE58A';c.fill();stroke(lw*.8,FOUT);
+  }else if(p===3){   // birthday cake with a candle
+    rr(c,X(.08),X(1.12),X(2.84),X(.82),X(.14));c.fillStyle='#F7E1B5';c.fill();stroke(lw,FOUT);
+    c.beginPath();c.moveTo(X(.08),X(1.4));for(let i=0;i<=8;i++){const x=X(.08+i*2.84/8);c.quadraticCurveTo(x-X(.18),X(1.62),x,X(1.4))}c.lineTo(X(2.92),X(1.12));c.lineTo(X(.08),X(1.12));c.closePath();c.fillStyle='#F2A7D2';c.fill();stroke(lw,FOUT);
+    [[.5,'#56B4E9'],[1,'#F7C548'],[1.9,'#5CC45C'],[2.4,'#E5484D'],[.8,'#FFFFFF'],[2.2,'#56B4E9']].forEach(([x,col],i)=>{c.fillStyle=col;c.fillRect(X(x),X(1.2+(i%2)*.1),X(.12),X(.05))});
+    c.beginPath();c.moveTo(X(.08),X(1.7));c.lineTo(X(2.92),X(1.7));stroke(X(.06),'#E58AB8');
+    rr(c,X(1.38),X(.36),X(.24),X(.78),X(.05));c.fillStyle='#56B4E9';c.fill();stroke(lw*.8,FOUT);
+    c.fillStyle='#FFFFFF';for(let k=0;k<3;k++)c.fillRect(X(1.38),X(.48+k*.22),X(.24),X(.07));
+    c.beginPath();c.moveTo(X(1.5),X(.06));c.quadraticCurveTo(X(1.74),X(.26),X(1.5),X(.34));c.quadraticCurveTo(X(1.26),X(.26),X(1.5),X(.06));c.fillStyle='#F7C548';c.fill();
+    c.beginPath();c.arc(X(1.5),X(.26),X(.05),0,Math.PI*2);c.fillStyle='#E5682A';c.fill();
+  }else if(p===4){   // gummy worm, green and orange, with a face
+    const path=()=>{c.beginPath();c.moveTo(X(.32),X(1.5));c.lineTo(X(.9),X(1.5));c.bezierCurveTo(X(1.55),X(1.5),X(1.45),X(.5),X(2.1),X(.5));c.lineTo(X(2.68),X(.5))};
+    path();stroke(X(.7),FOUT);path();stroke(X(.58),'#5CC45C');
+    c.setLineDash([X(.3),X(.3)]);path();stroke(X(.58),'#F08A2C');c.setLineDash([]);
+    c.fillStyle='rgba(255,255,255,.75)';[[.5,1.38],[.95,1.6],[1.4,1.1],[1.75,.62],[2.3,.4],[1.2,1.35]].forEach(([x,y])=>{c.fillRect(X(x),X(y),X(.05),X(.05))});
+    c.fillStyle='#FFFFFF';c.beginPath();c.arc(X(2.55),X(.42),X(.09),0,Math.PI*2);c.fill();c.fillStyle=FOUT;c.beginPath();c.arc(X(2.57),X(.42),X(.045),0,Math.PI*2);c.fill();
+  }else if(p===5){   // a wavy strip of bacon
+    const path=()=>{c.beginPath();c.moveTo(X(.12),X(.5));c.lineTo(X(.9),X(.5));c.bezierCurveTo(X(1.55),X(.5),X(1.45),X(1.5),X(2.1),X(1.5));c.lineTo(X(2.88),X(1.5))};
+    c.lineCap='butt';path();stroke(X(.72),FOUT);path();stroke(X(.6),'#C9473A');
+    path();stroke(X(.2),'#F2B8A6');c.setLineDash([X(.4),X(.25)]);path();stroke(X(.08),'#8E2A1F');c.setLineDash([]);c.lineCap='round';
+  }else if(p===6){   // candy cane, hooked at the end
+    const path=()=>{c.beginPath();c.moveTo(X(2.72),X(1.5));c.lineTo(X(.95),X(1.5));c.quadraticCurveTo(X(.5),X(1.5),X(.5),X(1.05));c.lineTo(X(.5),X(.45))};
+    path();stroke(X(.58),FOUT);path();stroke(X(.46),'#FFFFFF');
+    c.setLineDash([X(.17),X(.17)]);c.lineCap='butt';path();stroke(X(.46),'#E5484D');c.setLineDash([]);c.lineCap='round';
+    path();stroke(X(.06),'rgba(255,255,255,.55)');
+  }else if(p===7){   // carrot with its leafy top
+    c.fillStyle='#4CA43C';[[2.25,.12],[2.55,.04],[2.86,.16]].forEach(([x,y])=>{c.beginPath();c.moveTo(X(2.5),X(1.15));c.quadraticCurveTo(X(x-.25),X(y+.5),X(x),X(y));c.quadraticCurveTo(X(x+.12),X(y+.5),X(2.62),X(1.15));c.closePath();c.fill();stroke(lw*.8,FOUT)});
+    c.beginPath();c.moveTo(X(.1),X(1.52));c.quadraticCurveTo(X(1.2),X(1.16),X(2.5),X(1.12));c.quadraticCurveTo(X(2.94),X(1.18),X(2.92),X(1.5));c.quadraticCurveTo(X(2.94),X(1.84),X(2.5),X(1.88));c.quadraticCurveTo(X(1.2),X(1.84),X(.1),X(1.52));
+    c.fillStyle='#F08A2C';c.fill();stroke(lw,FOUT);
+    c.strokeStyle='#C2621A';c.lineWidth=X(.04);[[.7,1.38,.85,1.6],[1.3,1.3,1.45,1.55],[1.9,1.26,2.05,1.5],[2.3,1.6,2.45,1.8]].forEach(([a,b,cx,d])=>{c.beginPath();c.moveTo(X(a),X(b));c.lineTo(X(cx),X(d));c.stroke()});
+  }
+}
+const foodSprites=new Map();
+function foodSprite(p,rot,px){
+  const K=BT();const n=K.BOX[p];if(p===2)rot=0;const key=p+'|'+rot+'|'+px;let sp=foodSprites.get(key);
+  if(!sp){if(foodSprites.size>200)foodSprites.clear();sp=document.createElement('canvas');sp.width=sp.height=n*px;const c=sp.getContext('2d');
+    c.translate(n*px/2,n*px/2);c.rotate(rot*Math.PI/2);c.translate(-n*px/2,-n*px/2);drawFoodShape(c,p,px);foodSprites.set(key,sp)}
+  return sp;
+}
+// one board cell: a soft tile in the food's colour, then its slice of the food
+function drawCellFood(c,v,x,y,s,a){
+  const p=v&15;if(!p)return;if(p===8){if(a!=null&&a<1)c.globalAlpha=a;drawJunk(c,x,y,s);c.globalAlpha=1;return}
+  const K=BT(),rot=(v>>5)&3,idx=(v>>7)&3,cell=K.SHAPES[p][rot][idx]||[0,0],px=Math.max(8,Math.round(s*DPR));
+  if(a!=null)c.globalAlpha=a;
+  rr(c,x+s*.04,y+s*.04,s*.92,s*.92,s*.18);c.fillStyle=BCOL[p]+'38';c.fill();
+  c.drawImage(foodSprite(p,rot,px),cell[1]*px,cell[0]*px,px,px,x,y,s,s);
+  c.globalAlpha=1;
+}
 function drawBlock(c,v,x,y,s,a){
   if(!v)return;if(a!=null)c.globalAlpha=a;const p=Math.max(.5,s*.05),r=s*.2;
   rr(c,x+p,y+p,s-2*p,s-2*p,r);c.fillStyle=BCOL[v]||BCOL[8];c.fill();
@@ -851,8 +914,8 @@ function blocksView(b){
 function drawPieceAt(c,p,cx,cy,s,a){
   const K=BT();if(!K||!p)return;const cells=K.SHAPES[p][0];
   const rs=cells.map(x=>x[0]),cs=cells.map(x=>x[1]),r0=Math.min(...rs),r1=Math.max(...rs),c0=Math.min(...cs),c1=Math.max(...cs);
-  const ox=cx-(c1-c0+1)*s/2,oy=cy-(r1-r0+1)*s/2;
-  cells.forEach(([r,cc])=>drawBlock(c,p,ox+(cc-c0)*s,oy+(r-r0)*s,s,a));
+  const ox=cx-(c1-c0+1)*s/2,oy=cy-(r1-r0+1)*s/2,px=Math.max(8,Math.round(s*DPR)),w=c1-c0+1,h=r1-r0+1;
+  if(a!=null)c.globalAlpha=a;c.drawImage(foodSprite(p,0,px),c0*px,r0*px,w*px,h*px,ox,oy,w*s,h*s);c.globalAlpha=1;
 }
 let bsideKey='';
 MODE_UI.blocks={
@@ -892,14 +955,14 @@ MODE_UI.blocks={
     const K=BT(),hc=$('#holdCv'),nc=$('#bnextCv');if(!K||!hc||!nc)return;
     const cs=S*COLS/10,full=DESK.matches,colW=(SIDEW||76)/SIDEZ-16,ps=full?cs:Math.max(8,Math.min(colW/4.2,cs/SIDEZ)),q=B.queue||[];
     const hid=B.hideT>0;
-    const key=[B.hold,B.holdUsed,q.slice(0,5).join(''),ps.toFixed(1),hid].join('|');if(key===bsideKey)return;bsideKey=key;
+    const key=[B.hold,B.holdUsed,q.slice(0,1).join(''),ps.toFixed(1),hid].join('|');if(key===bsideKey)return;bsideKey=key;
     const hw=Math.round(ps*4.4),hh=Math.round(ps*2.8);
     hc.width=hw*DPR;hc.height=hh*DPR;hc.style.width=hw+'px';hc.style.height=hh+'px';
     let x=hc.getContext('2d');x.setTransform(DPR,0,0,DPR,0,0);x.clearRect(0,0,hw,hh);
     const qm=(c,w,h)=>{c.fillStyle='#9AA3BC';c.font=`800 ${Math.round(ps*1.4)}px Figtree,sans-serif`;c.textAlign='center';c.textBaseline='middle';c.fillText('?',w/2,h/2)};
     if(hid)qm(x,hw,hh);else if(B.hold)drawPieceAt(x,B.hold,hw/2,hh/2,ps,B.holdUsed?.35:1);
     $('#holdBox').classList.toggle('used',!!B.holdUsed);
-    const sizes=full?[1,1,1,1,1]:[1,.8,.8,.7,.7],gap=ps*.6;
+    const sizes=[1],gap=ps*.6;   // only the very next piece
     let th=0;   // desktop: every piece at its real size
    sizes.forEach(z=>th+=ps*z*2+gap);
     nc.width=hw*DPR;nc.height=Math.round(th)*DPR;nc.style.width=hw+'px';nc.style.height=Math.round(th)+'px';
@@ -920,7 +983,7 @@ MODE_UI.blocks={
       const dark=mine&&B.darkT>0,SPB=K.SP;
       for(let r=HID;r<HID+20;r++)for(let c=0;c<10;c++){const v=B.m[r][c];if(!v)continue;const x0=c*cs,y0=(r-HID)*cs+sh;
         if(dark){ctx.strokeStyle='rgba(154,163,188,.16)';ctx.lineWidth=1;rr(ctx,x0+cs*.12,y0+cs*.12,cs*.76,cs*.76,cs*.18);ctx.stroke();continue}
-        drawBlock(ctx,v&15,x0,y0,cs,dim);if(v&SPB)drawQ(ctx,x0,y0,cs)}
+        drawCellFood(ctx,v,x0,y0,cs,dim);if(v&SPB)drawQ(ctx,x0,y0,cs)}
       // rows being cleared flash white, then shrink away
       if(B.clearRows){const k=B.clearT/14;B.clearRows.forEach(r=>{if(r<HID)return;ctx.fillStyle=`rgba(255,255,255,${.85*k})`;const hgt=cs*k;ctx.fillRect(0,(r-HID)*cs+(cs-hgt)/2,Wp,hgt)})}
       const p=B.piece;
@@ -931,7 +994,7 @@ MODE_UI.blocks={
         const v=this.vis||(this.vis={});if(v.pid!==B.pid||v.b!==B){v.pid=B.pid;v.b=B;v.c=p.c;v.r=p.r}
         const k=1-Math.exp(-drawDt/22);v.c+=(p.c-v.c)*k;v.r+=(p.r-v.r)*k;if(Math.abs(v.c-p.c)<.02)v.c=p.c;if(Math.abs(v.r-p.r)<.02)v.r=p.r;
         if(Math.abs(v.r-p.r)>2.5)v.r=p.r;   // hard drops land instantly
-        K.SHAPES[p.p][p.rot].forEach(([dr,dc],i)=>{const r=v.r+dr-HID;if(r>-1){drawBlock(ctx,p.p,(v.c+dc)*cs,r*cs+sh,cs,dim);if(i===B.spCell)drawQ(ctx,(v.c+dc)*cs,r*cs+sh,cs)}});
+        K.SHAPES[p.p][p.rot].forEach(([dr,dc],i)=>{const r=v.r+dr-HID;if(r>-1){drawCellFood(ctx,p.p|(p.rot<<5)|(i<<7),(v.c+dc)*cs,r*cs+sh,cs,dim);if(i===B.spCell)drawQ(ctx,(v.c+dc)*cs,r*cs+sh,cs)}});
       }
     }
     // incoming garbage: a red bar up the left edge, one cell per line
@@ -940,7 +1003,7 @@ MODE_UI.blocks={
     // what's hitting you right now
     if(!B.remote){
       if(B.shieldT>0){ctx.strokeStyle=`rgba(86,180,233,${.5+.3*Math.sin(G.frame*.2)})`;ctx.lineWidth=Math.max(3,cs*.16);ctx.strokeRect(2,2,Wp-4,Hp-4)}
-      const tags=[];if(B.speedT>0)tags.push(['Speed up',B.speedT,'#E5682A']);if(B.darkT>0)tags.push(['Darkness',B.darkT,'#9AA3BC']);if(B.hideT>0)tags.push(['Hidden',B.hideT,'#9AA3BC']);if(B.shieldT>0)tags.push(['Shield',B.shieldT,'#56B4E9']);
+      const tags=[];if(B.speedT>0)tags.push(['Espresso',B.speedT,'#E5682A']);if(B.darkT>0)tags.push(['Burnt toast',B.darkT,'#9AA3BC']);if(B.hideT>0)tags.push(['Foil wrap',B.hideT,'#9AA3BC']);if(B.shieldT>0)tags.push(['Oven mitt',B.shieldT,'#56B4E9']);
       tags.forEach(([t,f,col],i)=>{const txt=`${t} ${Math.ceil(f/60)}s`;ctx.font=`800 ${Math.round(cs*.42)}px Figtree,sans-serif`;const tw=ctx.measureText(txt).width+cs*.6,y=cs*.35+i*cs*.75;ctx.fillStyle=col;rr(ctx,Wp-tw-cs*.25,y,tw,cs*.62,cs*.31);ctx.fill();ctx.fillStyle='#0B0D1B';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(txt,Wp-tw/2-cs*.25,y+cs*.32)});
     }
     // nearly topped out
@@ -1484,7 +1547,7 @@ const champTag=b=>G&&G.champId&&b.id===G.champId?'<div class="champ">Champ</div>
 function showMatchup(seconds,go){
   clearInterval(vsTimer);
   const st=$('#vsStage'),me=G.player,others=G.boards.filter(b=>b!==me);
-  const vi=VARIANT_INFO[G.variant]||VARIANT_INFO.classic,banner=G.variant==='classic'?'':`<div class="vmode">${vi.name} · ${{order:`first to ${ORDER_GOAL} orders`,stack:'connect 4, chain to dump trash',shot:'aim, pop 3, drop the rest',boss:'everyone vs. the boss',blocks:'clear lines, send garbage'}[G.variant]}</div>`;
+  const vi=VARIANT_INFO[G.variant]||VARIANT_INFO.classic,banner=G.variant==='classic'?'':`<div class="vmode">${vi.name} · ${{order:`first to ${ORDER_GOAL} orders`,stack:'connect 4, chain to dump trash',shot:'aim, pop 3, drop the rest',boss:'everyone vs. the boss',blocks:'pack the lunchbox, clear lines, dump leftovers'}[G.variant]}</div>`;
   if(G.boss){
     st.innerHTML=banner+`<div class="crowd">${G.boards.map((b,i)=>`<div class="fighter${b===me?' me':''}" style="animation-delay:${i*.06}s"><img src="${body(b.av)}" alt=""><div class="chunky">${esc(b.name)}</div></div>`).join('')}</div><div class="chunky vsword" style="font-size:44px">VS</div><div class="fighter boss"><img src="${body(G.boss.av)}" alt=""><div class="chunky">${esc(G.boss.name)}</div></div>`;
   }else if(others.length===1){
@@ -1573,7 +1636,7 @@ function variantIcon(v){
   else if(v==='order'){x.fillStyle='#FFFDF6';x.beginPath();x.roundRect?x.roundRect(22,6,68,68,8):x.rect(22,6,68,68);x.fill();drawTile(x,{t:0,clr:0},28,14,24,1,0);drawTile(x,{t:3,clr:0},28,44,24,1,0);x.fillStyle='#16A34A';x.fillRect(56,24,28,5);x.fillStyle='#E8DCC6';x.fillRect(56,54,28,5);x.fillStyle='#16A34A';x.fillRect(56,54,12,5)}
   else if(v==='stack'){drawTile(x,{t:2,clr:0},38,2,s,1,0);drawTile(x,{t:4,clr:0},38,40,s,1,0);x.fillStyle='#F7C548';x.font='bold 22px sans-serif';x.fillText('↻',80,30)}
   else if(v==='shot'){[[18,16,0],[50,16,2],[34,40,2],[66,40,2]].forEach(([a,b,t])=>drawTile(x,{t,clr:0},a,b,28,1,0));x.strokeStyle='#F7C548';x.lineWidth=3;x.setLineDash([2,6]);x.beginPath();x.moveTo(56,80);x.lineTo(80,48);x.stroke()}
-  else if(v==='blocks'){const sh=[[3,[[0,1],[1,0],[1,1],[1,2]],20,40],[1,[[0,0],[0,1],[0,2],[0,3]],28,14]];sh.forEach(([p,cells,ox,oy])=>cells.forEach(([r,c])=>drawBlock(x,p,ox+c*16,oy+r*16,16)));drawBlock(x,8,76,56,16);drawBlock(x,8,92,56,16)}
+  else if(v==='blocks'){drawPieceAt(x,1,56,16,18);drawPieceAt(x,3,40,54,18);drawPieceAt(x,7,86,56,14)}
   else{const im=new Image();im.src=body('fudge');im.onload=()=>{x.drawImage(im,24,0,64,80)};x.fillStyle='#F7C548';x.beginPath();x.moveTo(30,14);x.lineTo(38,2);x.lineTo(46,12);x.lineTo(56,0);x.lineTo(66,12);x.lineTo(74,2);x.lineTo(82,14);x.closePath();x.fill()}
   return c;
 }
@@ -1969,7 +2032,7 @@ async function checkAdmin(){
   if(typeof labelSizes==='function')labelSizes();
 }
 checkAdmin();window.addEventListener('hashchange',checkAdmin);
-// secret shortcut: three quick taps (or clicks) in the bottom-right corner of the start screen unlock Block Battle
+// secret shortcut: three quick taps (or clicks) in the bottom-right corner of the start screen unlock Packed Lunch
 // on this device and open an online room already set to it
 {let taps=[];
  document.addEventListener('pointerdown',e=>{

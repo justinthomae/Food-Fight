@@ -1,4 +1,4 @@
-// Block Battle (hidden, admin-only mode): classic falling-block versus play in the style of the old online battle games.
+// Packed Lunch (hidden, admin-only mode): classic falling-block versus play in the style of the old online battle games.
 // 10x20 well, 7 pieces from a shuffled bag, SRS rotation + wall kicks, hold, 5-piece preview, ghost, DAS/ARR,
 // lock delay with move resets, T-spins, back-to-back, combos and garbage lines that cancel incoming garbage.
 // Plugs into the engine as BOARD_TYPES.blocks and speaks the same board interface as the other modes.
@@ -29,7 +29,7 @@ const PTS_N=[0,100,300,500,800],PTS_TS=[400,800,1200,1600],PTS_MINI=[100,200,400
 // Items, Tetris Friends Arena style: some pieces carry a flashing "?" block; clear the line it's in to rack a random item (3 max).
 // V (or tap) throws the oldest at your target. The last three only work on yourself.
 const ITEMS=['swap','scramble','twist','quake','speed','dark','shotgun','blast','hide','shield','avalanche','push'];
-const ITEM_NAME={swap:'Switcheroo',scramble:'Scramble',twist:'Twist',quake:'Earthquake',speed:'Speed up',dark:'Darkness',shotgun:'Shotgun',blast:'Garbage blast',hide:'Hide',shield:'Shield',avalanche:'Avalanche',push:'Push'};
+const ITEM_NAME={swap:'Plate swap',scramble:'Mystery meat',twist:'Pancake flip',quake:'Shake n bake',speed:'Espresso shot',dark:'Burnt toast',shotgun:'Popcorn',blast:'Leftovers',hide:'Foil wrap',shield:'Oven mitt',avalanche:'Crumb drop',push:'Dishwasher'};
 const SELF=['shield','avalanche','push'],RACK_N=3,SP=16;   // a locked cell value with the 16 bit set is a "?" block
 const FX_T={speed:360,dark:480,hide:600,shield:600};
 const BOT={think:[70,26,12],move:[12,4,2],noise:[1.5,.35,.06],drop:[0,1,1]};
@@ -152,7 +152,8 @@ class BlocksBoard{
   lock(){
     const p=this.piece;if(!p)return;
     const ts=this.tspin(),cells=this.cellsOf(p.p,p.rot,p.r,p.c);
-    cells.forEach(([r,c],i)=>{if(r>=0)this.m[r][c]=p.p|(i===this.spCell?SP:0)});this.spCell=-1;
+    // each cell remembers which slice of the piece's food it is (rotation + cell number), so cleared lines leave cut food behind
+    cells.forEach(([r,c],i)=>{if(r>=0)this.m[r][c]=p.p|(i===this.spCell?SP:0)|(p.rot<<5)|(i<<7)});this.spCell=-1;
     this.piece=null;this.sfx('swap');
     // locked entirely above the visible well: out
     if(cells.every(([r])=>r<HID))return this.die();
@@ -224,7 +225,7 @@ class BlocksBoard{
     }
     if(rows){this.shake=8;this.sfx('junk')}
   }
-  receive(cells,from){if(this.dead)return;if(this.shieldT>0){this.blocked+=cells;this.pop(`Shield blocked ${cells}`,3,9,'#56B4E9',.85);this.sfx('block');this.lastAttacker=from;return}this.inc.push({cells,t:GARB_T,T:GARB_T,from});this.lastAttacker=from;this.hitFlash=18;this.sfx('incoming')}
+  receive(cells,from){if(this.dead)return;if(this.shieldT>0){this.blocked+=cells;this.pop(`Oven mitt blocked ${cells}`,3,9,'#56B4E9',.85);this.sfx('block');this.lastAttacker=from;return}this.inc.push({cells,t:GARB_T,T:GARB_T,from});this.lastAttacker=from;this.hitFlash=18;this.sfx('incoming')}
   incoming(){return this.inc.reduce((a,i)=>a+i.cells,0)}
   // no items in this mode
   rush(){}cream(){}steam(){}grease(){}freeze(){}blend(){}lights(){}reverse(){}
@@ -255,41 +256,41 @@ class BlocksBoard{
       const ugly=[4,5,4,5,2,1,3];
       for(let i=0;i<this.queue.length;i++)this.queue[i]=ugly[Math.floor(this.rng()*ugly.length)];
       const p=this.piece;if(p){const t=ugly[Math.floor(this.rng()*4)];const o={p:t,rot:0,r:p.r,c:Math.max(0,Math.min(W-BOX[t],p.c))};while(!this.fits(o)&&o.r>0)o.r--;if(this.fits(o)){this.piece=o;this.pid=(this.pid||0)+1}}
-      this.holdUsed=false;say('Scrambled!','#CC79A7');this.sfx('blender');
+      this.holdUsed=false;say('Mystery meat!','#CC79A7');this.sfx('blender');
     }else if(k==='twist'){
       // the whole stack flips left to right
       this.m=this.m.map(row=>row.slice().reverse());
       const p=this.piece;if(p){p.c=W-BOX[p.p]-p.c;p.rot=(4-p.rot)%4;while(!this.fits(p)&&p.r>0)p.r--}
-      say('Twisted!','#CC79A7');this.shake=10;this.sfx('blender');
+      say('Pancake flip!','#CC79A7');this.shake=10;this.sfx('blender');
     }else if(k==='quake'){
       // every row slides a little, wrapping round: holes end up in all the wrong places
       this.m=this.m.map(row=>{if(!row.some(Boolean))return row;const d=Math.floor(this.rng()*5)-2;if(!d)return row;return row.map((_,c)=>row[((c-d)%W+W)%W])});
       const p=this.piece;if(p)while(!this.fits(p)&&p.r>0)p.r--;
-      say('Earthquake!','#E5682A');this.shake=18;this.sfx('junk');
-    }else if(k==='speed'){this.speedT=FX_T.speed;say('Speed up!','#E5682A');this.sfx('sauce')}
-    else if(k==='dark'){this.darkT=FX_T.dark;say('Darkness!','#9AA3BC');this.sfx('freeze')}
-    else if(k==='hide'){this.hideT=FX_T.hide;say('Next & Hold hidden!','#9AA3BC');this.sfx('freeze')}
+      say('Shake n bake!','#E5682A');this.shake=18;this.sfx('junk');
+    }else if(k==='speed'){this.speedT=FX_T.speed;say('Espresso shot! Faster!','#E5682A');this.sfx('sauce')}
+    else if(k==='dark'){this.darkT=FX_T.dark;say('Burnt toast! Stack blacked out','#9AA3BC');this.sfx('freeze')}
+    else if(k==='hide'){this.hideT=FX_T.hide;say('Foil wrap! Next & Hold covered','#9AA3BC');this.sfx('freeze')}
     else if(k==='shotgun'){
       // pellets of junk land on top of random columns
       for(let i=0;i<8;i++){const c=Math.floor(this.rng()*W);let r=0;while(r<H&&!this.m[r][c])r++;if(r>0)this.m[r-1][c]=8}
       const p=this.piece;if(p)while(!this.fits(p)&&p.r>0)p.r--;
-      say('Shotgun!','#E5484D');this.shake=12;this.sfx('junk');
+      say('Popcorn!','#E5484D');this.shake=12;this.sfx('junk');
     }else if(k==='blast'){
       // 4 garbage lines straight in, no warning (a shield still stops them)
       if(this.shieldT>0){this.receive(4,from);return}
       const hole=Math.floor(this.rng()*W);for(let i=0;i<4;i++){if(this.m[0].some(Boolean)){this.die();return}this.m.shift();const row=new Array(W).fill(8);row[hole]=0;this.m.push(row)}
       const p=this.piece;if(p)while(!this.fits(p)&&p.r>0)p.r--;
-      say('Garbage blast!','#E5484D');this.shake=12;this.sfx('junk');
+      say('Leftovers dumped!','#E5484D');this.shake=12;this.sfx('junk');
     }else if(k==='swap'){/* handled by the engine (boards trade wells) */}
-    else if(k==='shield'){this.shieldT=FX_T.shield;say('Shield up!','#56B4E9');this.sfx('block')}
+    else if(k==='shield'){this.shieldT=FX_T.shield;say('Oven mitt on!','#56B4E9');this.sfx('block')}
     else if(k==='avalanche'){
       // everything drops straight down into the holes, then full lines clear
       for(let c=0;c<W;c++){let w=H-1;for(let r=H-1;r>=0;r--){const v=this.m[r][c];if(!v)continue;if(r!==w){this.m[w][c]=v;this.m[r][c]=0}w--}}
-      const n=this.clearFull();say(n?`Avalanche! ${n} line${n>1?'s':''}`:'Avalanche!','#56B4E9');this.shake=10;this.sfx('feast');
+      const n=this.clearFull();say(n?`Crumb drop! ${n} line${n>1?'s':''}`:'Crumb drop!','#56B4E9');this.shake=10;this.sfx('feast');
     }else if(k==='push'){
       // the bottom 4 rows are pushed out of the well
       for(let i=0;i<4;i++){this.m.pop();this.m.unshift(new Array(W).fill(0))}
-      say('Pushed down 4!','#56B4E9');this.sfx('feast');
+      say('Dishwasher! 4 rows gone','#56B4E9');this.sfx('feast');
     }
   }
   clearFull(){const keep=this.m.filter(row=>!row.every(Boolean)),n=H-keep.length;while(keep.length<H)keep.unshift(new Array(W).fill(0));this.m=keep;this.lines+=n;return n}
@@ -297,11 +298,11 @@ class BlocksBoard{
   gridCode(){let g='';for(const row of this.m)for(const v of row)g+=v?String.fromCharCode(64+v):'.';return {g,bk:1}}
   loadGrid(code){
     if(!code||typeof code.g!=='string'||code.g.length!==H*W)return false;
-    for(let r=0;r<H;r++)for(let c=0;c<W;c++){const ch=code.g[r*W+c];let v=ch==='.'?0:ch.charCodeAt(0)-64;if(!(v>0&&v<=8+SP))v=0;this.m[r][c]=v}
+    for(let r=0;r<H;r++)for(let c=0;c<W;c++){const ch=code.g[r*W+c];let v=ch==='.'?0:ch.charCodeAt(0)-64;if(!(v>0&&v<1024&&((v&15)>=1&&(v&15)<=8)))v=0;this.m[r][c]=v}
     return true;
   }
   swapped(other){
-    this.hitFlash=24;this.shake=12;this.pop(`Switcheroo! You got ${other&&other.name?other.name:'their'}'s well`,3,6,'#56B4E9',.85);this.sfx('blender');
+    this.hitFlash=24;this.shake=12;this.pop(`Plate swap! You got ${other&&other.name?other.name:'their'}'s plate`,3,6,'#56B4E9',.85);this.sfx('blender');
     const p=this.piece;if(p){while(!this.fits(p)&&p.r>0)p.r--;if(!this.fits(p)){this.piece=null;this.state='are';this.wait=ARE}}
   }
   die(){if(this.dead)return;this.dead=true;this.diedAt=this.game.frame;this.piece=null;this.game.onDeath(this)}

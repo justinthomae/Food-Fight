@@ -536,7 +536,7 @@ class RemoteBoard{
       this.rushT=s.h?1:0;this.creamT=s.c?1:0;this.frozenT=s.z?1:0;this.kos=s.o|0;this.dmg=s.x|0;this.lastSnap=this.game.frame;
       return;
     }
-    // Block Battle boards send their 10x20 well
+    // Packed Lunch boards send their 10x20 well
     if(s&&s.v==='blocks'&&typeof s.g==='string'&&s.g.length===200){
       this.bm=s.g;this.binc=s.i|0;this.bhold=s.hd|0;this.bnext=typeof s.nx==='string'?s.nx:'';this.kos=s.o|0;this.lastSnap=this.game.frame;return;
     }
@@ -752,7 +752,7 @@ class Game{
   margin(){const s=this.frame/60-MARGIN;return s>0?1+Math.floor(s/15)*.3:1}
   alive(){return this.boards.filter(b=>!b.dead)}
   deliver(to,item,from){
-    if(to.blocks&&item.k!=='swap'&&!JUNK_KINDS.includes(item.k)){to.effect(item.k,from);return}   // Block Battle items
+    if(to.blocks&&item.k!=='swap'&&!JUNK_KINDS.includes(item.k)){to.effect(item.k,from);return}   // Packed Lunch items
     if(item.k==='sauce')to.rush(from);
     else if(item.k==='cream')to.cream(from);
     else if(item.k==='freeze')to.freeze(from);
@@ -766,7 +766,7 @@ class Game{
   aim(){if(this.boss)return this.bossObj;const o=this.alive().filter(b=>b!==this.player);return o.length?o[Math.floor(this.frame/CYCLE)%o.length]:null}
   launch(src,item,tgt,slot){
     const it={k:item.k,cells:item.cells||0,at:item.at||null};
-    if(JUNK_KINDS.includes(it.k)&&src.blocks)src.sent+=it.cells;   // Block Battle: garbage lines go out exactly as earned
+    if(JUNK_KINDS.includes(it.k)&&src.blocks)src.sent+=it.cells;   // Packed Lunch: garbage lines go out exactly as earned
     else if(JUNK_KINDS.includes(it.k)){it.cells=Math.max(1,Math.round(it.cells*(1+.25*src.kos)*this.margin()*(src.isBot?(DIFFS[this.d].hit||1):1)));src.sent+=it.cells}
     if(tgt.boss){
       if(this.hooks.fly)this.hooks.fly(src,tgt,it,slot);
