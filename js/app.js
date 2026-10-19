@@ -1,6 +1,6 @@
 // Food Fight UI: drawing, input, settings, practice mode and the online lobby.
 (function(){
-const VERSION='1.14.1';
+const VERSION='1.14.2';
 let spec=null; // board being spectated after you're knocked out
 // how far we are between two 60Hz game steps (0..1): drawing uses it so motion is smooth on 90/120/144Hz screens too
 let ALPHA=0,lastDraw=performance.now(),drawDt=16,SIDEW=0;
@@ -831,8 +831,8 @@ function drawBank(){
   else{const [a,b,sa,sb]=h;drawTile(x,{t:b,clr:0,sp:sb},0,0,u,1,0);drawTile(x,{t:a,clr:0,sp:sa},0,u,u,1,0)}
 }
 // ----- Packed Lunch (hidden admin mode): 10x20 well drawn inside the usual 6x12 board area (same 1:2 shape) -----
-// Packed Lunch pieces: 1 hot dog (I), 2 waffle (O), 3 chocolate bar (T), 4 Swiss cheese (S), 5 watermelon (Z), 6 candy cane (J), 7 toast (L), 8 trash
-const BCOL=['','#D9823F','#E3A84A','#7A4A2A','#F7D35A','#E5484D','#F2F2F2','#C98A45','#6B7080'];
+// Packed Lunch pieces: 1 hot dog (I), 2 waffle (O), 3 chocolate bar (T), 4 Swiss cheese (S), 5 watermelon (Z), 6 pizza (J), 7 toast (L), 8 trash
+const BCOL=['','#D9823F','#E3A84A','#7A4A2A','#F7D35A','#E5484D','#E8803A','#C98A45','#6B7080'];
 const FOUT='#2A1A12';
 // helpers for foods that fill their whole piece: the union of its cells, inset only on the outside edges
 const shapeCells=p=>BT().SHAPES[p][0];
@@ -879,11 +879,14 @@ function drawFoodShape(c,p,u){
     shapeEdges(c,cells,u,X(.13),X(.17),'#3E8E3A');shapeEdges(c,cells,u,X(.24),X(.06),'#C9E89A');shapeEdges(c,cells,u,X(.05),lw,FOUT);
     c.fillStyle='#2A1A12';cells.forEach(([r,cc])=>[[.38,.42],[.62,.6],[.5,.36],[.36,.66]].slice(0,3).forEach(([a,b],q)=>{
       c.beginPath();c.ellipse(cc*u+X(a+(q?.04:0)),r*u+X(b),X(.045),X(.075),.4,0,Math.PI*2);c.fill()}));
-  }else if(p===6){   // candy cane, hooked at the end
-    const path=()=>{c.beginPath();c.moveTo(X(2.72),X(1.5));c.lineTo(X(.95),X(1.5));c.quadraticCurveTo(X(.5),X(1.5),X(.5),X(1.05));c.lineTo(X(.5),X(.45))};
-    path();stroke(X(.58),FOUT);path();stroke(X(.46),'#FFFFFF');
-    c.setLineDash([X(.17),X(.17)]);c.lineCap='butt';path();stroke(X(.46),'#E5484D');c.setLineDash([]);c.lineCap='round';
-    path();stroke(X(.06),'rgba(255,255,255,.55)');
+  }else if(p===6){   // pizza: golden crust round the edge, sauce, melted cheese, pepperoni
+    const cells=shapeCells(p);fillShape(c,cells,u,X(.05),'#D9963F',lw,FOUT);
+    fillShape(c,cells,u,X(.17),'#D9472B',0,null);fillShape(c,cells,u,X(.22),'#F7C548',0,null);
+    c.save();shapeClip(c,cells,u,X(.22));
+    c.fillStyle='rgba(217,71,43,.5)';cells.forEach(([r,cc],n)=>{c.beginPath();c.ellipse(cc*u+X(n%2?.25:.75),r*u+X(.8),X(.16),X(.08),.6,0,Math.PI*2);c.fill()});
+    c.restore();
+    cells.forEach(([r,cc],n)=>{const x=cc*u+X(n%2?.62:.4),y=r*u+X(n%2?.38:.55);c.beginPath();c.arc(x,y,X(.16),0,Math.PI*2);c.fillStyle='#B8322A';c.fill();c.lineWidth=lw*.7;c.strokeStyle=FOUT;c.stroke();
+      c.fillStyle='rgba(0,0,0,.25)';c.beginPath();c.arc(x+X(.05),y+X(.04),X(.04),0,Math.PI*2);c.arc(x-X(.06),y-X(.02),X(.03),0,Math.PI*2);c.fill()});
   }else if(p===7){   // a slice of toast: golden crust round the edge, soft middle, a pat of butter
     const cells=shapeCells(p);fillShape(c,cells,u,X(.05),'#B8732F',lw,FOUT);
     fillShape(c,cells,u,X(.2),'#F3D18C',0,null);
