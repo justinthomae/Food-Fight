@@ -512,12 +512,16 @@ button.nextbox:active{background:var(--gold)}
   .opps.many{display:grid;grid-template-columns:1fr 1fr;overflow:visible;width:auto}
   .opps.many .foe{flex:none}
   .opps.many .foe canvas{width:var(--mw,36px);height:calc(var(--mw,36px)*2)}
-  .arena{flex-direction:row;align-items:stretch}
+  .arena{display:grid;grid-template-columns:minmax(0,1fr) var(--playw,auto) minmax(0,1fr);grid-template-rows:auto minmax(0,1fr);column-gap:8px;align-items:stretch}
+  .arena>.bossbar{grid-column:1/-1}
+  .arena>#opps{grid-column:1;grid-row:2;justify-self:end;align-self:start}
+  .arena>.play{grid-column:2;grid-row:2;min-width:0}
+  .arena>#oppsR{grid-column:3;grid-row:2;justify-self:start;align-self:start}
   .opps{flex-direction:column;width:210px;align-self:flex-start}
   .foe{flex:none;align-items:stretch;padding:10px}
   .duel .foe{align-items:flex-start}
   .foe canvas,.duel .foe canvas{width:var(--mw,60px);height:calc(var(--mw,60px)*2)}
-  .opps{width:auto;min-width:210px}
+  .opps{width:auto;min-width:0}
   .opps .foe .nm{font-size:18px}
   .brand{font-size:28px}
   .app{max-width:min(1680px,100%)}
@@ -568,6 +572,7 @@ button.nextbox:active{background:var(--gold)}
         <div class="watchpill" id="watchPill" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg><span id="watchText">Someone is watching</span></div>
       </div>
     </div>
+    <aside class="opps" id="oppsR" hidden></aside>
   </section>
   <footer class="controls">
     <button class="raise" id="bRaise"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 4l8 10h-5v6H9v-6H4z"/></svg>Raise</button>

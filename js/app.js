@@ -1,6 +1,6 @@
 // Food Fight UI: drawing, input, settings, practice mode and the online lobby.
 (function(){
-const VERSION='1.13.2';
+const VERSION='1.13.3';
 let spec=null; // board being spectated after you're knocked out
 // how far we are between two 60Hz game steps (0..1): drawing uses it so motion is smooth on 90/120/144Hz screens too
 let ALPHA=0,lastDraw=performance.now(),drawDt=16,SIDEW=0;
@@ -543,6 +543,14 @@ function updatePlateHint(){aimName='';if(G)updateAim();$('#board').classList.tog
 /* ---------- opponents ---------- */
 const multi=()=>G&&G.boards.length>2;
 const esc=s=>String(s).replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+// desktop: opponents split either side of the board (first half left, the rest right); phones keep one row on top
+function placeOpps(){
+  const L=$('#opps'),R=$('#oppsR');if(!L||!R)return;
+  const desk=DESK.matches&&!!G,cut=Math.ceil(minis.length/2);
+  R.className=L.className;
+  minis.forEach((m,i)=>{const to=desk&&i>=cut?R:L;if(m.el.parentNode!==to)to.appendChild(m.el)});
+  R.hidden=!desk||!R.children.length;
+}
 function buildOpps(){
   const box=$('#opps');box.innerHTML='';box.classList.toggle('duel',!multi());box.classList.toggle('many',G.boards.length>4);
   minis=G.boards.filter(b=>b!==G.player).map(b=>{
@@ -553,6 +561,7 @@ function buildOpps(){
     const cvm=el.querySelector('canvas');
     return {board:b,el,cv:cvm,ctx:cvm.getContext('2d'),st:el.querySelector('.st'),meta:el.querySelector('.meta'),tag:el.querySelector('.tag')};
   });
+  placeOpps();
   hideKO();$('#rail').hidden=G.variant!=='order';railKey='';setControls();
   const bb=$('#bossBar');bb.hidden=!G.boss;
   if(G.boss){$('#bossImg').src=body(G.boss.av);$('#bossImg').alt=G.boss.name;$('#bossName').textContent=G.boss.name.toUpperCase();bossKey=''}
@@ -682,32 +691,31 @@ function hud(){
 const DESK=window.matchMedia?matchMedia('(min-width:760px) and (min-aspect-ratio:1/1)'):{matches:false};
 let SIDEZ=1;
 function resize(){
-  const mu=G&&MODE_UI[G.variant];
-  // desktop: opponent boards get every pixel the main board doesn't need, in however many columns makes them biggest
-  {const op=$('#opps');if(op){
-    if(DESK.matches&&minis.length){
-      const ar=$('.arena'),n=minis.length,availH=ar.clientHeight-8,S0=Math.floor((availH-30)/ROWS);
-      const sideNeed=mu&&mu.deskCols?2*Math.round(S0*COLS/10*4.4+22):mu&&mu.sideW?Math.round(Math.min(S0*1.7,150))+(mu.leftW?mu.leftW():0):0;
-      const oppsW=ar.clientWidth-(S0*COLS+sideNeed+24)-8;
-      let best={c:1,mw:36};
-      for(let c=1;c<=n;c++){const rows=Math.ceil(n/c),mwH=Math.floor(((availH-(rows-1)*8)/rows-74)/2),mwW=Math.floor((oppsW-(c-1)*8)/c-22),mw=Math.min(mwH,mwW,260);if(mw>best.mw+2)best={c,mw}}
-      op.style.setProperty('--mw',Math.max(36,best.mw)+'px');op.style.gridTemplateColumns=`repeat(${best.c},auto)`;op.classList.add('deskgrid');
-    }else{op.style.removeProperty('--mw');op.style.gridTemplateColumns='';op.classList.remove('deskgrid')}}}
-  const w=$('#wrap');const W=w.clientWidth,H=w.clientHeight;
-  // a side column (Next, Bank, items...) sits right of the board; the board centres in what's left
-  const base=mu&&mu.sideW?mu.sideW():0;let side=base;let left=mu&&mu.leftW?mu.leftW():0;
-  // Block Battle on desktop: Hold (and items) left of the well, Next right of it, both wide enough for full-size pieces
-  const deskCols=!!(mu&&mu.deskCols&&DESK.matches);
-  if(deskCols){const cs0=Math.floor(H/ROWS)*COLS/10;side=left=Math.round(cs0*4.4+22)}
-  w.style.paddingRight=side?side+'px':'';w.style.paddingLeft=left?left+'px':'';
-  S=Math.max(16,Math.floor(Math.min((W-side-left)/COLS,H/ROWS)));
+  const mu=G&&MODE_UI[G.variant],desk=DESK.matches&&!!G,w=$('#wrap'),ar=$('.arena');
+  const base=mu&&mu.sideW?mu.sideW():0;let side=base,left=mu&&mu.leftW?mu.leftW():0;
+  const deskCols=!!(mu&&mu.deskCols&&desk);
   SIDEZ=1;
-  if(deskCols){}
-  else if(side&&DESK.matches){
-    // desktop: plenty of room, so the whole column (items, Next, Bank, buttons) scales up with the board
-    const want=Math.round(Math.max(base,Math.min(S*1.7,150)));
-    if(want>side&&W-S*COLS-left>=want){side=want;SIDEZ=side/base;w.style.paddingRight=side+'px'}
-  }else if(mu&&mu.growSide&&side){
+  if(desk){
+    // desktop: the board sits dead centre. Its columns (Hold / Next / items) hug it, equal width on both sides,
+    // and the opponents split into the space left and right, in however many columns makes their boards biggest
+    const H0=w.clientHeight,S0=Math.max(16,Math.floor(H0/ROWS));
+    if(deskCols)side=left=Math.round(S0*COLS/10*4.4+22);
+    else if(side){side=Math.round(Math.max(base,Math.min(S0*1.7,150)));SIDEZ=side/base;left=0}
+    const wing=Math.max(side,left),playW=S0*COLS+2*wing+12;
+    ar.style.setProperty('--playw',playW+'px');
+    const n=minis.length,nL=Math.ceil(n/2);
+    if(n){const colW=(ar.clientWidth-playW-16)/2,availH=(ar.querySelector('.play')||w).clientHeight||H0;let best={c:1,mw:36};
+      for(let c=1;c<=nL;c++){const rows=Math.ceil(nL/c),mwH=Math.floor(((availH-(rows-1)*8)/rows-74)/2),mwW=Math.floor((colW-(c-1)*8)/c-22),mw=Math.min(mwH,mwW,260);if(mw>best.mw+2)best={c,mw}}
+      ['#opps','#oppsR'].forEach(id=>{const op=$(id);if(!op)return;op.style.setProperty('--mw',Math.max(36,best.mw)+'px');op.style.gridTemplateColumns=`repeat(${best.c},auto)`;op.classList.add('deskgrid')})}
+    w.style.paddingLeft=w.style.paddingRight=wing?wing+'px':'';
+  }else{
+    ar.style.removeProperty('--playw');
+    ['#opps','#oppsR'].forEach(id=>{const op=$(id);if(op){op.style.removeProperty('--mw');op.style.gridTemplateColumns='';op.classList.remove('deskgrid')}});
+    w.style.paddingRight=side?side+'px':'';w.style.paddingLeft=left?left+'px':'';
+  }
+  const W=w.clientWidth,H=w.clientHeight,pad=desk?2*Math.max(side,left):side+left;
+  S=Math.max(16,Math.floor(Math.min((W-pad)/COLS,H/ROWS)));
+  if(!desk&&mu&&mu.growSide&&side){
     // phone: when there's room to spare, widen the column so Next can show its pair at full tile size
     const want=Math.min(S,72)+18;if(want>side&&W-S*COLS-left>=want){side=want;w.style.paddingRight=side+'px'}
   }
@@ -726,7 +734,7 @@ function resize(){
   sizeMinis();render();
 }
 new ResizeObserver(resize).observe($('#wrap'));
-try{DESK.addEventListener('change',()=>{if(G)setControls();resize()})}catch(e){}
+try{DESK.addEventListener('change',()=>{if(G){placeOpps();setControls()}resize()})}catch(e){}
 window.addEventListener('resize',resize);
 
 /* ---------- per-mode screens: Snack Stack and Splat Shot draw and steer their own boards ---------- */
