@@ -111,3 +111,11 @@ ok(r.ok===false,'junk mode string rejected');
 let bad=false;try{await db.query(`insert into ff_scores(device_id,name,mode,difficulty,score,duration_s) values('device-v4zz','x','pizza',1,1,60)`)}catch(e){bad=true}
 ok(bad,'table constraint blocks unknown modes');
 console.log('v4 done');
+// ---- v5: the seven newer modes get boards too
+const v5=fs.readFileSync(new URL('../supabase/migrations/20261019000005_ff_leaderboard_v5.sql',import.meta.url),'utf8');
+await db.exec(v5);await db.exec(v5);
+ok((await db.query('select count(*)::int n from ff_scores')).rows[0].n>=nBefore,'v5 applies twice and keeps existing scores');
+let k=0;for(const m of ['slurp','buffet','mold','pancake','merge','conveyor','pest']){r=await submit2('device-v5m'+(k++),'New '+m,m+'-brawl',1,3000,'bun');ok(r.ok,m+'-brawl score accepted')}
+ok((await asAnon(`select * from ff_leaderboard('merge-brawl',1,'all',null,50)`)).rows.length===1,'new mode has its own board');
+r=await submit2('device-v5zz','Hack','blocks-duel',1,100,'guac');ok(r.ok===false&&r.reason==='mode','the secret mode still has no board');
+console.log('v5 done');

@@ -70,7 +70,7 @@ function keyMove(B,k){
 // ---------------- Noodle Slurp ----------------
 let sl=null;
 (window.FF_MODES=window.FF_MODES||{}).slurp={
-  info:{how:'Drag through 3 or more touching foods of a kind (diagonals count). Longer chains dump more trash. Hold Raise for more food.',name:'Noodle Slurp',tag:'Drag a chain',sizes:['Duel','Brawl','Big Brawl'],hidden:true,blurb:'drag through 3+ matching foods, long chains dump trash'},
+  info:{how:'Drag through 3 or more touching foods of a kind (diagonals count). Longer chains dump more trash. Hold Raise for more food.',name:'Noodle Slurp',tag:'Drag a chain',sizes:['Duel','Brawl','Big Brawl'],blurb:'drag through 3+ matching foods, long chains dump trash'},
   ...SIDE,
   icon(x){const F=U();[[16,40],[44,18],[72,40]].forEach(([a,b])=>F.drawTile(x,{t:1,clr:0},a,b,26,1,0));
     x.lineCap='round';x.lineJoin='round';x.strokeStyle='#0B0D1B';x.lineWidth=11;x.beginPath();x.moveTo(29,53);x.lineTo(57,31);x.lineTo(85,53);x.stroke();
@@ -115,7 +115,7 @@ let sl=null;
 
 // ---------------- Buffet Grab ----------------
 (window.FF_MODES=window.FF_MODES||{}).buffet={
-  info:{how:'Tap a group of 2 or more touching foods of a kind. Bigger groups dump more trash. Hold Raise for more food.',name:'Buffet Grab',tag:'Tap a group',sizes:['Duel','Brawl','Big Brawl'],hidden:true,blurb:'tap groups of matching food, big plates dump trash'},
+  info:{how:'Tap a group of 2 or more touching foods of a kind. Bigger groups dump more trash. Hold Raise for more food.',name:'Buffet Grab',tag:'Tap a group',sizes:['Duel','Brawl','Big Brawl'],blurb:'tap groups of matching food, big plates dump trash'},
   ...SIDE,
   icon(x){const F=U();[[26,14],[52,14],[26,40],[52,40]].forEach(([a,b])=>F.drawTile(x,{t:3,clr:0},a,b,26,1,0));F.drawTile(x,{t:0,clr:0},78,40,26,1,0);
     x.strokeStyle='#F7C548';x.lineWidth=3;x.beginPath();x.arc(66,40,10,0,Math.PI*2);x.stroke();x.beginPath();x.arc(66,40,17,0,Math.PI*2);x.globalAlpha=.5;x.stroke();x.globalAlpha=1},

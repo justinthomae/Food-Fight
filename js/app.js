@@ -1,6 +1,6 @@
 // Food Fight UI: drawing, input, settings, practice mode and the online lobby.
 (function(){
-const VERSION='1.16.2';
+const VERSION='1.17.0';
 let spec=null; // board being spectated after you're knocked out
 // how far we are between two 60Hz game steps (0..1): drawing uses it so motion is smooth on 90/120/144Hz screens too
 let ALPHA=0,lastDraw=performance.now(),drawDt=16,SIDEW=0;
@@ -167,33 +167,38 @@ function drawFood(c,t,x,y,s){
 }
 // junk: a tied-up garbage bag with stink lines and a fly. Nobody wants that on their board
 function drawJunk(c,x,y,s){
+  // a dented metal garbage can with its lid on, a fish bone poking out and a stink cloud
   const p=Math.max(1,s*.04),w=s-p*2,r=s*.14,X=a=>x+s*a,Y=b=>y+s*b,lw=Math.max(1,s*.045);
-  rr(c,x+p,y+p,w,w,r);c.fillStyle='#8A8F9C';c.fill();
+  rr(c,x+p,y+p,w,w,r);c.fillStyle='#3B4250';c.fill();
   c.save();c.clip();
-  c.fillStyle='rgba(255,255,255,.14)';c.fillRect(x,y,s,s*.12);
+  c.fillStyle='rgba(255,255,255,.08)';c.fillRect(x,y,s,s*.14);
+  c.lineCap='round';c.lineJoin='round';
   // stink lines
-  c.strokeStyle='#A6E05A';c.lineWidth=Math.max(1,s*.04);c.lineCap='round';
-  [[.2,.42],[.8,.42]].forEach(([a,b],k)=>{c.beginPath();c.moveTo(X(a),Y(b));
-    c.bezierCurveTo(X(a+(k?.06:-.06)),Y(b-.08),X(a-(k?.05:-.05)),Y(b-.14),X(a+(k?.02:-.02)),Y(b-.24));c.stroke()});
-  // bag body
-  c.beginPath();c.moveTo(X(.44),Y(.36));
-  c.bezierCurveTo(X(.2),Y(.42),X(.16),Y(.7),X(.24),Y(.84));
-  c.bezierCurveTo(X(.34),Y(.92),X(.66),Y(.92),X(.76),Y(.84));
-  c.bezierCurveTo(X(.84),Y(.7),X(.8),Y(.42),X(.56),Y(.36));c.closePath();
-  c.fillStyle='#26302B';c.fill();c.strokeStyle='#0B0D1B';c.lineWidth=lw;c.stroke();
-  // shine and wrinkles
-  c.strokeStyle='rgba(160,200,170,.55)';c.lineWidth=Math.max(1,s*.035);
-  c.beginPath();c.moveTo(X(.32),Y(.52));c.quadraticCurveTo(X(.27),Y(.64),X(.31),Y(.76));c.stroke();
-  c.strokeStyle='rgba(0,0,0,.45)';c.lineWidth=Math.max(1,s*.025);
-  c.beginPath();c.moveTo(X(.5),Y(.42));c.lineTo(X(.47),Y(.6));c.moveTo(X(.6),Y(.45));c.lineTo(X(.64),Y(.62));c.stroke();
-  // knotted top: two ears and a yellow twist tie
-  c.fillStyle='#26302B';c.strokeStyle='#0B0D1B';c.lineWidth=lw;
-  c.beginPath();c.moveTo(X(.46),Y(.33));c.lineTo(X(.33),Y(.16));c.lineTo(X(.47),Y(.24));c.closePath();c.fill();c.stroke();
-  c.beginPath();c.moveTo(X(.54),Y(.33));c.lineTo(X(.67),Y(.16));c.lineTo(X(.53),Y(.24));c.closePath();c.fill();c.stroke();
-  rr(c,X(.41),Y(.29),s*.18,s*.08,s*.03);c.fillStyle='#F7C548';c.fill();c.stroke();
+  c.strokeStyle='#A6E05A';c.lineWidth=Math.max(1,s*.04);
+  [[.14,.5],[.86,.5]].forEach(([a,b],k)=>{c.beginPath();c.moveTo(X(a),Y(b));c.bezierCurveTo(X(a+(k?.05:-.05)),Y(b-.08),X(a-(k?.05:-.05)),Y(b-.14),X(a),Y(b-.24));c.stroke()});
+  // fish bone sticking out from under the lid
+  c.strokeStyle='#EDE6D6';c.lineWidth=Math.max(1,s*.035);
+  c.beginPath();c.moveTo(X(.56),Y(.3));c.lineTo(X(.74),Y(.12));c.stroke();
+  [[.61,.25],[.66,.2],[.71,.15]].forEach(([a,b])=>{c.beginPath();c.moveTo(X(a-.05),Y(b-.05));c.lineTo(X(a+.05),Y(b+.05));c.stroke()});
+  c.beginPath();c.moveTo(X(.74),Y(.12));c.lineTo(X(.8),Y(.09));c.lineTo(X(.77),Y(.16));c.closePath();c.fillStyle='#EDE6D6';c.fill();
+  // can body: a little narrower at the bottom
+  c.beginPath();c.moveTo(X(.24),Y(.36));c.lineTo(X(.76),Y(.36));c.lineTo(X(.7),Y(.88));c.quadraticCurveTo(X(.5),Y(.93),X(.3),Y(.88));c.closePath();
+  const g=c.createLinearGradient?c.createLinearGradient(X(.24),0,X(.76),0):null;
+  if(g){g.addColorStop(0,'#8E98A6');g.addColorStop(.35,'#D3D9E1');g.addColorStop(1,'#7C8694')}
+  c.fillStyle=g||'#AEB6C2';c.fill();c.strokeStyle='#0B0D1B';c.lineWidth=lw;c.stroke();
+  // ribs
+  c.strokeStyle='rgba(40,46,58,.55)';c.lineWidth=Math.max(1,s*.03);
+  [.36,.5,.64].forEach(a=>{c.beginPath();c.moveTo(X(a),Y(.43));c.lineTo(X(a+(a-.5)*-.08),Y(.83));c.stroke()});
+  // a dent
+  c.fillStyle='rgba(40,46,58,.25)';c.beginPath();c.ellipse(X(.62),Y(.7),s*.05,s*.035,.4,0,Math.PI*2);c.fill();
+  // lid, a bit crooked, with a handle
+  c.save();c.translate(X(.5),Y(.33));c.rotate(-.12);
+  rr(c,-s*.3,-s*.05,s*.6,s*.1,s*.05);c.fillStyle='#B8C0CC';c.fill();c.strokeStyle='#0B0D1B';c.lineWidth=lw;c.stroke();
+  c.beginPath();c.moveTo(-s*.08,-s*.05);c.quadraticCurveTo(0,-s*.15,s*.08,-s*.05);c.strokeStyle='#0B0D1B';c.lineWidth=lw*1.6;c.stroke();c.strokeStyle='#B8C0CC';c.lineWidth=lw*.7;c.stroke();
+  c.restore();
   // fly
-  c.fillStyle='rgba(235,240,255,.85)';c.beginPath();c.ellipse(X(.76),Y(.17),s*.05,s*.03,-.5,0,Math.PI*2);c.ellipse(X(.84),Y(.17),s*.05,s*.03,.5,0,Math.PI*2);c.fill();
-  c.fillStyle='#0B0D1B';c.beginPath();c.arc(X(.8),Y(.21),s*.035,0,Math.PI*2);c.fill();
+  c.fillStyle='rgba(235,240,255,.85)';c.beginPath();c.ellipse(X(.2),Y(.18),s*.05,s*.03,-.5,0,Math.PI*2);c.ellipse(X(.28),Y(.18),s*.05,s*.03,.5,0,Math.PI*2);c.fill();
+  c.fillStyle='#0B0D1B';c.beginPath();c.arc(X(.24),Y(.22),s*.035,0,Math.PI*2);c.fill();
   c.restore();
 }
 function drawTileArt(c,t,x,y,s,pal,art){

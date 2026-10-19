@@ -33,7 +33,7 @@ function drawFood(c,t,x,y,d,a,f){
   F.drawTile(c,{t,clr:0},x-d/2,y-d/2,d,a==null?1:a,f);
 }
 (window.FF_MODES=window.FF_MODES||{}).conveyor={
-  info:{how:'Aim and throw food into the line on the belt. Match 3 to pop them before the line reaches the trash can.',name:'Conveyor Belt',tag:'Aim and match 3',sizes:['Duel','Brawl','Big Brawl'],hidden:true,blurb:'throw food into the line, match 3 before it hits the trash can'},
+  info:{how:'Aim and throw food into the line on the belt. Match 3 to pop them before the line reaches the trash can.',name:'Conveyor Belt',tag:'Aim and match 3',sizes:['Duel','Brawl','Big Brawl'],blurb:'throw food into the line, match 3 before it hits the trash can'},
   noTray:true,noRaise:true,noFooter:true,
   icon(x){
     const F=U();x.lineCap='round';x.strokeStyle='#3A3550';x.lineWidth=22;x.beginPath();x.moveTo(10,30);x.lineTo(84,30);x.arc(84,46,16,-Math.PI/2,Math.PI/2);x.lineTo(40,62);x.stroke();

@@ -46,7 +46,7 @@ function drawBank(B){
 }
 let vis=null;
 (window.FF_MODES=window.FF_MODES||{}).mold={
-  info:{how:'Move and spin the falling pairs. Connect 4 to pop them. Pop every mouldy food first to win.',name:'Mold Patrol',tag:'Clean the kitchen',sizes:['Duel','Race of 4','Race of 8'],hidden:true,blurb:'pop 4 to clean out the mould, first clean kitchen wins'},
+  info:{how:'Move and spin the falling pairs. Connect 4 to pop them. Pop every mouldy food first to win.',name:'Mold Patrol',tag:'Clean the kitchen',sizes:['Duel','Race of 4','Race of 8'],blurb:'pop 4 to clean out the mould, first clean kitchen wins'},
   deskNoFooter:true,keys:'← → move · ↓ faster · ↑ / X spin · Z spin back · Space drop · C bank · Shift unbank',growSide:true,noTray:true,
   footClass(){return ST().footClass()},
   noRaise(){return ST().noRaise()},

@@ -51,7 +51,7 @@ class RiseBoard extends E.BaseBoard{
     // the stack keeps rising; touching the top gives a short grace, then you're out
     if(this.g[0].some(Boolean)){if(++this.grace>150)return this.die()}
     else{this.grace=0;
-      if(!clearing){const v=this.speed();this.rise+=v;if(this.raising)this.score+=1;if(this.rise>=1){this.rise-=1;this.shiftUp()}}}
+      if(!clearing){const v=this.speed();this.rise+=v;if(this.raising&&this.game.frame%6===0)this.score+=1;if(this.rise>=1){this.rise-=1;this.shiftUp()}}}
     if(this.busy>0)this.busy--;
     if(this.isBot)this.ai();
   }
@@ -72,7 +72,7 @@ class RiseBoard extends E.BaseBoard{
     this.needFall=true;this.busy=5;this.clears++;
     this.combo++;this.comboT=COMBO_T;this.maxChain=Math.max(this.maxChain,this.combo);this.maxCombo=Math.max(this.maxCombo,n);
     const [r0,c0]=cells[Math.floor(cells.length/2)],p=this.at(r0,c0);
-    const pts=this.points(n)*this.combo;this.score+=pts;
+    const pts=Math.round(this.points(n)*(1+Math.min(4,this.combo-1)*.5));this.score+=pts;   // combo bonus caps at x3
     this.comboJunk=(this.comboJunk||0)+this.attackFor(n);
     got.forEach((k,j)=>this.earn({k},p.x,p.y-1-j*.7));
     return {x:p.x,y:p.y,pts};
@@ -151,7 +151,7 @@ class RiseBoard extends E.BaseBoard{
 
 class SlurpBoard extends RiseBoard{
   constructor(...a){super(...a);this.path=[];this.longest=0}
-  points(n){return n*n*5}
+  points(n){return n*n*2}
   attackFor(n){return n<=3?0:n===4?1:n===5?2:n===6?3:n-2}
   // ---------- the chain you're dragging (kept as the tiles themselves: the stack can rise or settle mid-drag) ----------
   pos(t){for(let r=0;r<H;r++){const c=this.g[r].indexOf(t);if(c>=0)return [r,c]}return null}
@@ -225,7 +225,7 @@ class SlurpBoard extends RiseBoard{
 
 class BuffetBoard extends RiseBoard{
   constructor(...a){super(...a);this.biggest=0;this.hover=null}
-  points(n){return (n-1)*(n-1)*6}
+  points(n){return (n-1)*(n-1)*2}
   attackFor(n){return n<=3?0:n<=5?1:n<=7?2:n<=9?3:Math.floor(n/2)-1}
   group(r,c){
     const t=this.live(r,c);if(!t)return [];

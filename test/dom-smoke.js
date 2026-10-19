@@ -398,6 +398,7 @@ const check=(cond,msg)=>{console.log((cond?'PASS ':'FAIL ')+msg);if(!cond)proces
   // hidden Block Battle: invisible without the admin passphrase; an admin host can run it and a guest joins by room code
   {const plain=page('https://foodfight.grudgematchgames.com/');await sleep(2400);
    check(!plain.$('#variants [data-v="blocks"]')&&!plain.$('#lobbyVariants [data-v="blocks"]'),'blocks: hidden from everyone else');
+   check(['slurp','buffet','mold','pancake','merge','conveyor','pest'].every(v=>plain.$(`#variants [data-v="${v}"]`)&&plain.$(`#lbVar [data-v="${v}"]`)),'the seven newer modes are public, with leaderboards');
    const oh=page('https://foodfight.grudgematchgames.com/#admin=waffle-pickle-waffle-29');await sleep(2600);
    check(!!oh.$('#variants [data-v="blocks"]')&&oh.w.location.hash==='','blocks: the passphrase unlocks it (and leaves the address bar)');
    const tapper=page('https://foodfight.grudgematchgames.com/');await sleep(2400);

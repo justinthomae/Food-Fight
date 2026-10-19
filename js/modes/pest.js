@@ -101,7 +101,7 @@ class PestBoard extends E.BaseBoard{
     this.pests.splice(this.pests.indexOf(best),1);
     this.swats++;this.combo=f-this.lastSwat<=STREAK_GAP?this.combo+1:1;this.lastSwat=f;
     this.maxChain=Math.max(this.maxChain,this.combo);
-    this.score+=SCORE[best.k]*Math.max(1,this.combo);
+    this.score+=Math.round(SCORE[best.k]*(1+Math.min(4,Math.max(0,this.combo-1))*.25));   // streak bonus caps at x2
     this.burst(best.x,best.y,-1,7);
     if(this.combo>=3){this.pop(`${this.combo} in a row!`,best.x,best.y-.7,'#F7C548',.85);this.sfx('chain',this.combo-1)}
     else{this.pop(['Squish!','Splat!','Got it!'][best.k],best.x,best.y-.6,'#EEF0FA',.7);this.sfx('match',3+best.k)}
