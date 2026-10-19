@@ -515,6 +515,31 @@ button.nextbox:active{background:var(--gold)}
 .estand i{font-style:normal;font-weight:800;color:var(--ink)}
 .hero{display:block;width:150px;height:auto;margin:-60px auto -6px;filter:drop-shadow(0 8px 12px rgba(0,0,0,.45));animation:pop .5s cubic-bezier(.2,1.5,.4,1) both}
 .card.endcard{margin-top:56px}
+/* end screen: compact so it all fits on a phone without scrolling */
+.card.endcard{margin-top:34px;gap:8px}
+.endcard .hero{width:100px;margin:-40px auto -6px}
+.endcard h2{font-size:28px}
+.endcard #eSub{margin:-2px 0 0;font-size:13px;line-height:1.3}
+.endcard .rankline{font-size:13px;min-height:0}
+.erow{display:flex;gap:8px;align-items:stretch;justify-content:center}
+.erow .ewin{margin:0;flex:0 1 auto;min-width:0}
+.erow .ewin b{font-size:20px;max-width:38vw}
+.erow .ewin img{width:46px;height:46px}
+.erow .eko{flex:0 1 auto;min-width:0;margin:0;padding:4px 10px;flex-direction:row;gap:6px}
+.erow .ekocap{font-size:13px;line-height:1.1;max-width:84px;text-align:left}
+.erow .eko .kolosers img{height:50px;width:44px}
+.erow .eko .kolosers.many img{height:46px;width:38px;margin-left:-16px}
+.erow .eko .kolosers.many img:first-child{margin-left:0}
+.endcard .estand{gap:2px 8px}.endcard .estand span{font-size:11px}.endcard .estand img{width:18px;height:18px}
+.endcard .results{grid-template-columns:repeat(6,1fr);gap:4px}
+.endcard .results div{padding:6px 2px;border-radius:10px}
+.endcard .results b{font-size:17px}
+.endcard .results span{font-size:8px;letter-spacing:.04em;display:block;line-height:1.15}
+.endcard .btn.big{padding:10px 12px}
+.endcard .row .btn{padding:9px 6px;font-size:13px}
+/* one-line how to play under the mode picker */
+.modehow{margin:-4px 0 0;font-size:12.5px;line-height:1.35;color:var(--muted);text-align:center;text-wrap:balance;min-height:2.7em}
+.modehow b{color:var(--ink)}
 /* big rooms: compact opponent cards */
 .opps.many{overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;padding-bottom:2px}
 .opps.many::-webkit-scrollbar{display:none}
@@ -630,6 +655,7 @@ button.nextbox:active{background:var(--gold)}
     <div class="field"><label class="lab" for="nameIn">Your name · shown on leaderboards</label><input id="nameIn" maxlength="14" autocomplete="nickname" spellcheck="false"></div>
     <div class="lab">Game mode</div>
     <div class="variants" id="variants" role="radiogroup" aria-label="Game mode"></div>
+    <p class="modehow" id="modeHow"></p>
     <button class="btn primary big" id="bOnline">Play<small id="onlineNote" hidden></small><span class="livetag" id="roomsLive" hidden></span></button>
     <div class="lab">Practice vs bots</div>
     <div class="seg three" id="mode">
@@ -766,6 +792,7 @@ button.nextbox:active{background:var(--gold)}
     <div class="coderow"><div class="code" id="roomCode">---</div><button class="btn" id="bInvite">Share invite link</button></div>
     <div class="lab" id="lobbyVarLab">Game mode</div>
     <div class="variants" id="lobbyVariants" role="radiogroup" aria-label="Game mode"></div>
+    <p class="modehow" id="lobbyHow"></p>
     <div class="varnote" id="lobbyVarNote" hidden></div>
     <div class="lab" id="meLab">You</div>
     <div class="merow">
@@ -821,10 +848,10 @@ button.nextbox:active{background:var(--gold)}
     <img class="hero" id="eHero" alt="" width="150" height="150">
     <h2 id="eTitle">You win</h2>
     <p id="eSub"></p>
-    <div class="ewin" id="eWin" hidden><img id="eWinImg" alt=""><div><small id="eWinLab">Winner</small><b id="eWinName"></b></div></div>
+    <div class="erow"><div class="ewin" id="eWin" hidden><img id="eWinImg" alt=""><div><small id="eWinLab">Winner</small><b id="eWinName"></b></div></div>
+    <div class="eko" id="eVic" hidden><div class="ekocap" id="eVicCap"></div><div class="kolosers" id="eVicLosers"></div></div></div>
     <div class="estand" id="eStand" hidden></div>
     <div class="rankline" id="eRank"></div>
-    <div class="eko" id="eVic" hidden><div class="ekocap" id="eVicCap"></div><div class="kolosers" id="eVicLosers"></div></div>
     <div class="results">
       <div><b id="eTime">0:00</b><span>Time</span></div>
       <div><b id="eChain">1</b><span>Best chain</span></div>

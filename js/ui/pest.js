@@ -117,7 +117,7 @@ function pestsOf(B){
 function bitesOf(B){if(!B.remote)return B.bites;const s=B.ms&&B.ms.b;return s?s.split('').map(Number):[3,3,3,3,3,3]}
 
 (window.FF_MODES=window.FF_MODES||{}).pest={
-  info:{name:'Pest Control',tag:'Swat the bugs',sizes:['Duel','Brawl','Big Brawl'],hidden:true,blurb:'swat the pests before they eat your picnic, but leave the cat alone'},
+  info:{how:'Tap the pests before they eat your plates. Quick streaks send pests to rivals. Don’t swat the cat!',name:'Pest Control',tag:'Swat the bugs',sizes:['Duel','Brawl','Big Brawl'],hidden:true,blurb:'swat the pests before they eat your picnic, but leave the cat alone'},
   noTray:true,noRaise:true,noFooter:true,
   icon(x){
     const u=40;plate(x,56,54,u,0,3,3,false,0);

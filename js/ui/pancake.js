@@ -5,7 +5,7 @@ const U=()=>window.FFUI;
 let nextKey='',sd=null;
 const tileY=t=>t.yo<0?Math.min(0,t.yo+.34*U().ALPHA):(t.yo||0);
 (window.FF_MODES=window.FF_MODES||{}).pancake={
-  info:{name:'Pancake Tower',tag:'Stack of three',sizes:['Duel','Brawl','Big Brawl'],hidden:true,blurb:'line up 3 in any direction, chain to dump trash'},
+  info:{how:'Stacks of 3 fall: tap to change their order. Line up 3 of a kind in any direction to clear them.',name:'Pancake Tower',tag:'Stack of three',sizes:['Duel','Brawl','Big Brawl'],hidden:true,blurb:'line up 3 in any direction, chain to dump trash'},
   noTray:true,noRaise:true,growSide:true,deskNoFooter:true,footClass:()=>'stackbtn',
   keys:'← → move · ↓ faster · ↑ / X flip order · Z flip back · Space drop',
   side(){return '<div class="nextbox"><span>Next</span><canvas id="pcNextCv"></canvas></div>'},

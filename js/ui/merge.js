@@ -35,7 +35,7 @@ const bestOf=B=>B.remote?(B.ms?B.ms.bt|0:1):B.best;
 const ease=p=>1-(1-p)*(1-p);
 let sd=null;
 const MU={
-  info:{name:'Recipe Merge',tag:'Swipe to cook',sizes:['Duel','Brawl','Big Brawl'],hidden:true,blurb:'swipe to combine ingredients into dishes, big dishes dump trash'},
+  info:{how:'Swipe to slide everything. Two of the same combine into the next dish. Big dishes dump trash on rivals.',name:'Recipe Merge',tag:'Swipe to cook',sizes:['Duel','Brawl','Big Brawl'],hidden:true,blurb:'swipe to combine ingredients into dishes, big dishes dump trash'},
   noTray:true,noRaise:true,noFooter:true,
   icon(x){
     const s=30;drawTier(x,3,4,30,s);drawTier(x,3,34,30,s);

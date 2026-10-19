@@ -427,6 +427,17 @@ const check=(cond,msg)=>{console.log((cond?'PASS ':'FAIL ')+msg);if(!cond)proces
    check(H.player.m.some(r=>r.join(',')==='7,7,7,7,0,7,7,7,7,7')||H.player.dead,'blocks online: Switcheroo trades wells across phones');
    oh.errors.concat(og.errors,plain.errors).slice(0,3).forEach(e=>console.log('  ',e));
    check(oh.errors.length===0&&og.errors.length===0&&plain.errors.length===0,'blocks online: no script errors');}
+  // grudge match with only bots left in the room: tapping it starts the next round straight away
+  {const sp=page('https://foodfight.grudgematchgames.com/');await sleep(2400);
+   sp.$('#bOnline').click();sp.$('#bCreate').click();await sleep(1100);setBots(sp,2);sp.$('#bStart').click();await sleep(4700);
+   const M1=sp.w.__ff.game;check(M1&&M1.online&&M1.boards.length===3,'solo grudge: online match vs 2 bots');
+   M1.player.die();await sleep(300);M1.boards.filter(b=>b!==M1.player)[0].die();await sleep(1600);
+   check(M1.over&&!sp.$('#ovEnd').hidden,'solo grudge: end screen');
+   sp.$('#bAgain').click();await sleep(200);check(/Starting/.test(sp.$('#bAgain').textContent),'solo grudge: button says it is starting ('+sp.$('#bAgain').textContent+')');
+   const k0=sp.$('#gmList').innerHTML;await sleep(600);check(sp.$('#gmList').innerHTML===k0,'solo grudge: the cook list is not rebuilt every tick (no flicker)');
+   await sleep(5200);const M2=sp.w.__ff.game;
+   check(M2&&M2!==M1&&M2.online&&M2.boards.length===3,'solo grudge: next round starts with the bots, no second cook needed');
+   check(sp.errors.length===0,'solo grudge: no script errors');try{sp.w.close()}catch(e){}}
   // open rooms: a host's room shows up for everyone else, who can join it with a tap
   {const oh=page('https://foodfight.grudgematchgames.com/');await sleep(2400);
    oh.$('#nameIn').value='Lister';oh.$('#nameIn').dispatchEvent(new oh.w.Event('input'));

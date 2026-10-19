@@ -1,6 +1,6 @@
 // Food Fight UI: drawing, input, settings, practice mode and the online lobby.
 (function(){
-const VERSION='1.15.2';
+const VERSION='1.16.0';
 let spec=null; // board being spectated after you're knocked out
 // how far we are between two 60Hz game steps (0..1): drawing uses it so motion is smooth on 90/120/144Hz screens too
 let ALPHA=0,lastDraw=performance.now(),drawDt=16,SIDEW=0;
@@ -1719,7 +1719,18 @@ function scrollRow(box){
 }
 // keep the picked mode in the middle of the row so everyone can see it
 function centerMode(box){requestAnimationFrame(()=>{const c=box&&box.querySelector('[aria-checked="true"]');if(!c||!box.clientWidth)return;if(box.dataset.cm===c.dataset.v)return;box.dataset.cm=c.dataset.v;const l=c.offsetLeft-box.offsetLeft-(box.clientWidth-c.offsetWidth)/2;try{box.scrollTo({left:Math.max(0,l),behavior:'smooth'})}catch(e){box.scrollLeft=Math.max(0,l)}})}
-function markVariants(box,v){box.querySelectorAll('.vcard').forEach(b=>b.setAttribute('aria-checked',String(b.dataset.v===v)))}
+// a line of how to play, under the mode picker
+const HOW={
+  classic:'Swipe foods sideways or up and down to line up 3. Combos throw trash at rivals. Keep your stack off the top.',
+  order:'Make matches of the foods on your tickets to fill orders. First kitchen to 10 orders wins.',
+  stack:'Move and spin the falling pairs. Connect 4 of a food to pop them; chains dump trash on rivals.',
+  shot:'Aim and throw food at the pile. Hit 3 or more of a kind to pop them before they reach the line.',
+  boss:'Team up against the boss. Your combos hit it. Survive its attacks until its HP runs out.',
+  blocks:'Fit the falling food pieces into full lines to clear them. Clear lots at once to dump leftovers on rivals.',
+};
+function howText(v){const t=HOW[v]||(VARIANT_INFO[v]&&VARIANT_INFO[v].how)||'';return t?`<b>${esc(VARIANT_INFO[v].name)}:</b> ${esc(t)}`:''}
+function markVariants(box,v){box.querySelectorAll('.vcard').forEach(b=>b.setAttribute('aria-checked',String(b.dataset.v===v)));
+  const h=box.id==='lobbyVariants'?$('#lobbyHow'):box.id==='variants'?$('#modeHow'):null;if(h)h.innerHTML=howText(v)}
 function labelSizes(){
   const names=VARIANT_INFO[prefs.variant].sizes;
   $$('#mode button').forEach((b,i)=>{b.firstChild.textContent=names[i]});
@@ -1935,7 +1946,7 @@ function setAgain(title,sub,disabled){$('#bAgain').innerHTML=`${esc(title)}<smal
 function joinGrudge(state){
   if(!inRoom||!NET)return;
   gmMid=gmKey(state);myGm=state;NET.setState(state);
-  setAgain("You're in!",'Waiting for at least one more cook',true);
+  setAgain("You're in!",soloOk(+(state.split(':')[2]||0))?'Starting the next round…':'Waiting for at least one more cook',true);
   $('#gmPanel').hidden=false;clearInterval(gmTick);gmTick=setInterval(renderGm,250);
   wakeAudio();sfx('tap');renderGm();setTimeout(gmCheck,300);
 }
@@ -1947,21 +1958,26 @@ function renderGm(){
   const ins=gmIns(),inIds=new Set(ins.map(m=>m.id));
   const prev=lastMatch&&('gm:'+lastMatch.mid)===gmMid?lastMatch.roster.filter(r=>!r.bot):[];
   const people=prev.concat(ins.filter(m=>!prev.some(p=>p.id===m.id)));
-  $('#gmList').innerHTML=people.map(p=>{
+  const gmHtml=people.map(p=>{
     const here=lobbyMembers.some(m=>m.id===p.id),isIn=inIds.has(p.id);
     return `<li class="${isIn?'in':here?'':'gone'}">${avImg(p.id===ME.id?prefs.av:p.av)}${esc(p.id===ME.id?'You':p.name)} <span>${isIn?'In':here?'Deciding…':'Left'}</span></li>`;
   }).join('');
+  // only touch the list when it changes: rebuilding it 4x a second reloaded the faces and made the highlight flicker
+  {const L=$('#gmList');if(L.dataset.k!==gmHtml){L.dataset.k=gmHtml;L.innerHTML=gmHtml}}
   const bots=+(myGm.split(':')[2]||0);
   const secs=gmDeadline?Math.max(0,Math.ceil((gmDeadline-Date.now())/1000)):0;
-  $('#gmMsg').textContent=ins.length<2?'Waiting for at least one more cook to tap Grudge Match…'
-    :gmDeadline?`Grudge match in ${secs}…${bots?` (+${bots} bot${bots>1?'s':''})`:''}`:`${ins.length} cooks in. Starting…`;
+  const msg=ins.length<2&&!soloOk(bots)?'Waiting for at least one more cook to tap Grudge Match…'
+    :gmDeadline?`Grudge match in ${secs}…${bots?` (+${bots} bot${bots>1?'s':''})`:''}`:`${ins.length>1?ins.length+' cooks':'You'+(bots?` + ${bots} bot${bots>1?'s':''}`:'')} in. Starting…`;
+  if($('#gmMsg').textContent!==msg)$('#gmMsg').textContent=msg;
   if(!$('#ovLobby').hidden){const gj=$('#gmJoin');gj.hidden=false;gj.disabled=true;gj.innerHTML=`You're in!<small>${esc($('#gmMsg').textContent)}</small>`}
 }
+// just you and bots left in the room: no need to wait for another cook
+const soloOk=bots=>bots>0&&!lobbyMembers.some(m=>m.id!==ME.id);
 function gmCheck(){
   if(!gmMid||!NET)return;
   renderGm();
-  const ins=gmIns(),leader=ins[0];
-  if(!leader||leader.id!==ME.id||ins.length<2){
+  const ins=gmIns(),leader=ins[0],bots=+(myGm.split(':')[2]||0);
+  if(!leader||leader.id!==ME.id||ins.length<(soloOk(bots)?1:2)){
     if(gmTimer){clearTimeout(gmTimer);gmTimer=null;gmDeadline=0;NET.send({t:'gmsoon',gm:gmMid,ms:0})}
     return;
   }
@@ -1976,8 +1992,8 @@ function gmCheck(){
 function startGrudge(){
   gmTimer=null;
   const ins=gmIns();
-  if(ins.length<2||!gmMid||ins[0].id!==ME.id){gmDeadline=0;renderGm();return}
-  const [,,b,d,gv]=(ins[0].state||myGm).split(':');
+  const [,,b,d,gv]=((ins[0]&&ins[0].state)||myGm).split(':');
+  if(ins.length<(soloOk(+b||0)?1:2)||!gmMid||ins[0].id!==ME.id){gmDeadline=0;renderGm();return}
   const humans=ins.slice(0,MAX_PLAYERS);
   const roster=humans.map(h=>({id:h.id,name:h.name,av:h.id===ME.id?prefs.av:h.av}));
   const used=new Set(roster.map(r=>r.av));
