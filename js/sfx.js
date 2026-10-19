@@ -204,8 +204,8 @@ window.FFSound=(function(){
     // a quick glissando into the note, the way a harp is swept
     if(i>0)pluck(HARP[i-1],0,.22);pluck(HARP[i],.045,.5);pluck(HARP[i]/2,.045,.18)};
   FX.tetris=()=>{[523.25,659.25,783.99,1046.5,1318.51].forEach((f,i)=>pluck(f,i*.045,.4));
-    tone({type:'triangle',f:1046.5,d:.5,v:.08,t:.22,wet:.4});tone({type:'triangle',f:1568,d:.6,v:.06,t:.26,wet:.4})};
-  FX.b2btetris=()=>{FX.tetris();[1046.5,1318.51,1567.98,2093].forEach((f,i)=>pluck(f,.3+i*.05,.35));speak('Back to back Tetris!')};
+    tone({type:'triangle',f:1046.5,d:.5,v:.08,t:.22,wet:.4});tone({type:'triangle',f:1568,d:.6,v:.06,t:.26,wet:.4});if(!FX._b2b)speak('Hot dog!',true)};
+  FX.b2btetris=()=>{FX._b2b=true;FX.tetris();FX._b2b=false;[1046.5,1318.51,1567.98,2093].forEach((f,i)=>pluck(f,.3+i*.05,.35));speak('Back to back hot dog!',true)};
   // ---- affirmations: a quick musical "yes!" or "uh-oh" layered on top of the effect itself ----
   const MAJ=[523.25,659.25,783.99,1046.5,1318.51,1567.98,2093];
   FX.yay=()=>{pluck(783.99,0,.32);pluck(1046.5,.07,.38);tone({type:'sine',f:2093,d:.18,v:.05,t:.12,wet:.5})};
@@ -220,9 +220,10 @@ window.FFSound=(function(){
   let voice=null;
   function pickVoice(){try{const vs=speechSynthesis.getVoices();voice=vs.find(v=>/en[-_]US/i.test(v.lang)&&/Samantha|Google US|Aaron|Alex|Jenny|Aria|Guy/i.test(v.name))||vs.find(v=>/^en/i.test(v.lang))||null}catch(e){}}
   try{if(window.speechSynthesis){pickVoice();speechSynthesis.onvoiceschanged=pickVoice}}catch(e){}
-  function speak(text){
+  function speak(text,hype){
     if(muted||!window.speechSynthesis||!window.SpeechSynthesisUtterance)return;
-    try{const u=new SpeechSynthesisUtterance(text);if(voice)u.voice=voice;u.lang='en-US';u.rate=1.08;u.pitch=1.15;u.volume=1;speechSynthesis.cancel();speechSynthesis.speak(u)}catch(e){}
+    // hype: a quicker, higher, more excited read
+    try{const u=new SpeechSynthesisUtterance(text);if(voice)u.voice=voice;u.lang='en-US';u.rate=hype?1.22:1.08;u.pitch=hype?1.6:1.15;u.volume=1;speechSynthesis.cancel();speechSynthesis.speak(u)}catch(e){}
   }
   function play(name,arg){
     if(!ok()||!FX[name])return;
