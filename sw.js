@@ -1,7 +1,7 @@
 // Food Fight offline support. The whole game is saved on the device the first time it's opened,
 // so practice vs bots works with no connection. Online, every request still goes to the network first
 // (so updates show up straight away) and the saved copy is only the fallback.
-const CACHE='ff-cache-v5';
+const CACHE='ff-cache-v6';
 const CORE=['./','index.html','manifest.webmanifest',
   'js/config.js','js/sfx.js','js/cuisines.js','js/engine.js','js/stack.js','js/shot.js','js/blocks.js','js/modes/slurp.js','js/modes/mold.js','js/modes/pancake.js','js/modes/merge.js','js/modes/conveyor.js','js/modes/pest.js','js/ui/slurp.js','js/ui/mold.js','js/ui/pancake.js','js/ui/merge.js','js/ui/conveyor.js','js/ui/pest.js','js/net.js','js/scores.js','js/app.js',
   'assets/logo.webp',...['bun','sprinkles','crunch','slice','fudge','splat','guac','glaze'].flatMap(f=>[`assets/${f}.webp`,`assets/${f}-face.webp`,`assets/${f}-win.webp`,`assets/${f}-ko.webp`]),

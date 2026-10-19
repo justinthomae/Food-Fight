@@ -358,6 +358,23 @@ button.nextbox:active{background:var(--gold)}
 .field{display:flex;flex-direction:column;gap:6px}
 .field input{width:100%;border:2px solid var(--line);background:var(--well);color:var(--ink);border-radius:12px;padding:11px 12px;font:inherit;font-size:16px;-webkit-user-select:text;user-select:text}
 .join{display:flex;gap:8px}
+/* open rooms anyone can join */
+.rooms{display:flex;flex-direction:column;gap:6px;max-height:min(30vh,212px);overflow-y:auto;overscroll-behavior:contain}
+.room{display:flex;align-items:center;gap:10px;background:var(--well);border:2px solid var(--line);border-radius:14px;padding:7px 8px 7px 7px;text-align:left;width:100%;color:var(--ink)}
+.room .av{width:38px;height:38px;border-radius:50%;flex:none;background:var(--panel2)}
+.room .rt{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+.room .rt b{font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.room .rt span{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.room .go{flex:none;font-weight:800;font-size:13px;background:linear-gradient(#FFD45E,var(--gold));color:var(--gold-ink);border-radius:10px;padding:8px 12px}
+.room.busy .go{background:var(--panel2);color:var(--ink)}
+.room.full{opacity:.55}.room.full .go{background:transparent;color:var(--muted)}
+.room .dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:#3DDC84;margin-right:5px;vertical-align:1px}
+.room.busy .dot{background:var(--gold)}
+.livetag{display:block;margin:6px auto 0;width:max-content;font-size:11px;font-weight:800;background:rgba(11,13,27,.82);color:#EEF0FA;border-radius:99px;padding:3px 10px}
+.livetag::before{content:'';display:inline-block;width:7px;height:7px;border-radius:50%;background:#3DDC84;margin-right:6px;vertical-align:1px;animation:livepulse 1.6s ease-in-out infinite}
+@keyframes livepulse{50%{opacity:.35}}
+.pubrow{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted);font-weight:600;margin-top:2px}
+.pubrow input{width:18px;height:18px;accent-color:var(--gold);flex:none}
 .join input{flex:1;min-width:0;text-transform:uppercase;letter-spacing:.3em;font-family:var(--display);font-size:20px;text-align:center}
 .join .btn{flex:none;padding-inline:18px}
 .msg{font-size:13px;color:var(--accent-text);min-height:1em}
@@ -604,7 +621,7 @@ button.nextbox:active{background:var(--gold)}
     <div class="field"><label class="lab" for="nameIn">Your name · shown on leaderboards</label><input id="nameIn" maxlength="14" autocomplete="nickname" spellcheck="false"></div>
     <div class="lab">Game mode</div>
     <div class="variants" id="variants" role="radiogroup" aria-label="Game mode"></div>
-    <button class="btn primary big" id="bOnline">Play<small id="onlineNote" hidden></small></button>
+    <button class="btn primary big" id="bOnline">Play<small id="onlineNote" hidden></small><span class="livetag" id="roomsLive" hidden></span></button>
     <div class="lab">Practice vs bots</div>
     <div class="seg three" id="mode">
       <button aria-pressed="true" data-m="duel" data-size="2">Duel<small>1 vs 1</small></button>
@@ -714,6 +731,8 @@ button.nextbox:active{background:var(--gold)}
     <div class="cardhead"><h2>Play</h2><button class="x" data-close aria-label="Close"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
     <div class="lab">With friends</div>
     <button class="btn primary big" id="bCreate">Create a room<small>Get a code to share with up to 7 friends</small></button>
+    <div class="lab" id="roomsLab" hidden>Open rooms <span class="free" id="roomsN"></span></div>
+    <div class="rooms" id="roomList" hidden></div>
     <div class="lab">Or join with a code</div>
     <div class="join"><input id="codeIn" maxlength="5" inputmode="numeric" pattern="[0-9]*" autocomplete="off" spellcheck="false" aria-label="Room code" placeholder="123"><button class="btn" id="bJoin">Join</button></div>
     <div class="msg" id="onlineMsg"></div>
@@ -758,6 +777,7 @@ button.nextbox:active{background:var(--gold)}
       <div class="seg three" id="botSkill">
         <button data-d="0">Easy</button><button data-d="1" aria-pressed="true">Normal</button><button data-d="2">Hard</button>
       </div></div>
+      <label class="pubrow"><input type="checkbox" id="pubRoom" checked> List this room in Open rooms so anyone can join</label>
     </div>
     <button class="btn primary big" id="gmJoin" hidden>Join the grudge match</button>
     <button class="btn primary big" id="bStart">Start match</button>

@@ -427,6 +427,33 @@ const check=(cond,msg)=>{console.log((cond?'PASS ':'FAIL ')+msg);if(!cond)proces
    check(H.player.m.some(r=>r.join(',')==='7,7,7,7,0,7,7,7,7,7')||H.player.dead,'blocks online: Switcheroo trades wells across phones');
    oh.errors.concat(og.errors,plain.errors).slice(0,3).forEach(e=>console.log('  ',e));
    check(oh.errors.length===0&&og.errors.length===0&&plain.errors.length===0,'blocks online: no script errors');}
+  // open rooms: a host's room shows up for everyone else, who can join it with a tap
+  {const oh=page('https://foodfight.grudgematchgames.com/');await sleep(2400);
+   oh.$('#nameIn').value='Lister';oh.$('#nameIn').dispatchEvent(new oh.w.Event('input'));
+   oh.$('#bOnline').click();oh.$('#bCreate').click();await sleep(1100);
+   const code=oh.$('#roomCode').textContent;oh.$('#lobbyVariants [data-v="stack"]').click();await sleep(300);
+   const vw=page('https://foodfight.grudgematchgames.com/');await sleep(2400);
+   const card=()=>vw.$(`#roomList .room[data-code="${code}"]`);
+   check(!vw.$('#roomsLive').hidden&&/open to join/.test(vw.$('#roomsLive').textContent),'open rooms: the start screen says rooms are open ('+vw.$('#roomsLive').textContent+')');
+   vw.$('#bOnline').click();await sleep(100);
+   check(card()&&/Lister's room/.test(card().textContent)&&/Snack Stack/.test(card().textContent)&&/1 cook/.test(card().textContent),'open rooms: the Play screen lists the host, mode and cooks');
+   card().click();await sleep(1200);
+   check(!vw.$('#ovLobby').hidden&&vw.$('#roomCode').textContent===code&&oh.w.document.querySelectorAll('#seats li:not(.bot):not(.empty)').length===2,'open rooms: tapping a room joins it');
+   await sleep(300);const v2=page('https://foodfight.grudgematchgames.com/');await sleep(2400);v2.$('#bOnline').click();await sleep(100);
+   const c2=v2.$(`#roomList .room[data-code="${code}"]`);check(c2&&/2 cooks/.test(c2.textContent),'open rooms: the cook count updates');
+   oh.$('#pubRoom').click();await sleep(300);
+   check(!v2.$(`#roomList .room[data-code="${code}"]`),'open rooms: the host can make the room private');
+   oh.$('#pubRoom').click();await sleep(300);check(!!v2.$(`#roomList .room[data-code="${code}"]`),'open rooms: ...and list it again');
+   oh.$('#bLeave').click();await sleep(1500);
+   const after=v2.$(`#roomList .room[data-code="${code}"]`);check(after&&!/Lister/.test(after.textContent),'open rooms: the room stays listed under the new host after the old one leaves');
+   vw.$('#bLeave').click();await sleep(800);
+   check(!v2.$(`#roomList .room[data-code="${code}"]`),'open rooms: an empty room drops off the list');
+   const ad=page('https://foodfight.grudgematchgames.com/#admin=waffle-pickle-waffle-29');await sleep(2500);
+   ad.$('#bOnline').click();ad.$('#bCreate').click();await sleep(1100);ad.$('#lobbyVariants [data-v="blocks"]').click();await sleep(300);
+   check(!v2.$(`#roomList .room[data-code="${ad.$('#roomCode').textContent}"]`),'open rooms: admin-only mode rooms stay join-by-code');
+   ad.$('#bLeave').click();await sleep(300);
+   [oh,vw,v2,ad].forEach(pg=>{try{pg.w.close()}catch(e){}});
+   check(oh.errors.length+vw.errors.length+v2.errors.length+ad.errors.length===0,'open rooms: no script errors');}
   // the plug-in modes (admin-only for now): each one runs in practice and online, with nothing thrown
   for(const v of ['slurp','buffet','mold','pancake','merge','conveyor','pest']){
     const mp=page('https://foodfight.grudgematchgames.com/#admin=waffle-pickle-waffle-29');await sleep(2500);

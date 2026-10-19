@@ -42,12 +42,37 @@ window.FFNet=(function(){
   function setProfile(p){if(me)Object.assign(me,p);return track()}
   function setState(s){state=s;return track()}
   function send(payload){if(ch)ch.send({type:'broadcast',event:'m',payload}).catch(()=>{})}
+  // ---- open rooms: every host lists their room on one shared channel; anyone can watch the list ----
+  let dir=null,dirReady=false,dirInfo=null,dirCbs=[];
+  const dirKey='w'+Math.random().toString(36).slice(2,10);
+  function readRooms(){
+    if(!dir)return[];
+    const st=dir.presenceState(),list=[],seen=new Set();
+    for(const k in st){const p=st[k]&&st[k][0];if(!p||!/^\d{3,5}$/.test(String(p.code||''))||seen.has(p.code))continue;seen.add(p.code);
+      list.push({code:String(p.code),host:String(p.host||'Cook').slice(0,14),av:String(p.av||''),mode:String(p.mode||'classic'),n:Math.max(1,Math.min(8,p.n|0)),playing:!!p.playing,at:+p.at||0})}
+    list.sort((a,b)=>a.playing-b.playing||b.at-a.at);
+    return list;
+  }
+  function emitRooms(){const l=readRooms();dirCbs.forEach(f=>{try{f(l)}catch(e){}})}
+  function openDir(){
+    if(dir||!enabled)return;init();
+    dir=client.channel('ff:rooms',{config:{broadcast:{self:false,ack:false},presence:{key:dirKey}}});
+    dir.on('presence',{event:'sync'},emitRooms);
+    dir.subscribe(status=>{if(status==='SUBSCRIBED'){dirReady=true;if(dirInfo)dir.track(dirInfo).catch(()=>{});emitRooms()}});
+  }
+  function watchRooms(cb){if(!enabled)return;if(cb&&!dirCbs.includes(cb))dirCbs.push(cb);openDir();if(dirReady)emitRooms()}
+  // host: put this room on the list (or update it). Only sends when something changed
+  function listRoom(info){
+    const k=JSON.stringify(info);if(dirInfo&&JSON.stringify(dirInfo)===k)return;
+    dirInfo=info;openDir();if(dirReady)dir.track(info).catch(()=>{});
+  }
+  function unlistRoom(){if(!dirInfo)return;dirInfo=null;if(dir&&dirReady)dir.untrack().catch(()=>{})}
   async function leave(){
     const c=ch;ch=null;members=[];code=null;
     if(c){try{await c.untrack()}catch(e){}try{await client.removeChannel(c)}catch(e){}}
   }
   return {
-    enabled,makeCode,join,leave,send,setState,setProfile,
+    enabled,makeCode,join,leave,send,setState,setProfile,watchRooms,listRoom,unlistRoom,rooms:readRooms,
     client(){init();return client},
     on(h){Object.assign(handlers,h)},
     get members(){return members},get code(){return code},get me(){return me}

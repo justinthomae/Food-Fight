@@ -1,6 +1,6 @@
 // Food Fight UI: drawing, input, settings, practice mode and the online lobby.
 (function(){
-const VERSION='1.15.0';
+const VERSION='1.15.1';
 let spec=null; // board being spectated after you're knocked out
 // how far we are between two 60Hz game steps (0..1): drawing uses it so motion is smooth on 90/120/144Hz screens too
 let ALPHA=0,lastDraw=performance.now(),drawDt=16,SIDEW=0;
@@ -1776,7 +1776,7 @@ function tryJoin(){const c=codeIn.value;if(!/^\d{3,5}$/.test(c)){onlineMsg('Room
 $('#bJoin').addEventListener('click',tryJoin);
 codeIn.addEventListener('keydown',e=>{if(e.key==='Enter')tryJoin()});
 async function leaveRoom(){
-  inRoom=false;clearInterval(vsTimer);cancelGrudge();
+  inRoom=false;clearInterval(vsTimer);cancelGrudge();if(NET)NET.unlistRoom();renderRooms();
   if(NET)await NET.leave();
   try{history.replaceState(null,'',location.pathname)}catch(e){}
   toMenu();
@@ -1884,6 +1884,7 @@ function renderLobby(){
   else if(hostView&&seated.length+nb<2)lobbyMsg('Share the code, or add a bot to play now.');
   else lobbyMsg('');
   $('#bStart').disabled=!!playing.length||seated.length+nb<2;
+  listMyRoom(hostView,hostMode,seated.length,playing.length>0);
   const forming=lobbyMembers.filter(m=>m.state.startsWith('gm:')&&m.id!==ME.id);
   const gj=$('#gmJoin');gj.hidden=!forming.length&&!gmMid;gj.disabled=!!gmMid;
   if(gmMid)gj.innerHTML=`You're in!<small>${esc($('#gmMsg').textContent||'Waiting for the grudge match')}</small>`;
@@ -2017,6 +2018,31 @@ if(NET){
     left(id){maybeGone(id)}
   });
 }
+/* ---------- open rooms: hosts list their room; everyone else sees it on the Play screen and joins with a tap ---------- */
+let openRooms=[],pubRoom=true;
+try{pubRoom=localStorage.getItem('ff-pub')!=='0'}catch(e){}
+$('#pubRoom').checked=pubRoom;
+$('#pubRoom').addEventListener('change',e=>{pubRoom=e.target.checked;try{localStorage.setItem('ff-pub',pubRoom?'1':'0')}catch(_){}renderLobby();sfx('tap')});
+function listMyRoom(host,mode,n,playing){
+  if(!NET)return;
+  // admin-only modes stay join-by-code, and a host can keep the room private
+  if(!inRoom||!host||!pubRoom||!NET.code||(VARIANT_INFO[mode]||{}).hidden){NET.unlistRoom();renderRooms();return}
+  NET.listRoom({code:NET.code,host:ME.name,av:prefs.av,mode,n,playing,at:Math.floor(Date.now()/60000)});
+  renderRooms();
+}
+const roomLine=r=>`${VARIANT_INFO[r.mode]?VARIANT_INFO[r.mode].name:'Food Fight'} · ${r.n} cook${r.n>1?'s':''}${r.playing?' · match on, next game':''}`;
+function renderRooms(){
+  const mine=inRoom&&NET?NET.code:null;
+  const list=openRooms.filter(r=>r.code!==mine&&!(VARIANT_INFO[r.mode]||{}).hidden);
+  const n=list.filter(r=>r.n<MAX_PLAYERS).length;
+  const live=$('#roomsLive');live.hidden=!n;live.textContent=n===1?'1 room open to join':`${n} rooms open to join`;
+  const box=$('#roomList');box.hidden=$('#roomsLab').hidden=!list.length;$('#roomsN').textContent=list.length;
+  const key=list.map(r=>[r.code,r.host,r.av,r.mode,r.n,r.playing].join(':')).join('|');if(box.dataset.k===key)return;box.dataset.k=key;
+  box.innerHTML=list.map(r=>{const full=r.n>=MAX_PLAYERS;
+    return `<button type="button" class="room${r.playing?' busy':''}${full?' full':''}" data-code="${esc(r.code)}"${full?' disabled':''} aria-label="Join ${esc(r.host)}'s room, ${esc(roomLine(r))}">${avImg(r.av)}<span class="rt"><b><i class="dot"></i>${esc(r.host)}'s room</b><span>${esc(roomLine(r))}</span></span><span class="go">${full?'Full':r.playing?'Wait in':'Join'}</span></button>`}).join('');
+}
+$('#roomList').addEventListener('click',e=>{const b=e.target.closest('.room');if(!b||b.disabled||!NET)return;wakeAudio();sfx('tap');codeIn.value=b.dataset.code;enterRoom(b.dataset.code)});
+if(NET)NET.watchRooms(list=>{openRooms=list;renderRooms()});
 function afterLoad(){
   const q=NET?new URLSearchParams(location.search).get('room'):null;
   // invite link: skip the menu and go straight into the room (older 4-letter links still work)
