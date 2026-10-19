@@ -85,7 +85,7 @@ class MergeBoard extends E.BaseBoard{
     this.anim={f:this.game.frame,moves:res.moves,merges:res.merges,spawned:sp,cleared:res.cleared,served};
     // feedback
     if(served.length){this.pop('FEAST!',3,4.6,'#F7C548',1.4,90);this.sfx('feast');this.shake=10}
-    else if(top>=4){this.pop(TIERS[top]+'!',3,4.6,top>=7?'#F7C548':'#EEF0FA',top>=7?1.15:.9);this.sfx(top>=7?'helping':'snack')}
+    else if(top>=4){this.pop((MergeBoard.nameOf?MergeBoard.nameOf(top):TIERS[top])+'!',3,4.6,top>=7?'#F7C548':'#EEF0FA',top>=7?1.15:.9);this.sfx(top>=7?'helping':'snack')}
     else if(res.merges.length)this.sfx('match',Math.min(5,res.merges.length+1));
     else this.sfx('tap');
     if(res.merges.length>=3)this.pop(`${res.merges.length} at once!`,3,5.6,'#CC79A7',.8);

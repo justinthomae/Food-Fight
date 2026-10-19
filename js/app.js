@@ -1,6 +1,6 @@
 // Food Fight UI: drawing, input, settings, practice mode and the online lobby.
 (function(){
-const VERSION='1.16.1';
+const VERSION='1.16.2';
 let spec=null; // board being spectated after you're knocked out
 // how far we are between two 60Hz game steps (0..1): drawing uses it so motion is smooth on 90/120/144Hz screens too
 let ALPHA=0,lastDraw=performance.now(),drawDt=16,SIDEW=0;
@@ -400,7 +400,7 @@ function renderMini(m){
   const ro=b.rise*s,simple=s<14,fr=G?G.frame:0;
   {const mu=G&&MODE_UI[G.variant];if(mu&&mu.mini){mu.mini(c,b,w,h,s);return}}
   if(G&&G.variant==='blocks'){
-    const v=blocksView(b),cs=w/10;for(let r=0;r<20;r++)for(let k=0;k<10;k++)if(v[r][k]){c.fillStyle=BCOL[v[r][k]];c.fillRect(k*cs+.5,r*cs+.5,cs-1,cs-1)}
+    const v=blocksView(b),cs=w/10;for(let r=0;r<20;r++)for(let k=0;k<10;k++)if(v[r][k]){c.fillStyle=bcol(v[r][k]);c.fillRect(k*cs+.5,r*cs+.5,cs-1,cs-1)}
     const inc=b.remote?(b.binc|0):(b.incoming?b.incoming():0);if(inc>0){c.fillStyle='#E5484D';c.fillRect(0,h-Math.min(20,inc)*cs,Math.max(2,cs*.3),Math.min(20,inc)*cs)}
     if(b.dead){c.fillStyle='rgba(11,13,27,.55)';c.fillRect(0,0,w,h);c.fillStyle='#EEF0FA';c.textAlign='center';c.textBaseline='middle';c.font=`${Math.round(w*.32)}px 'Lilita One',sans-serif`;c.fillText('KO',w/2,h/2)}
     return;
@@ -851,91 +851,16 @@ function drawBank(){
   else{const [a,b,sa,sb]=h;drawTile(x,{t:b,clr:0,sp:sb},0,0,u,1,0);drawTile(x,{t:a,clr:0,sp:sa},0,u,u,1,0)}
 }
 // ----- Packed Lunch (hidden admin mode): 10x20 well drawn inside the usual 6x12 board area (same 1:2 shape) -----
-// Packed Lunch pieces: 1 hot dog (I), 2 waffle (O), 3 chocolate bar (T), 4 Swiss cheese (S), 5 watermelon (Z), 6 pizza (J), 7 toast (L), 8 trash
-const BCOL=['','#D9823F','#E3A84A','#7A4A2A','#F7D35A','#E5484D','#E8803A','#C98A45','#6B7080'];
-const FOUT='#2A1A12';
-// helpers for foods that fill their whole piece: the union of its cells, inset only on the outside edges
-const shapeCells=p=>BT().SHAPES[p][0];
-function shapeRects(cells,u,ins){const has=(r,c)=>cells.some(x=>x[0]===r&&x[1]===c);
-  return cells.map(([r,c])=>{const x0=c*u+(has(r,c-1)?0:ins),x1=(c+1)*u-(has(r,c+1)?0:ins),y0=r*u+(has(r-1,c)?0:ins),y1=(r+1)*u-(has(r+1,c)?0:ins);return [x0,y0,x1-x0,y1-y0]})}
-function shapeClip(c,cells,u,ins){c.beginPath();shapeRects(cells,u,ins).forEach(([x,y,w,h])=>c.rect(x,y,w,h));c.clip()}
-function fillShape(c,cells,u,ins,fill,lw,stroke){c.beginPath();shapeRects(cells,u,ins).forEach(([x,y,w,h])=>c.rect(x,y,w,h));c.fillStyle=fill;c.fill();if(lw&&stroke)shapeEdges(c,cells,u,ins,lw,stroke)}
-// stroke just the outside edges of the shape, ins in from the cell borders
-function shapeEdges(c,cells,u,ins,lw,col){const has=(r,cc)=>cells.some(x=>x[0]===r&&x[1]===cc);c.beginPath();
-  cells.forEach(([r,cc])=>{const L=cc*u,T=r*u,Rr=(cc+1)*u,B=(r+1)*u,l=has(r,cc-1),rt=has(r,cc+1),t=has(r-1,cc),b=has(r+1,cc);
-    const xl=L+(l?0:ins),xr=Rr-(rt?0:ins),yt=T+(t?0:ins),yb=B-(b?0:ins);
-    if(!t){c.moveTo(l?L:xl,yt);c.lineTo(rt?Rr:xr,yt)}if(!b){c.moveTo(l?L:xl,yb);c.lineTo(rt?Rr:xr,yb)}
-    if(!l){c.moveTo(xl,t?T:yt);c.lineTo(xl,b?B:yb)}if(!rt){c.moveTo(xr,t?T:yt);c.lineTo(xr,b?B:yb)}});
-  c.lineWidth=lw;c.strokeStyle=col;c.lineCap='square';c.stroke();c.lineCap='round'}
-// each food is drawn once, whole, in its piece's shape (box units u), then each cell shows its own slice of it
-function drawFoodShape(c,p,u){
-  const X=a=>a*u,lw=Math.max(1,u*.07);c.lineJoin='round';c.lineCap='round';
-  const stroke=(w,col)=>{c.lineWidth=w;c.strokeStyle=col;c.stroke()};
-  if(p===1){   // hot dog in a bun, mustard zigzag
-    rr(c,X(.22),X(1.1),X(3.56),X(.8),X(.4));c.fillStyle='#E8A85C';c.fill();stroke(lw,FOUT);
-    rr(c,X(.08),X(1.3),X(3.84),X(.4),X(.2));c.fillStyle='#C2412D';c.fill();stroke(lw,FOUT);
-    c.beginPath();for(let i=0;i<=14;i++){const x=X(.45+i*3.1/14),y=X(1.5+(i%2?.09:-.09));i?c.lineTo(x,y):c.moveTo(x,y)}stroke(X(.07),'#F7D13C');
-    c.beginPath();c.moveTo(X(.5),X(1.2));c.lineTo(X(3.5),X(1.2));stroke(X(.05),'rgba(255,255,255,.45)');
-  }else if(p===2){   // waffle with butter and syrup
-    rr(c,X(1.06),X(.06),X(1.88),X(1.88),X(.32));c.fillStyle='#E3A84A';c.fill();stroke(lw,FOUT);
-    c.fillStyle='#B8782A';for(let i=0;i<4;i++)for(let j=0;j<4;j++)c.fillRect(X(1.2+i*.44),X(.2+j*.44),X(.3),X(.3));
-    c.fillStyle='rgba(122,62,20,.6)';c.beginPath();c.ellipse(X(2),X(1.05),X(.6),X(.42),.3,0,Math.PI*2);c.fill();
-    rr(c,X(1.78),X(.78),X(.44),X(.34),X(.06));c.fillStyle='#FFE58A';c.fill();stroke(lw*.8,FOUT);
-  }else if(p===3){   // chocolate bar: every block is one square of chocolate
-    const cells=shapeCells(p);fillShape(c,cells,u,X(.05),'#6B3E22',lw,FOUT);
-    cells.forEach(([r,cc])=>{const x=cc*u,y=r*u;rr(c,x+X(.16),y+X(.16),X(.68),X(.68),X(.1));c.fillStyle='#8A5530';c.fill();
-      c.fillStyle='rgba(255,255,255,.18)';c.fillRect(x+X(.2),y+X(.2),X(.6),X(.1));c.fillRect(x+X(.2),y+X(.2),X(.1),X(.6));
-      c.fillStyle='rgba(0,0,0,.25)';c.fillRect(x+X(.2),y+X(.72),X(.62),X(.1));c.fillRect(x+X(.72),y+X(.2),X(.1),X(.62))});
-  }else if(p===4){   // Swiss cheese, holes and all
-    const cells=shapeCells(p);fillShape(c,cells,u,X(.05),'#F7D35A',lw,'#9A6A12');
-    c.save();shapeClip(c,cells,u,X(.05));
-    [[.35,.3,.13],[.7,.72,.09],[.28,.75,.07],[.62,.25,.06],[.5,.52,.1]].forEach(([a,b,rad],q)=>cells.forEach(([r,cc],n)=>{const k2=(n+q)%5;if(k2>2)return;
-      c.beginPath();c.arc(cc*u+X(a),r*u+X(b),X(rad),0,Math.PI*2);c.fillStyle='#E0AE2E';c.fill();
-      c.beginPath();c.arc(cc*u+X(a)+X(rad*.25),r*u+X(b)+X(rad*.25),X(rad*.7),0,Math.PI*2);c.fillStyle='#C9951F';c.fill()}));
-    c.fillStyle='rgba(255,255,255,.25)';cells.forEach(([r,cc])=>c.fillRect(cc*u+X(.12),r*u+X(.1),X(.76),X(.07)));
-    c.restore();
-  }else if(p===5){   // watermelon: red flesh, seeds, green rind round the edge
-    const cells=shapeCells(p);fillShape(c,cells,u,X(.05),'#E5484D',0,null);
-    shapeEdges(c,cells,u,X(.13),X(.17),'#3E8E3A');shapeEdges(c,cells,u,X(.24),X(.06),'#C9E89A');shapeEdges(c,cells,u,X(.05),lw,FOUT);
-    c.fillStyle='#2A1A12';cells.forEach(([r,cc])=>[[.38,.42],[.62,.6],[.5,.36],[.36,.66]].slice(0,3).forEach(([a,b],q)=>{
-      c.beginPath();c.ellipse(cc*u+X(a+(q?.04:0)),r*u+X(b),X(.045),X(.075),.4,0,Math.PI*2);c.fill()}));
-  }else if(p===6){   // pizza: golden crust round the edge, sauce, melted cheese, pepperoni
-    const cells=shapeCells(p);fillShape(c,cells,u,X(.05),'#D9963F',lw,FOUT);
-    fillShape(c,cells,u,X(.17),'#D9472B',0,null);fillShape(c,cells,u,X(.22),'#F7C548',0,null);
-    c.save();shapeClip(c,cells,u,X(.22));
-    c.fillStyle='rgba(217,71,43,.5)';cells.forEach(([r,cc],n)=>{c.beginPath();c.ellipse(cc*u+X(n%2?.25:.75),r*u+X(.8),X(.16),X(.08),.6,0,Math.PI*2);c.fill()});
-    c.restore();
-    cells.forEach(([r,cc],n)=>{const x=cc*u+X(n%2?.62:.4),y=r*u+X(n%2?.38:.55);c.beginPath();c.arc(x,y,X(.16),0,Math.PI*2);c.fillStyle='#B8322A';c.fill();c.lineWidth=lw*.7;c.strokeStyle=FOUT;c.stroke();
-      c.fillStyle='rgba(0,0,0,.25)';c.beginPath();c.arc(x+X(.05),y+X(.04),X(.04),0,Math.PI*2);c.arc(x-X(.06),y-X(.02),X(.03),0,Math.PI*2);c.fill()});
-  }else if(p===7){   // a slice of toast: golden crust round the edge, soft middle, a pat of butter
-    const cells=shapeCells(p);fillShape(c,cells,u,X(.05),'#B8732F',lw,FOUT);
-    fillShape(c,cells,u,X(.2),'#F3D18C',0,null);
-    c.fillStyle='rgba(184,115,47,.35)';cells.forEach(([r,cc])=>[[.4,.45],[.62,.35],[.55,.66],[.3,.6]].forEach(([a,b])=>c.fillRect(cc*u+X(a),r*u+X(b),X(.05),X(.05))));
-    const [br,bc]=cells[2];rr(c,bc*u+X(.3),br*u+X(.32),X(.4),X(.34),X(.07));c.fillStyle='#FFE58A';c.fill();c.lineWidth=lw*.8;c.strokeStyle=FOUT;c.stroke();
-  }
-}
-const foodSprites=new Map();
-function foodSprite(p,rot,px){
-  const K=BT();const n=K.BOX[p];if(p===2)rot=0;const key=p+'|'+rot+'|'+px;let sp=foodSprites.get(key);
-  if(!sp){if(foodSprites.size>200)foodSprites.clear();sp=document.createElement('canvas');sp.width=sp.height=n*px;const c=sp.getContext('2d');
-    c.translate(n*px/2,n*px/2);c.rotate(rot*Math.PI/2);c.translate(-n*px/2,-n*px/2);drawFoodShape(c,p,px);foodSprites.set(key,sp)}
-  return sp;
-}
-// one board cell: a soft tile in the food's colour, then its slice of the food
+// each piece is drawn with one of your kitchen's foods (7 pieces share the 5 foods); 8 is trash
+const BFOOD=[0,0,1,2,3,4,1,3];
+const bcol=p=>p===8||!PAL.c[BFOOD[p]]?'#6B7080':PAL.c[BFOOD[p]];
+// one board cell: the food tile for that piece (or a trash bag)
 function drawCellFood(c,v,x,y,s,a){
   const p=v&15;if(!p)return;if(p===8){if(a!=null&&a<1)c.globalAlpha=a;drawJunk(c,x,y,s);c.globalAlpha=1;return}
-  const K=BT(),rot=(v>>5)&3,idx=(v>>7)&3,cell=K.SHAPES[p][rot][idx]||[0,0],px=Math.max(8,Math.round(s*DPR));
-  if(a!=null)c.globalAlpha=a;
-  rr(c,x+s*.04,y+s*.04,s*.92,s*.92,s*.18);c.fillStyle=BCOL[p]+'38';c.fill();
-  c.drawImage(foodSprite(p,rot,px),cell[1]*px,cell[0]*px,px,px,x,y,s,s);
-  c.globalAlpha=1;
+  drawTile(c,{t:BFOOD[p],clr:0},x,y,s,a==null?1:a,G?G.frame:0,s<14);
 }
 function drawBlock(c,v,x,y,s,a){
-  if(!v)return;if(a!=null)c.globalAlpha=a;const p=Math.max(.5,s*.05),r=s*.2;
-  rr(c,x+p,y+p,s-2*p,s-2*p,r);c.fillStyle=BCOL[v]||BCOL[8];c.fill();
-  if(s>=7){c.fillStyle='rgba(255,255,255,.3)';rr(c,x+p*2.4,y+p*2.4,s-p*4.8,(s-p*4.8)*.36,r*.7);c.fill();
-    c.fillStyle='rgba(0,0,0,.22)';c.fillRect(x+p*2.4,y+s-p-s*.16,s-p*4.8,s*.1)}
-  if(a!=null)c.globalAlpha=1;
+  if(v)drawCellFood(c,v,x,y,s,a);
 }
 // the flashing "?" block that carries an item
 function drawQ(c,x,y,s){const a=.55+.45*Math.sin((G?G.frame:0)*.25);c.fillStyle=`rgba(255,255,255,${.25*a})`;rr(c,x+s*.08,y+s*.08,s*.84,s*.84,s*.2);c.fill();
@@ -949,8 +874,8 @@ function blocksView(b){
 function drawPieceAt(c,p,cx,cy,s,a){
   const K=BT();if(!K||!p)return;const cells=K.SHAPES[p][0];
   const rs=cells.map(x=>x[0]),cs=cells.map(x=>x[1]),r0=Math.min(...rs),r1=Math.max(...rs),c0=Math.min(...cs),c1=Math.max(...cs);
-  const ox=cx-(c1-c0+1)*s/2,oy=cy-(r1-r0+1)*s/2,px=Math.max(8,Math.round(s*DPR)),w=c1-c0+1,h=r1-r0+1;
-  if(a!=null)c.globalAlpha=a;c.drawImage(foodSprite(p,0,px),c0*px,r0*px,w*px,h*px,ox,oy,w*s,h*s);c.globalAlpha=1;
+  const ox=cx-(c1-c0+1)*s/2,oy=cy-(r1-r0+1)*s/2;
+  cells.forEach(([r,cc])=>drawTile(c,{t:BFOOD[p],clr:0},ox+(cc-c0)*s,oy+(r-r0)*s,s,a==null?1:a,0,s<14));
 }
 let bsideKey='';
 MODE_UI.blocks={
@@ -1024,7 +949,7 @@ MODE_UI.blocks={
       const p=B.piece;
       if(p){
         // ghost
-        const gr=B.ghostRow();K.SHAPES[p.p][p.rot].forEach(([dr,dc])=>{const r=gr+dr-HID;if(r>=0){ctx.strokeStyle=BCOL[p.p];ctx.globalAlpha=.55;ctx.lineWidth=Math.max(1.5,cs*.08);rr(ctx,(p.c+dc)*cs+cs*.1,r*cs+cs*.1,cs*.8,cs*.8,cs*.18);ctx.stroke();ctx.globalAlpha=1}});
+        const gr=B.ghostRow();K.SHAPES[p.p][p.rot].forEach(([dr,dc])=>{const r=gr+dr-HID;if(r>=0){ctx.strokeStyle=bcol(p.p);ctx.globalAlpha=.55;ctx.lineWidth=Math.max(1.5,cs*.08);rr(ctx,(p.c+dc)*cs+cs*.1,r*cs+cs*.1,cs*.8,cs*.8,cs*.18);ctx.stroke();ctx.globalAlpha=1}});
         // the piece glides a touch between cells (~25ms) so moves read smooth without feeling floaty
         const v=this.vis||(this.vis={});if(v.pid!==B.pid||v.b!==B){v.pid=B.pid;v.b=B;v.c=p.c;v.r=p.r}
         const k=1-Math.exp(-drawDt/22);v.c+=(p.c-v.c)*k;v.r+=(p.r-v.r)*k;if(Math.abs(v.c-p.c)<.02)v.c=p.c;if(Math.abs(v.r-p.r)<.02)v.r=p.r;
@@ -1044,7 +969,7 @@ MODE_UI.blocks={
     // nearly topped out
     if(!B.remote&&B.rows()>=17){ctx.fillStyle=`rgba(229,72,77,${.18+.12*Math.sin(G.frame*.25)})`;ctx.fillRect(0,0,Wp,cs*3)}
     // bits from cleared lines
-    (B.parts||[]).forEach(q=>{ctx.globalAlpha=Math.min(1,q.life/12);ctx.fillStyle=BCOL[q.kind]||BCOL[8];ctx.fillRect(q.x*S-cs*.12,q.y*S-cs*.12,cs*.24,cs*.24)});ctx.globalAlpha=1;
+    (B.parts||[]).forEach(q=>{ctx.globalAlpha=Math.min(1,q.life/12);ctx.fillStyle=bcol(q.kind);ctx.fillRect(q.x*S-cs*.12,q.y*S-cs*.12,cs*.24,cs*.24)});ctx.globalAlpha=1;
     drawFxLayer({parts:[],pops:B.pops||[]},0);
     if(B.dead&&G.playerOut&&!G.over)drawKO(B,Wp,Hp);
     if(mine)this.drawSide(B);

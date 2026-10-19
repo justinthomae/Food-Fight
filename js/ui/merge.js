@@ -2,21 +2,27 @@
 (function(){
 const U=()=>window.FFUI;
 const K=()=>window.FFEngine&&FFEngine.BOARD_TYPES.merge;
-const EMOJI=['','🌾','🥣','🥟','🍞','🥪','🍔','🍕','🍝','🎂','🦃'];
-const COL=['','#B7D98B','#F3EEE2','#C7B3E8','#D9963F','#6CC5B0','#E5822A','#E5484D','#F7C548','#E58FC0','#56B4E9'];
-const EF='"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif';
+// the dishes come from your kitchen (cuisine): tiers 1-5 are its five foods, 6-10 the golden versions, 10 is the Feast
+const foodOf=t=>(t-1)%5,gold=t=>t>5;
+function tierName(t){if(!t)return'';if(t<0)return'Trash';const n=(U().names()||[])[foodOf(t)]||'Dish';return t>=10?'Feast':gold(t)?'Golden '+n:n}
+const colOf=t=>t<0?'#6B7080':gold(t)?'#F7C548':(U().PAL.c[foodOf(t)]||'#888');
 // counter geometry in board units (the board is 6 x 12)
 const GW=5.7,GX=.15,GY=12-5.7-.25,CS=GW/5;
 const sprites=new Map();
 function tierSprite(t,px){
-  const key=t+'|'+px;let sp=sprites.get(key);if(sp)return sp;
+  const F=U(),key=t+'|'+px+'|'+F.prefs.palette+F.prefs.art+F.cuisine();let sp=sprites.get(key);if(sp)return sp;
   if(sprites.size>120)sprites.clear();
-  sp=document.createElement('canvas');sp.width=sp.height=px;const c=sp.getContext('2d'),F=U();
+  sp=document.createElement('canvas');sp.width=sp.height=px;const c=sp.getContext('2d');
   const p=px*.04,r=px*.2;
-  F.rr(c,p,p+px*.03,px-2*p,px-2*p,r);c.fillStyle='rgba(0,0,0,.28)';c.fill();
-  F.rr(c,p,p,px-2*p,px-2*p,r);c.fillStyle=COL[t];c.fill();
-  F.rr(c,p*2.2,p*2.2,px-p*4.4,(px-p*4.4)*.42,r*.7);c.fillStyle='rgba(255,255,255,.28)';c.fill();
-  c.fillStyle='#000';c.font=`${Math.round(px*.6)}px ${EF}`;c.textAlign='center';c.textBaseline='middle';c.fillText(EMOJI[t],px/2,px*.53);
+  F.drawTile(c,{t:foodOf(t),clr:0},0,0,px,1,0);
+  if(gold(t)){   // golden dish: gold rim, shine, and a crown on the Feast
+    c.lineWidth=px*.075;c.strokeStyle='#F7C548';F.rr(c,px*.06,px*.06,px*.88,px*.88,px*.2);c.stroke();
+    c.lineWidth=px*.025;c.strokeStyle='#FFF3B0';F.rr(c,px*.1,px*.1,px*.8,px*.8,px*.17);c.stroke();
+    const st=(x,y,R)=>{c.fillStyle='#FFF6C8';c.beginPath();for(let i=0;i<8;i++){const a=i*Math.PI/4,rr_=i%2?R*.38:R;c.lineTo(x+Math.cos(a)*rr_,y+Math.sin(a)*rr_)}c.closePath();c.fill()};
+    st(px*.2,px*.2,px*.09);st(px*.82,px*.3,px*.06);
+    if(t>=10){c.fillStyle='#F7C548';c.strokeStyle='#7A4A12';c.lineWidth=px*.02;c.beginPath();const y0=px*.02,w=px*.42,x0=px/2-w/2;
+      c.moveTo(x0,y0+px*.17);c.lineTo(x0,y0+px*.04);c.lineTo(x0+w*.25,y0+px*.11);c.lineTo(x0+w/2,y0);c.lineTo(x0+w*.75,y0+px*.11);c.lineTo(x0+w,y0+px*.04);c.lineTo(x0+w,y0+px*.17);c.closePath();c.fill();c.stroke()}
+  }
   // tier number, bottom right
   const rr2=px*.15;c.fillStyle='rgba(11,13,27,.72)';c.beginPath();c.arc(px-p-rr2*1.05,px-p-rr2*1.05,rr2,0,Math.PI*2);c.fill();
   c.fillStyle='#FFFFFF';c.font=`800 ${Math.round(px*.19)}px Figtree,sans-serif`;c.fillText(String(t),px-p-rr2*1.05,px-p-rr2*1.05+px*.01);
@@ -34,6 +40,7 @@ const gridOf=B=>B.remote?(B.ms?K().decode(B.ms.b):null):B.m;
 const bestOf=B=>B.remote?(B.ms?B.ms.bt|0:1):B.best;
 const ease=p=>1-(1-p)*(1-p);
 let sd=null;
+if(K())K().nameOf=tierName;
 const MU={
   info:{how:'Swipe to slide everything. Two of the same combine into the next dish. Big dishes dump trash on rivals.',name:'Recipe Merge',tag:'Swipe to cook',sizes:['Duel','Brawl','Big Brawl'],hidden:true,blurb:'swipe to combine ingredients into dishes, big dishes dump trash'},
   noTray:true,noRaise:true,noFooter:true,
@@ -56,10 +63,12 @@ const MU={
       const done=t<=best,next=t===Math.min(10,best+1)&&best<10;
       if(next){const pu=.55+.45*Math.sin(f*.12);ctx.strokeStyle=`rgba(247,197,72,${pu})`;ctx.lineWidth=Math.max(2,S*.08);F.rr(ctx,x-S*.07,y-S*.07,ls+S*.14,ls+S*.14,ls*.26);ctx.stroke()}
       drawTier(ctx,t,x,y,ls,done?1:next?.75:.28);
-      ctx.font=`800 ${Math.round(S*.23)}px Figtree,sans-serif`;ctx.fillStyle=done?'#EEF0FA':next?'#F7C548':'rgba(238,240,250,.4)';
-      ctx.fillText(Mb.TIERS[t],x+ls/2,y+ls+S*.22);
+      ctx.fillStyle=done?'#EEF0FA':next?'#F7C548':'rgba(238,240,250,.4)';
+      // golden dishes: "Golden" on a small line above the food's name, both shrunk to fit the slot
+      const nm=tierName(t),two=nm.startsWith('Golden '),fit=(txt,px,yy)=>{ctx.font=`800 ${Math.round(px)}px Figtree,sans-serif`;const tw=ctx.measureText(txt).width,mx=ls*1.22;if(tw>mx)ctx.font=`800 ${Math.round(px*mx/tw)}px Figtree,sans-serif`;ctx.fillText(txt,x+ls/2,yy)};
+      if(two){fit('Golden',S*.17,y+ls+S*.16);fit(nm.slice(7),S*.21,y+ls+S*.36)}else fit(nm,S*.23,y+ls+S*.22);
     }
-    {const nx=best<10?Mb.TIERS[best+1]:null,served=B.remote?(B.ms?B.ms.sv|0:0):B.served;
+    {const nx=best<10?tierName(best+1):null,served=B.remote?(B.ms?B.ms.sv|0:0):B.served;
      ctx.font=`800 ${Math.round(S*.3)}px Figtree,sans-serif`;ctx.fillStyle='rgba(238,240,250,.75)';
      ctx.fillText(nx?`Next dish: ${nx}`:`Feasts served: ${served}`,W/2,top+S*3.75);
      if(mine&&F.DESK.matches){ctx.font=`700 ${Math.round(S*.22)}px Figtree,sans-serif`;ctx.fillStyle='rgba(238,240,250,.45)';ctx.fillText('Arrow keys or WASD to slide',W/2,top+S*4.2)}}
@@ -97,16 +106,16 @@ const MU={
   },
   mini(c,b,w,h){
     const m=gridOf(b),best=bestOf(b);
-    if(best){c.fillStyle='#000';c.font=`${Math.round(w*.42)}px ${EF}`;c.textAlign='center';c.textBaseline='middle';c.fillText(EMOJI[best],w/2,h*.22)}
+    if(best){const z=w*.5;c.drawImage(tierSprite(best,Math.max(8,Math.round(z*U().DPR))),w/2-z/2,h*.22-z/2,z,z)}
     const cs=w/5,y0=h-w;
     c.fillStyle='#5A3A26';c.fillRect(0,y0,w,w);
-    if(m)for(let r=0;r<5;r++)for(let k=0;k<5;k++){const v=m[r][k];if(!v)continue;c.fillStyle=v<0?'#6B7080':COL[v];c.fillRect(k*cs+.5,y0+r*cs+.5,cs-1,cs-1)}
+    if(m)for(let r=0;r<5;r++)for(let k=0;k<5;k++){const v=m[r][k];if(!v)continue;c.fillStyle=colOf(v);c.fillRect(k*cs+.5,y0+r*cs+.5,cs-1,cs-1)}
     const inc=b.remote?(b.minc|0):(b.incoming?b.incoming():0);if(inc>0){c.fillStyle='#E5484D';c.fillRect(0,y0-Math.max(3,cs*.3),Math.min(w,inc*cs*.5),Math.max(3,cs*.3))}
     if(b.dead)U().miniKO(c,w,h);
   },
-  stat(B){return [K().TIERS[B.best],'Best dish']},
-  meta(b,h){const best=bestOf(b);return [K().TIERS[best]||'Cooking',`${Math.round(h/12*25)}/25 full`]},
-  endLine(res,B){const T=K().TIERS;return `Best dish: ${T[B.best]}${B.served?` · ${B.served} feast${B.served>1?'s':''} served`:''}.`},
+  stat(B){return [tierName(B.best),'Best dish']},
+  meta(b,h){const best=bestOf(b);return [tierName(best)||'Cooking',`${Math.round(h/12*25)}/25 full`]},
+  endLine(res,B){return `Best dish: ${tierName(B.best)}${B.served?` · ${B.served} feast${B.served>1?'s':''} served`:''}.`},
   down(e,p){sd={id:e.pointerId,x:p.x,y:p.y,done:false}},
   move(e,p){if(!sd||sd.done||e.pointerId!==sd.id)return;const S=U().S,dx=p.x-sd.x,dy=p.y-sd.y;if(Math.hypot(dx,dy)>S*.55){sd.done=true;U().G.player.swipe(Math.abs(dx)>Math.abs(dy)?(dx<0?'L':'R'):(dy<0?'U':'D'))}},
   up(e,p){if(!sd||(e&&e.pointerId!==sd.id))return;if(!sd.done&&p){const S=U().S,dx=p.x-sd.x,dy=p.y-sd.y;if(Math.hypot(dx,dy)>S*.3&&U().canPlay())U().G.player.swipe(Math.abs(dx)>Math.abs(dy)?(dx<0?'L':'R'):(dy<0?'U':'D'))}sd=null},
