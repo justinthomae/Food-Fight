@@ -12,6 +12,7 @@ const ORDER_EASY={think:[90,130],miss:.48};
 const VARIANTS=['classic','order','stack','shot','boss','blocks'];
 const BOARD_TYPES={};   // variant -> board class, filled in by stack.js / shot.js
 const ORDER_GOAL=10;
+const RACE=new Set(['order']);   // modes won by reaching a goal first (plug-in modes add themselves)
 const MARGIN=50,RACK=3,RUSH=180,CYCLE=180,CREAM=300,FREEZE=150,SPECIAL_RATE=.16;
 // rack items: pie/tower = junk (drawn as trash bags), sauce = fast rise, cream = board covered, freeze = no swaps, blender = scramble top rows,
 // pin = flatten own top rows, plate = clear every tile of one food on your own board, swap = trade whole boards with your target
@@ -516,6 +517,59 @@ class Board{
   }
 }
 
+// ---------- shared base for plug-in mode boards: the boilerplate every board needs ----------
+// A mode extends this, sets W/H of its own, and implements step(), snap() and (for bots) ai().
+// Attacks are trash: sendJunk(n) cancels your own incoming first, the rest flies at your target exactly as given.
+class BaseBoard{
+  constructor(game,name,isBot,idx,id,seed){
+    Object.assign(this,{game,name,isBot,idx,id:id||('b'+idx),rng:mulberry32(seed>>>0),exact:true,
+      rise:0,chain:0,maxChain:1,maxCombo:0,score:0,inc:[],dead:false,sent:0,blocked:0,kos:0,pops:[],parts:[],shake:0,
+      lastAttacker:null,killedBy:null,place:0,hitFlash:0,diedAt:0,rack:[],rushT:0,creamT:0,frozenT:0,blendT:0,dmg:0,orders:0,startF:game.frame});
+    this.g=[];for(let r=0;r<ROWS;r++)this.g.push(new Array(COLS).fill(null));
+  }
+  get bot(){return DIFFS[this.game.d|0]}
+  get mine(){return this===this.game.player}
+  sfx(n,a){if(this.mine&&this.game.hooks.sfx)this.game.hooks.sfx(n,a)}
+  pop(text,x,y,col,size,life){if(this.mine)this.pops.push({text,x,y,col:col||'#EEF0FA',size:size||.9,life:life||60})}
+  burst(x,y,kind,n){if(!this.mine)return;for(let i=0;i<(n||6);i++)this.parts.push({x,y,vx:(Math.random()-.5)*.14,vy:-Math.random()*.12-.02,kind,life:24+Math.floor(Math.random()*14)})}
+  tickBase(){
+    if(this.hitFlash>0)this.hitFlash--;if(this.shake>0)this.shake--;
+    if(this.frozenT>0)this.frozenT--;if(this.rushT>0)this.rushT--;if(this.creamT>0)this.creamT--;
+    this.inc.forEach(i=>{if(i.t>0)i.t--});
+    if(this.pops.length)this.pops=this.pops.filter(p=>--p.life>0);
+    if(this.parts.length)this.parts=this.parts.filter(p=>{p.x+=p.vx;p.y+=p.vy;p.vy+=.012;return --p.life>0});
+  }
+  height(){for(let r=0;r<ROWS;r++)if(this.g[r].some(Boolean))return ROWS-r;return 0}
+  // trash on its way to you (each lot lands when its timer runs out: call takeIncoming() at a calm moment)
+  receive(cells,from){if(this.dead)return;cells=Math.max(1,cells|0);this.inc.push({cells,t:INC_T,T:INC_T,from});this.lastAttacker=from;this.hitFlash=24;this.sfx('incoming')}
+  incoming(){return this.inc.reduce((a,i)=>a+i.cells,0)}
+  takeIncoming(max){let n=0;max=max||99;while(this.inc.length&&this.inc[0].t<=0&&n<max){const it=this.inc[0],m=Math.min(max-n,it.cells);it.cells-=m;n+=m;if(it.cells<=0)this.inc.shift()}return n}
+  sendJunk(cells){
+    let a=Math.round(cells),blocked=0;if(a<=0)return;
+    while(a>0&&this.inc.length){const it=this.inc[0],m=Math.min(a,it.cells);it.cells-=m;a-=m;blocked+=m;if(it.cells<=0)this.inc.shift()}
+    if(blocked){this.blocked+=blocked;this.pop(`Blocked ${blocked}`,3,6,'#56B4E9',.9);this.sfx('block')}
+    if(a<=0)return;
+    const tgt=this.pickTarget();if(!tgt)return;
+    if(this.isBot)a=Math.max(1,Math.round(a*[.45,.8,1][this.game.d|0]));   // Easy bots throw softly
+    this.game.launch(this,{k:'pie',cells:a,at:null},tgt);
+  }
+  pickTarget(){
+    const g=this.game;if(g.boss)return g.boss.hp>0?g.bossObj:null;
+    const others=g.alive().filter(b=>b!==this);if(!others.length)return null;
+    if(this.mine)return g.aim();
+    const la=this.lastAttacker;if(la&&!la.dead&&la!==this&&Math.random()<.5)return la;
+    return others[Math.floor(Math.random()*others.length)];
+  }
+  // power-ups from the other modes don't exist here: they land as a little trash instead
+  rush(f){this.receive(2,f)}cream(f){this.receive(2,f)}steam(f){this.receive(2,f)}grease(f){this.receive(2,f)}freeze(f){this.receive(2,f)}blend(f){this.receive(2,f)}lights(){}reverse(){}
+  stealFrom(){return null}takeItem(){}earn(){}fire(){return false}
+  die(){if(this.dead)return;this.dead=true;this.diedAt=this.game.frame;this.game.onDeath(this)}
+  // reached the goal of a race mode
+  win(){if(!this.dead&&!this.game.over)this.game.orderDone(this)}
+  // the plain 6x12 tile grid, in the same code the classic boards send (0-4 food, a-e popping, j/J trash, v-z mouldy food)
+  gridString(g){g=g||this.g;let s='';for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){const t=g[r][c];s+=!t?'.':t.t<0?(t.clr>0?'J':'j'):t.mold?'vwxyz'[t.t]:t.clr>0?'abcde'[t.t]:String(t.t)}return s}
+}
+
 class RemoteBoard{
   constructor(game,id,name,idx,owner){
     Object.assign(this,{game,id,name,idx,owner:owner||id,remote:true,isBot:false,dead:false,place:0,kos:0,killedBy:null,
@@ -523,6 +577,7 @@ class RemoteBoard{
     for(let r=0;r<ROWS;r++)this.g.push(new Array(COLS).fill(null));
   }
   height(){
+    if(this.ms)return Math.max(0,Math.min(ROWS,this.ms.ht|0));
     if(this.bm){const i=this.bm.search(/[^.]/);return i<0?0:Math.round((20-Math.floor(i/10))/20*ROWS)}
     if(this.hex){const Q=BOARD_TYPES.shot&&BOARD_TYPES.shot.GEO;if(!Q)return 0;for(let r=Q.NR-1;r>=0;r--)if(/[^.]/.test(this.hex.slice(r*Q.HC,(r+1)*Q.HC)))return Math.round((r+1)/Q.NR*ROWS);return 0}
     for(let r=0;r<ROWS;r++)if(this.g[r].some(Boolean))return ROWS-r;return 0;
@@ -540,7 +595,10 @@ class RemoteBoard{
     if(s&&s.v==='blocks'&&typeof s.g==='string'&&s.g.length===200){
       this.bm=s.g;this.binc=s.i|0;this.bhold=s.hd|0;this.bnext=typeof s.nx==='string'?s.nx:'';this.kos=s.o|0;this.lastSnap=this.game.frame;return;
     }
+    // plug-in modes with their own picture (Recipe Merge, Conveyor Belt, Pest Control...): keep the whole snapshot
+    if(s&&s.cv){this.ms=s;this.kos=s.o|0;this.orders=s.q|0;this.minc=s.i|0;this.lastSnap=this.game.frame;return}
     if(!s||typeof s.g!=='string'||s.g.length!==ROWS*COLS)return;
+    this.ms=null;this.ex=s.ex||null;
     for(let i=0;i<ROWS*COLS;i++){
       const ch=s.g[i],r=Math.floor(i/COLS),c=i%COLS;
       let t=null;
@@ -548,6 +606,7 @@ class RemoteBoard{
       else if(ch>='a'&&ch<='e')t={t:ch.charCodeAt(0)-97,clr:CLR,xo:0,yo:0};
       else if(ch==='j')t={t:-1,clr:0,xo:0,yo:0};
       else if(ch==='J')t={t:-1,clr:CLR,conv:true,xo:0,yo:0};
+      else if(ch>='v'&&ch<='z')t={t:ch.charCodeAt(0)-118,clr:0,xo:0,yo:0,mold:true};   // Mold Patrol: a mouldy food
       this.g[r][c]=t;
     }
     if(typeof s.p==='string'&&s.p.length===COLS)this.preview=s.p.split('').map(Number);
@@ -691,7 +750,7 @@ class Game{
   // stalled fast-forward safety net: rank the remaining bots by stack height (lowest stack wins)
   resolveByHeight(){
     if(this.boss){if(this.isHost()){this.boss.hp=0;this.bossDefeated()}return}
-    if(this.variant==='order'){const w=this.boards.slice().sort((x,y)=>(y.orders|0)-(x.orders|0))[0];this.finishOrders(w);return}
+    if(RACE.has(this.variant)){const w=this.boards.slice().sort((x,y)=>(y.orders|0)-(x.orders|0))[0];this.finishOrders(w);return}
     const a=this.alive().filter(b=>!b.remote).sort((x,y)=>y.height()-x.height()||y.score-x.score);
     for(let i=0;i<a.length-1&&!this.over;i++)a[i].die();
   }
@@ -766,7 +825,7 @@ class Game{
   aim(){if(this.boss)return this.bossObj;const o=this.alive().filter(b=>b!==this.player);return o.length?o[Math.floor(this.frame/CYCLE)%o.length]:null}
   launch(src,item,tgt,slot){
     const it={k:item.k,cells:item.cells||0,at:item.at||null};
-    if(JUNK_KINDS.includes(it.k)&&src.blocks)src.sent+=it.cells;   // Packed Lunch: garbage lines go out exactly as earned
+    if(JUNK_KINDS.includes(it.k)&&(src.blocks||src.exact))src.sent+=it.cells;   // Packed Lunch: garbage lines go out exactly as earned
     else if(JUNK_KINDS.includes(it.k)){it.cells=Math.max(1,Math.round(it.cells*(1+.25*src.kos)*this.margin()*(src.isBot?(DIFFS[this.d].hit||1):1)));src.sent+=it.cells}
     if(tgt.boss){
       if(this.hooks.fly)this.hooks.fly(src,tgt,it,slot);
@@ -791,7 +850,7 @@ class Game{
     }
     if(this.flights.length)this.flights=this.flights.filter(f=>{if(--f.t>0)return true;if(f.to.boss)this.hitBoss(f.from,f.boss);else if(!f.to.dead)this.deliver(f.to,f.item,f.from);return false});
     if(this.boss)this.bossTick();
-    if(this.orderWait&&this.frame-this.orderWait>180&&!this.over){const w=this.local().find(b=>b.orders>=ORDER_GOAL);if(w)this.finishOrders(w)}
+    if(this.orderWait&&this.frame-this.orderWait>180&&!this.over){const w=this.local().find(b=>b.wonRace||(this.variant==="order"&&b.orders>=ORDER_GOAL));if(w)this.finishOrders(w)}
     this.checkEnd();
   }
   onDeath(b){
@@ -809,7 +868,9 @@ class Game{
       if(p.dead&&!this.playerOut){this.playerOut=true;if(this.hooks.out)this.hooks.out(p.place)}
       if(!alive.length){this.over=true;const rank=this.boards.slice().sort((a,b)=>(b.dmg||0)-(a.dmg||0));rank.forEach((b,i)=>b.place=i+1);this.result={won:false,coop:true,place:p.place,winner:null}}
     }
-    else if(this.variant==='order'){
+    else if(RACE.has(this.variant)){
+      // out of a race with others still going: watch the rest
+      if(p.dead&&!this.playerOut&&alive.length>1){this.playerOut=true;if(this.hooks.out)this.hooks.out(p.place)}
       if(alive.length<=1&&this.boards.length>1){this.finishOrders(alive[0]||p);return}
     }
     else if(this.online||this.boards.length>2){
@@ -823,5 +884,5 @@ class Game{
   }
 }
 
-const FFE={VARIANTS,BOARD_TYPES,ORDER_GOAL,BOSSES,BOSS_HP,JUNK_KINDS,T,genRow,rnd,nextId:()=>++uid,nextGid:()=>++gidc,COLS,ROWS,NT,CLR,POP,HOVER,INC_T,GRACE,FLY,DIFFS,MARGIN,RACK,RUSH,CYCLE,CREAM,FREEZE,SPECIALS,BOTNAMES,BOTS,FIGHTERS,MAX_PLAYERS,pickBots,Board,RemoteBoard,Game,mulberry32};
+const FFE={RACE,BaseBoard,VARIANTS,BOARD_TYPES,ORDER_GOAL,BOSSES,BOSS_HP,JUNK_KINDS,T,genRow,rnd,nextId:()=>++uid,nextGid:()=>++gidc,COLS,ROWS,NT,CLR,POP,HOVER,INC_T,GRACE,FLY,DIFFS,MARGIN,RACK,RUSH,CYCLE,CREAM,FREEZE,SPECIALS,BOTNAMES,BOTS,FIGHTERS,MAX_PLAYERS,pickBots,Board,RemoteBoard,Game,mulberry32};
 if(typeof module!=='undefined')module.exports=FFE;else window.FFEngine=FFE;

@@ -4,7 +4,8 @@ const {JSDOM}=require('jsdom');
 const fs=require('fs'),path=require('path');
 const root=path.join(__dirname,'..');
 const html=fs.readFileSync(path.join(root,'index.html'),'utf8').replace(/<script[^>]*src=[^>]*><\/script>/g,'');
-const scripts=['js/sfx.js','js/cuisines.js','js/engine.js','js/stack.js','js/shot.js','js/blocks.js','js/net.js','js/scores.js','js/app.js'].map(f=>fs.readFileSync(path.join(root,f),'utf8'));
+// every script the page loads, in page order (config.js is swapped for the fake backend)
+const scripts=[...fs.readFileSync(path.join(root,'index.html'),'utf8').matchAll(/<script src="(js\/[^"]+)"/g)].map(m=>m[1]).filter(f=>f!=='js/config.js').map(f=>fs.readFileSync(path.join(root,f),'utf8'));
 
 // ---- fake Supabase Realtime: one shared bus per channel name ----
 const buses={},rpcLog=[],rpcRows=[{mode:'brawl',diff:1,name:'Top Chef',score:99999,device:'d-other-device'}];
@@ -426,6 +427,36 @@ const check=(cond,msg)=>{console.log((cond?'PASS ':'FAIL ')+msg);if(!cond)proces
    check(H.player.m.some(r=>r.join(',')==='7,7,7,7,0,7,7,7,7,7')||H.player.dead,'blocks online: Switcheroo trades wells across phones');
    oh.errors.concat(og.errors,plain.errors).slice(0,3).forEach(e=>console.log('  ',e));
    check(oh.errors.length===0&&og.errors.length===0&&plain.errors.length===0,'blocks online: no script errors');}
+  // the plug-in modes (admin-only for now): each one runs in practice and online, with nothing thrown
+  for(const v of ['slurp','buffet','mold','pancake','merge','conveyor','pest']){
+    const mp=page('https://foodfight.grudgematchgames.com/#admin=waffle-pickle-waffle-29');await sleep(2500);
+    check(!!mp.$(`#variants [data-v="${v}"]`),`${v}: shows in the mode list for the admin`);
+    mp.$(`#variants [data-v="${v}"]`).click();mp.$('#mode [data-size="4"]').click();mp.$('.diff [data-d="1"]').click();await sleep(5600);
+    const MG=mp.w.__ff.game;check(MG&&MG.variant===v&&MG.boards.length===4&&MG.boards.every(b=>b.constructor===mp.w.FFEngine.BOARD_TYPES[v]),`${v}: practice brawl starts with the mode's boards`);
+    if(MG){MG.player.isBot=true;for(let i=0;i<60*25&&!MG.over;i++)MG.step();await sleep(300);
+      check(MG.player.score>0||MG.player.dead||MG.over,`${v}: a bot in your seat plays it (score ${MG.player.score})`);
+      check(mp.$('#sThirdL').textContent!=='Heat',`${v}: HUD shows the mode's own stat (${mp.$('#sThirdL').textContent})`);
+      if(!MG.over){MG.player.die();for(let i=0;i<10;i++)MG.step();await sleep(250);check(!mp.$('#outToast').hidden||MG.over,`${v}: knocked out → watch the rest`)}}
+    mp.errors.slice(0,3).forEach(e=>console.log('  ',e));
+    check(mp.errors.length===0,`${v}: no script errors in practice`);
+    const oh=page('https://foodfight.grudgematchgames.com/#admin=waffle-pickle-waffle-29');await sleep(2500);
+    oh.$('#nameIn').value='Host'+v;oh.$('#nameIn').dispatchEvent(new oh.w.Event('input'));
+    oh.$('#bOnline').click();oh.$('#bCreate').click();await sleep(1000);   // a clashing code is re-rolled after 0.7s
+    oh.$(`#lobbyVariants [data-v="${v}"]`).click();await sleep(100);
+    const og=page('https://foodfight.grudgematchgames.com/?room='+oh.$('#roomCode').textContent);await sleep(2600);
+    setBots(oh,1);oh.$('#bStart').click();await sleep(4800);
+    const H=oh.w.__ff.game,Gg=og.w.__ff.game;
+    check(H&&Gg&&H.variant===v&&Gg.variant===v&&H.mid===Gg.mid,`${v} online: both phones in the match`+(H&&Gg?` (${H.variant}/${Gg.variant})`:''));
+    if(H&&Gg&&Gg.variant===v){await sleep(900);const rem=Gg.byId(H.player.id);
+      check(rem&&rem.remote&&rem.lastSnap>0&&(rem.ms||rem.g.flat().some(Boolean)),`${v} online: guest sees the host's board`);
+      const inc0=Gg.player.incoming();H.player.sendJunk(6);await sleep(1300);
+      check(Gg.player.incoming()>inc0||Gg.player.dead||Gg.over,`${v} online: trash crosses to the guest`);
+      Gg.player.die();await sleep(800);H.player.die();await sleep(1500);
+      check(H.over&&Gg.over,`${v} online: match ends on both phones`);}
+    oh.errors.concat(og.errors).slice(0,3).forEach(e=>console.log('  ',e));
+    check(oh.errors.length===0&&og.errors.length===0,`${v} online: no script errors`);
+    [mp,oh,og].forEach(pg=>{try{pg.w.close()}catch(e){}});
+  }
   host.errors.concat(guest.errors,solo.errors).slice(0,5).forEach(e=>console.log('  ',e));
   check(host.errors.length===0&&guest.errors.length===0&&solo.errors.length===0,'no script errors');
   process.exit();

@@ -1,6 +1,6 @@
 // Food Fight UI: drawing, input, settings, practice mode and the online lobby.
 (function(){
-const VERSION='1.14.5';
+const VERSION='1.15.0';
 let spec=null; // board being spectated after you're knocked out
 // how far we are between two 60Hz game steps (0..1): drawing uses it so motion is smooth on 90/120/144Hz screens too
 let ALPHA=0,lastDraw=performance.now(),drawDt=16,SIDEW=0;
@@ -32,6 +32,9 @@ const VARIANT_INFO={
   shot:{name:'Splat Shot',tag:'Aim and pop',sizes:['Duel','Brawl','Big Brawl']},
   boss:{name:'Boss Brawl',tag:'Co-op vs a boss',sizes:['Duo','Team of 4','Team of 8']},
   blocks:{name:'Packed Lunch',tag:'Pack it, clear it',sizes:['Duel','Battle of 4','Battle of 8'],hidden:true}};
+// plug-in modes (js/ui/*.js, loaded before this file) bring their own name card and screen
+const FF_MODES=window.FF_MODES||{};
+Object.keys(FF_MODES).forEach(k=>{if(FF_MODES[k].info&&window.FFEngine&&FFEngine.VARIANTS.includes(k))VARIANT_INFO[k]=FF_MODES[k].info});
 const VARIANT_KEYS=Object.keys(VARIANT_INFO);
 const ART={
   logo:'assets/logo.webp',
@@ -395,6 +398,7 @@ function renderMini(m){
   const b=m.board,c=m.ctx,w=m.cv.width,h=m.cv.height,s=w/COLS;
   c.fillStyle=TOK.well;c.fillRect(0,0,w,h);
   const ro=b.rise*s,simple=s<14,fr=G?G.frame:0;
+  {const mu=G&&MODE_UI[G.variant];if(mu&&mu.mini){mu.mini(c,b,w,h,s);return}}
   if(G&&G.variant==='blocks'){
     const v=blocksView(b),cs=w/10;for(let r=0;r<20;r++)for(let k=0;k<10;k++)if(v[r][k]){c.fillStyle=BCOL[v[r][k]];c.fillRect(k*cs+.5,r*cs+.5,cs-1,cs-1)}
     const inc=b.remote?(b.binc|0):(b.incoming?b.incoming():0);if(inc>0){c.fillStyle='#E5484D';c.fillRect(0,h-Math.min(20,inc)*cs,Math.max(2,cs*.3),Math.min(20,inc)*cs)}
@@ -631,6 +635,7 @@ function updateOpps(){
     let meta=b.dead?(b.killedBy?`by ${b.killedBy===G.player?'you':b.killedBy.name}`:'Topped out'):bits.join(' · ');
     if(G.variant==='order'){st=`${b.orders|0}/${ORDER_GOAL}`;meta=b.frozenT>0?'Spilled!':h>=9?'orders · stack high':'orders'}
     if(G.boss&&!b.dead){if(h>=9)st='Needs help!';meta=`${Math.round(b.dmg||0)} dmg`}
+    {const mu=MODE_UI[G.variant];if(mu&&mu.meta&&!b.dead){const r=mu.meta(b,h);if(r){st=r[0];meta=r[1]}}}
     if(m.st.textContent!==st){m.st.textContent=st;fitText(m.st,12,8)}
     if(m.meta.textContent!==meta){m.meta.textContent=meta;fitText(m.meta,10,7)}
     const can=!!(G.playerOut&&!G.over);
@@ -679,7 +684,9 @@ const fmt=fr=>{const s=Math.floor(fr/60);return Math.floor(s/60)+':'+String(s%60
 function hud(){
   if(!G)return;
   $('#sTime').textContent=fmt(G.frame);$('#sScore').textContent=G.player.score;
-  if(G.variant==='order'){$('#sThird').textContent=`${G.player.orders|0}/${ORDER_GOAL}`;$('#sThirdL').textContent='Orders'}
+  const mu=MODE_UI[G.variant];
+  if(mu&&mu.stat){const [v,l]=mu.stat(G.player);$('#sThird').textContent=v;$('#sThirdL').textContent=l}
+  else if(G.variant==='order'){$('#sThird').textContent=`${G.player.orders|0}/${ORDER_GOAL}`;$('#sThirdL').textContent='Orders'}
   else if(G.boss){$('#sThird').textContent=Math.round(G.player.dmg||0);$('#sThirdL').textContent='Damage'}
   else if(G.variant==='stack'){$('#sThird').textContent=G.player.maxChain;$('#sThirdL').textContent='Best chain'}
   else if(G.variant==='blocks'){$('#sThird').textContent=G.player.lines|0;$('#sThirdL').textContent='Lines'}
@@ -739,6 +746,19 @@ window.addEventListener('resize',resize);
 
 /* ---------- per-mode screens: Snack Stack and Splat Shot draw and steer their own boards ---------- */
 const MODE_UI={};
+Object.keys(FF_MODES).forEach(k=>{if(VARIANT_INFO[k])MODE_UI[k]=FF_MODES[k]});
+// what plug-in mode screens can use from here (read at call time, so the live values come through)
+window.FFUI={
+  get S(){return S},get ctx(){return ctx},get G(){return G},get spec(){return spec},get ALPHA(){return ALPHA},get drawDt(){return drawDt},
+  get DPR(){return DPR},get SIDEW(){return SIDEW},get SIDEZ(){return SIDEZ},get PAL(){return PAL},get TOK(){return TOK},get prefs(){return prefs},
+  COLS,ROWS,DESK,MODE_UI,$,$$,rr,mix,drawTile,tileSprite,drawJunk,checker,drawFxLayer,drawKO,drawEffects,drawSteam,drawIncoming,poseImg,faceImg,body,face,esc,
+  canPlay:()=>canPlay(),fighterImg:a=>fighterImg(a),names:()=>names(),sfx:(n,a)=>sfx(n,a),cuisine:()=>cuisine(),
+  font:px=>`${Math.round(px)}px 'Lilita One','Arial Rounded MT Bold',sans-serif`,
+  // the usual "KO" shade over a little opponent board
+  miniKO(c,w,h){c.fillStyle='rgba(11,13,27,.55)';c.fillRect(0,0,w,h);c.fillStyle='#EEF0FA';c.textAlign='center';c.textBaseline='middle';c.font=`${Math.round(w*.32)}px 'Lilita One',sans-serif`;c.fillText('KO',w/2,h/2)},
+  // a word in the middle of the board with a dark outline (Lilita, like the pops)
+  bigText(t,x,y,size,col,maxW){const c=ctx;c.font=window.FFUI.font(size);const tw=c.measureText(t).width;if(maxW&&tw>maxW)c.font=window.FFUI.font(size*maxW/tw);c.textAlign='center';c.textBaseline='middle';c.lineWidth=Math.max(2,size*.2);c.strokeStyle='#0B0D1B';c.strokeText(t,x,y);c.fillStyle=col||'#EEF0FA';c.fillText(t,x,y)},
+};
 function setControls(){
   const mu=MODE_UI[G&&G.variant],slots=$('#slots');
   // park the rack back in its normal spot before a mode rebuilds its bar
@@ -1393,7 +1413,7 @@ const baseHooks={
     const B=G.player,won=res.won,n=G.boards.length,D=DIFFS[G.d].name;
     if(won)best.wins++;
     best.score=Math.max(best.score,B.score);best.chain=Math.max(best.chain,B.maxChain);saveBest();
-    $('#eTitle').textContent=res.coop?(won?'Boss beaten!':'The boss wins'):won?'You win':(n>2?`${placeName(res.place)} of ${n}`:G.variant==='order'?'Outcooked':'Topped out');
+    $('#eTitle').textContent=res.coop?(won?'Boss beaten!':'The boss wins'):won?'You win':(n>2?`${placeName(res.place)} of ${n}`:FFEngine.RACE.has(G.variant)?'Outcooked':'Topped out');
     // your own fighter: the victory pose when you win, dizzy when you don't
     hideKO();$('#eHero').src=pose(B.av,won?'win':'ko')||body(B.av);$('#eHero').alt=won?'Your fighter celebrates':'Your fighter is dizzy';
     // everyone you knocked out this match, dizzy, in a little group
@@ -1403,7 +1423,8 @@ const baseHooks={
        const L=$('#eVicLosers');L.innerHTML=mine.slice(-7).map((v,i)=>`<img src="${pose(v.av,'ko')}" alt="${esc(v.name)} is dizzy" title="${esc(v.name)}" style="z-index:${10-i}">`).join('');L.classList.toggle('many',mine.length>2)}}}
     $('#eHero').style.animation='none';void $('#eHero').offsetWidth;$('#eHero').style.animation='';
     const modeLine=res.coop?(won?`${G.boss.name} is down! You did ${Math.round(B.dmg||0)} damage (${placeName(res.place)} on the team).`:`${G.boss.name} cleaned out the whole kitchen.`)
-      :G.variant==='order'?(won?`First to ${ORDER_GOAL} orders. Kitchen of the day!`:`${res.winner?res.winner.name:'Someone'} filled ${ORDER_GOAL} orders first. You filled ${B.orders|0}.`):null;
+      :G.variant==='order'?(won?`First to ${ORDER_GOAL} orders. Kitchen of the day!`:`${res.winner?res.winner.name:'Someone'} filled ${ORDER_GOAL} orders first. You filled ${B.orders|0}.`)
+      :(MODE_UI[G.variant]&&MODE_UI[G.variant].endLine?MODE_UI[G.variant].endLine(res,B):null);
     if(G.online){
       const w=res.winner;
       $('#eSub').textContent=modeLine||(won?`Last kitchen standing. Nice cooking.`:(w?`${w.name} wins the match.`:'Match over.'));
@@ -1491,7 +1512,7 @@ function recordScore(res){
   const localLine=pb&&B.score>0?'New personal best!':`Your best here: ${list[0].score}`;
   el.textContent=localLine;
   const duration=Math.round(G.frame/60);
-  if(!SCORES||B.score<=0||duration<10||G.variant==='blocks')return;   // hidden mode: kept on this device only
+  if(!SCORES||B.score<=0||duration<10||(VARIANT_INFO[G.variant]||{}).hidden)return;   // hidden mode: kept on this device only
   const entry={deviceId,name:ME.name,avatar:prefs.av,mode,difficulty:d,score:B.score,maxChain:B.maxChain,kos:B.kos,won:!!res.won,place:res.place||1,duration,version:VERSION};
   if(navigator.onLine===false){queueScore(entry);el.textContent=localLine+' · Offline: it goes on the leaderboard when you reconnect';return}
   el.textContent='Saving your score…';
@@ -1562,7 +1583,7 @@ const champTag=b=>G&&G.champId&&b.id===G.champId?'<div class="champ">Champ</div>
 function showMatchup(seconds,go){
   clearInterval(vsTimer);
   const st=$('#vsStage'),me=G.player,others=G.boards.filter(b=>b!==me);
-  const vi=VARIANT_INFO[G.variant]||VARIANT_INFO.classic,banner=G.variant==='classic'?'':`<div class="vmode">${vi.name} · ${{order:`first to ${ORDER_GOAL} orders`,stack:'connect 4, chain to dump trash',shot:'aim, pop 3, drop the rest',boss:'everyone vs. the boss',blocks:'pack the lunchbox, clear lines, dump leftovers'}[G.variant]}</div>`;
+  const vi=VARIANT_INFO[G.variant]||VARIANT_INFO.classic,banner=G.variant==='classic'?'':`<div class="vmode">${vi.name} · ${{order:`first to ${ORDER_GOAL} orders`,stack:'connect 4, chain to dump trash',shot:'aim, pop 3, drop the rest',boss:'everyone vs. the boss',blocks:'pack the lunchbox, clear lines, dump leftovers'}[G.variant]||vi.blurb||vi.tag}</div>`;
   if(G.boss){
     st.innerHTML=banner+`<div class="crowd">${G.boards.map((b,i)=>`<div class="fighter${b===me?' me':''}" style="animation-delay:${i*.06}s"><img src="${body(b.av)}" alt=""><div class="chunky">${esc(b.name)}</div></div>`).join('')}</div><div class="chunky vsword" style="font-size:44px">VS</div><div class="fighter boss"><img src="${body(G.boss.av)}" alt=""><div class="chunky">${esc(G.boss.name)}</div></div>`;
   }else if(others.length===1){
@@ -1652,6 +1673,7 @@ function variantIcon(v){
   else if(v==='stack'){drawTile(x,{t:2,clr:0},38,2,s,1,0);drawTile(x,{t:4,clr:0},38,40,s,1,0);x.fillStyle='#F7C548';x.font='bold 22px sans-serif';x.fillText('↻',80,30)}
   else if(v==='shot'){[[18,16,0],[50,16,2],[34,40,2],[66,40,2]].forEach(([a,b,t])=>drawTile(x,{t,clr:0},a,b,28,1,0));x.strokeStyle='#F7C548';x.lineWidth=3;x.setLineDash([2,6]);x.beginPath();x.moveTo(56,80);x.lineTo(80,48);x.stroke()}
   else if(v==='blocks'){drawPieceAt(x,1,56,16,18);drawPieceAt(x,3,40,54,18);drawPieceAt(x,7,86,56,14)}
+  else if(MODE_UI[v]&&MODE_UI[v].icon)MODE_UI[v].icon(x,c);
   else{const im=new Image();im.src=body('fudge');im.onload=()=>{x.drawImage(im,24,0,64,80)};x.fillStyle='#F7C548';x.beginPath();x.moveTo(30,14);x.lineTo(38,2);x.lineTo(46,12);x.lineTo(56,0);x.lineTo(66,12);x.lineTo(74,2);x.lineTo(82,14);x.closePath();x.fill()}
   return c;
 }
