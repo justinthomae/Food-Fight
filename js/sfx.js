@@ -206,6 +206,16 @@ window.FFSound=(function(){
   FX.tetris=()=>{[523.25,659.25,783.99,1046.5,1318.51].forEach((f,i)=>pluck(f,i*.045,.4));
     tone({type:'triangle',f:1046.5,d:.5,v:.08,t:.22,wet:.4});tone({type:'triangle',f:1568,d:.6,v:.06,t:.26,wet:.4})};
   FX.b2btetris=()=>{FX.tetris();[1046.5,1318.51,1567.98,2093].forEach((f,i)=>pluck(f,.3+i*.05,.35));speak('Back to back Tetris!')};
+  // ---- affirmations: a quick musical "yes!" or "uh-oh" layered on top of the effect itself ----
+  const MAJ=[523.25,659.25,783.99,1046.5,1318.51,1567.98,2093];
+  FX.yay=()=>{pluck(783.99,0,.32);pluck(1046.5,.07,.38);tone({type:'sine',f:2093,d:.18,v:.05,t:.12,wet:.5})};
+  FX.great=(n=3)=>{const k=Math.max(3,Math.min(7,n|0));for(let i=0;i<k;i++)pluck(MAJ[i],i*.055,.34+i*.02);
+    tone({type:'triangle',f:MAJ[k-1]*2,d:.4,v:.06,t:k*.055,wet:.6});noise({type:'highpass',f:6000,d:.25,v:.04,t:k*.055})};
+  FX.saved=()=>{tone({type:'triangle',f:880,to:1760,d:.12,v:.1,wet:.4});pluck(1318.51,.08,.3);pluck(1760,.13,.25)};
+  FX.oof=()=>{tone({type:'sine',f:180,to:70,d:.22,v:.32});tone({type:'sawtooth',f:233,to:207,d:.28,v:.06,lp:900,t:.02});tone({type:'sawtooth',f:220,to:185,d:.34,v:.05,lp:800,t:.14})};
+  FX.uhoh=()=>{tone({type:'triangle',f:659.25,d:.12,v:.1});tone({type:'triangle',f:466.16,d:.2,v:.1,t:.13})};
+  FX.knocked=()=>{[392,349.23,311.13,261.63].forEach((f,i)=>tone({type:'triangle',f,d:.22,v:.11,t:i*.13,lp:2400}));tone({type:'sine',f:130.81,to:65,d:.6,v:.22,t:.52})};
+  FX.kod=()=>{FX.great(6);tone({type:'square',f:1046.5,d:.08,v:.05,lp:3000,t:.36});tone({type:'square',f:1568,d:.25,v:.05,lp:3000,t:.44});speak('K.O.!')};
   // ---- announcer: the device's own voice (Web Speech) ----
   let voice=null;
   function pickVoice(){try{const vs=speechSynthesis.getVoices();voice=vs.find(v=>/en[-_]US/i.test(v.lang)&&/Samantha|Google US|Aaron|Alex|Jenny|Aria|Guy/i.test(v.name))||vs.find(v=>/^en/i.test(v.lang))||null}catch(e){}}
@@ -268,6 +278,7 @@ window.FFSound=(function(){
     clinkTimer=setTimeout(clink,600);
   }
   function ambience(on){
+    on=false;   // the cafeteria bed is switched off; game sound effects stay
     ambWanted=!!on;
     if(on){if(AC&&!muted)startAmbience()}
     else if(amb){amb.stop();amb=null}
@@ -277,5 +288,5 @@ window.FFSound=(function(){
     if(master)master.gain.setTargetAtTime(muted?0:.8,AC.currentTime,.05);
     if(muted&&amb){amb.stop();amb=null}else if(!muted&&ambWanted)startAmbience();
   }
-  return {wake,play,ambience,setMuted,get names(){return Object.keys(FX)}};
+  return {wake,play,ambience,setMuted,say:t=>speak(t),get names(){return Object.keys(FX)}};
 })();

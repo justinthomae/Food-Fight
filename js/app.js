@@ -1,6 +1,6 @@
 // Food Fight UI: drawing, input, settings, practice mode and the online lobby.
 (function(){
-const VERSION='1.13.0';
+const VERSION='1.13.1';
 let spec=null; // board being spectated after you're knocked out
 // how far we are between two 60Hz game steps (0..1): drawing uses it so motion is smooth on 90/120/144Hz screens too
 let ALPHA=0,lastDraw=performance.now(),drawDt=16,SIDEW=0;
@@ -1254,17 +1254,31 @@ $$('#art button').forEach(b=>b.addEventListener('click',()=>{prefs.art=b.dataset
 $$('#stackCtl button').forEach(b=>b.addEventListener('click',()=>{prefs.stackCtl=b.dataset.s;savePrefs();applyLook();if(G&&G.variant==='stack')setControls()}));
 
 /* ---------- game hooks ---------- */
+// every board sound also gets a quick "yes!" or "uh-oh" so good and bad moments are obvious by ear
+const BAD_HITS=new Set(['junk','sauce','freeze','cream','blender','stolen']);
+let lastCue=0;
+function gameSfx(n,a){
+  sfx(n,a);if(!G||G.ffMode)return;
+  const now=performance.now(),cue=(name,arg,gap)=>{if(now-lastCue<(gap||220))return;lastCue=now;setTimeout(()=>sfx(name,arg),70)};
+  if(n==='chain')cue('great',(a|0)+1,120);
+  else if(n==='match'&&(a|0)>=4)cue('yay');
+  else if(n==='feast'||n==='helping'||n==='snack')cue('great',4);
+  else if(n==='block')cue('saved');
+  else if(n==='earn')cue('yay',0,400);
+  else if(n==='incoming')cue('uhoh',0,600);
+  else if(BAD_HITS.has(n))cue('oof',0,350);
+}
 const baseHooks={
-  sfx,
+  sfx:gameSfx,
   fly,
   rack:renderRack,
   swapped(){drag=null;kb.on=false;if(plating!=null)cancelPlate()},
   bossPhase(ph){if(G&&G.player){G.player.pops.push({text:ph>=3?`${G.boss.name} is ENRAGED!`:`${G.boss.name} gets angry!`,x:3,y:4,col:'#CC79A7',size:1,life:90});sfx('overtime')}},
   pickFood(item){plating=item.id;renderRack();updatePlateHint();sfx('tap');return true},
-  out(){spec=null;$('#bOutLeave').textContent=G.online?'Lobby':'Menu';setOut(true);$('#outToast').hidden=false;sfx('ko')},
+  out(){spec=null;$('#bOutLeave').textContent=G.online?'Lobby':'Menu';setOut(true);$('#outToast').hidden=false;sfx('ko');setTimeout(()=>sfx('knocked'),250)},
   shift(){if(drag&&drag.r!=null)drag.r--;kb.r=Math.max(0,kb.r-1)},
   ko(b,k){
-    if(b!==G.player){sfx('ko');if(k===G.player)G.player.pops.push({text:'KO! Power up',x:3,y:5,col:'#F7C548',size:1.1,life:80})}
+    if(b!==G.player){sfx('ko');if(k===G.player){G.player.pops.push({text:'KO! Power up',x:3,y:5,col:'#F7C548',size:1.1,life:80});if(!G.ffMode)setTimeout(()=>sfx('kod'),200)}}
     if(k&&k!==b&&!k.boss&&!G.boss&&G.variant!=='order')showKO(k,b);
     updateAim();
   },
