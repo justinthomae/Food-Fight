@@ -464,6 +464,7 @@ const check=(cond,msg)=>{console.log((cond?'PASS ':'FAIL ')+msg);if(!cond)proces
       check(MG.player.score>0||MG.player.dead||MG.over,`${v}: a bot in your seat plays it (score ${MG.player.score})`);
       check(mp.$('#sThirdL').textContent!=='Heat',`${v}: HUD shows the mode's own stat (${mp.$('#sThirdL').textContent})`);
       if(!MG.over){MG.player.die();for(let i=0;i<10;i++)MG.step();await sleep(250);check(!mp.$('#outToast').hidden||MG.over,`${v}: knocked out → watch the rest`)}}
+    if(MG&&MG.over){await sleep(900);check(!mp.$('#eWin').hidden&&mp.$('#eWinName').textContent.length>0&&!mp.$('#eStand').hidden,`${v}: end screen shows the winner and standings (${mp.$('#eWinName').textContent})`)}
     mp.errors.slice(0,3).forEach(e=>console.log('  ',e));
     check(mp.errors.length===0,`${v}: no script errors in practice`);
     const oh=page('https://foodfight.grudgematchgames.com/#admin=waffle-pickle-waffle-29');await sleep(2500);

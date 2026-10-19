@@ -1,6 +1,6 @@
 // Food Fight UI: drawing, input, settings, practice mode and the online lobby.
 (function(){
-const VERSION='1.15.1';
+const VERSION='1.15.2';
 let spec=null; // board being spectated after you're knocked out
 // how far we are between two 60Hz game steps (0..1): drawing uses it so motion is smooth on 90/120/144Hz screens too
 let ALPHA=0,lastDraw=performance.now(),drawDt=16,SIDEW=0;
@@ -1421,6 +1421,16 @@ const baseHooks={
      if(box){box.hidden=!mine.length;if(mine.length){
        $('#eVicCap').textContent=mine.length===1?`You KO'd ${mine[0].name}`:`You KO'd ${mine.length} cooks`;
        const L=$('#eVicLosers');L.innerHTML=mine.slice(-7).map((v,i)=>`<img src="${pose(v.av,'ko')}" alt="${esc(v.name)} is dizzy" title="${esc(v.name)}" style="z-index:${10-i}">`).join('');L.classList.toggle('many',mine.length>2)}}}
+    // who won the match (and, with more than two cooks, the final standings)
+    {const w=res.coop?(won?res.winner:null):(res.winner||(won?B:G.boards.find(b=>b!==B&&!b.dead)||G.boards.find(b=>b!==B&&b.place===1)||G.boards.find(b=>b!==B)));
+     const box=$('#eWin');
+     if(res.coop&&!won&&G.boss){box.hidden=false;$('#eWinImg').src=body(G.boss.av);$('#eWinLab').textContent='Winner';$('#eWinName').textContent=G.boss.name}
+     else if(w){box.hidden=false;$('#eWinImg').src=pose(w.av,'win')||body(w.av);$('#eWinImg').alt=`${w.name} celebrates`;$('#eWinLab').textContent=res.coop?'Top damage':'🏆 Winner';$('#eWinName').textContent=w===B?`You! (${w.name})`:w.name}
+     else box.hidden=true;
+     const st=$('#eStand');
+     if(n>2){const rank=G.boards.slice().sort((a,b)=>(a===w?-1:b===w?1:0)||(a.place||99)-(b.place||99));
+       st.hidden=false;st.innerHTML=rank.map((b,i)=>`<span class="${b===B?'me':''}"><i>${placeName(i+1)}</i>${avImg(b.av)}${esc(b===B?'You':b.name)}</span>`).join('')}
+     else st.hidden=true;}
     $('#eHero').style.animation='none';void $('#eHero').offsetWidth;$('#eHero').style.animation='';
     const modeLine=res.coop?(won?`${G.boss.name} is down! You did ${Math.round(B.dmg||0)} damage (${placeName(res.place)} on the team).`:`${G.boss.name} cleaned out the whole kitchen.`)
       :G.variant==='order'?(won?`First to ${ORDER_GOAL} orders. Kitchen of the day!`:`${res.winner?res.winner.name:'Someone'} filled ${ORDER_GOAL} orders first. You filled ${B.orders|0}.`)
