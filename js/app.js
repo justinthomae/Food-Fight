@@ -1,6 +1,6 @@
 // Food Fight UI: drawing, input, settings, practice mode and the online lobby.
 (function(){
-const VERSION='1.13.1';
+const VERSION='1.13.2';
 let spec=null; // board being spectated after you're knocked out
 // how far we are between two 60Hz game steps (0..1): drawing uses it so motion is smooth on 90/120/144Hz screens too
 let ALPHA=0,lastDraw=performance.now(),drawDt=16,SIDEW=0;
@@ -682,17 +682,28 @@ function hud(){
 const DESK=window.matchMedia?matchMedia('(min-width:760px) and (min-aspect-ratio:1/1)'):{matches:false};
 let SIDEZ=1;
 function resize(){
-  // desktop: opponent previews grow to use the height beside the board
-  {const op=$('#opps');if(op){if(DESK.matches&&minis.length){const n=minis.length,many=op.classList.contains('many'),rows=many?Math.ceil(n/2):n,
-      avail=$('.arena').clientHeight-8,mh=Math.floor((avail-(rows-1)*8)/rows-58),mw=Math.max(36,Math.min(many?70:120,Math.floor(mh/2)));
-      op.style.setProperty('--mw',mw+'px')}else op.style.removeProperty('--mw')}}
+  const mu=G&&MODE_UI[G.variant];
+  // desktop: opponent boards get every pixel the main board doesn't need, in however many columns makes them biggest
+  {const op=$('#opps');if(op){
+    if(DESK.matches&&minis.length){
+      const ar=$('.arena'),n=minis.length,availH=ar.clientHeight-8,S0=Math.floor((availH-30)/ROWS);
+      const sideNeed=mu&&mu.deskCols?2*Math.round(S0*COLS/10*4.4+22):mu&&mu.sideW?Math.round(Math.min(S0*1.7,150))+(mu.leftW?mu.leftW():0):0;
+      const oppsW=ar.clientWidth-(S0*COLS+sideNeed+24)-8;
+      let best={c:1,mw:36};
+      for(let c=1;c<=n;c++){const rows=Math.ceil(n/c),mwH=Math.floor(((availH-(rows-1)*8)/rows-74)/2),mwW=Math.floor((oppsW-(c-1)*8)/c-22),mw=Math.min(mwH,mwW,260);if(mw>best.mw+2)best={c,mw}}
+      op.style.setProperty('--mw',Math.max(36,best.mw)+'px');op.style.gridTemplateColumns=`repeat(${best.c},auto)`;op.classList.add('deskgrid');
+    }else{op.style.removeProperty('--mw');op.style.gridTemplateColumns='';op.classList.remove('deskgrid')}}}
   const w=$('#wrap');const W=w.clientWidth,H=w.clientHeight;
   // a side column (Next, Bank, items...) sits right of the board; the board centres in what's left
-  const mu=G&&MODE_UI[G.variant];const base=mu&&mu.sideW?mu.sideW():0;let side=base;const left=mu&&mu.leftW?mu.leftW():0;
+  const base=mu&&mu.sideW?mu.sideW():0;let side=base;let left=mu&&mu.leftW?mu.leftW():0;
+  // Block Battle on desktop: Hold (and items) left of the well, Next right of it, both wide enough for full-size pieces
+  const deskCols=!!(mu&&mu.deskCols&&DESK.matches);
+  if(deskCols){const cs0=Math.floor(H/ROWS)*COLS/10;side=left=Math.round(cs0*4.4+22)}
   w.style.paddingRight=side?side+'px':'';w.style.paddingLeft=left?left+'px':'';
   S=Math.max(16,Math.floor(Math.min((W-side-left)/COLS,H/ROWS)));
   SIDEZ=1;
-  if(side&&DESK.matches){
+  if(deskCols){}
+  else if(side&&DESK.matches){
     // desktop: plenty of room, so the whole column (items, Next, Bank, buttons) scales up with the board
     const want=Math.round(Math.max(base,Math.min(S*1.7,150)));
     if(want>side&&W-S*COLS-left>=want){side=want;SIDEZ=side/base;w.style.paddingRight=side+'px'}
@@ -709,11 +720,13 @@ function resize(){
   {const sc=$('#sideCol');if(sc){const z=SIDEZ;sc.style.zoom=z===1?'':String(z);
     sc.style.height=S*ROWS/z+'px';sc.style.width=side?(side/z-4)+'px':'';
     // sit right against the board instead of the far edge of the screen
-    if(side){sc.style.left=(cv.offsetLeft+S*COLS+6)/z+'px';sc.style.right='auto'}else{sc.style.left='';sc.style.right=''}}}
+    if(side){sc.style.left=(cv.offsetLeft+S*COLS+6)/z+'px';sc.style.right='auto'}else{sc.style.left='';sc.style.right=''}}
+   const lc=$('#leftCol');if(lc){if(deskCols&&!lc.hidden){lc.style.height=S*ROWS+'px';lc.style.width=(left-6)+'px';lc.style.left=(cv.offsetLeft-left+2)+'px'}}}
   nextKey='';bankKey='';
   sizeMinis();render();
 }
 new ResizeObserver(resize).observe($('#wrap'));
+try{DESK.addEventListener('change',()=>{if(G)setControls();resize()})}catch(e){}
 window.addEventListener('resize',resize);
 
 /* ---------- per-mode screens: Snack Stack and Splat Shot draw and steer their own boards ---------- */
@@ -730,7 +743,11 @@ function setControls(){
   rb.hidden=noRaise;const fc=mu&&mu.footClass?mu.footClass():'';document.querySelector('.controls').classList.toggle('stackbtn',fc==='stackbtn');$('#aimline').hidden=!!(mu&&(mu.ctl||mu.side));document.querySelector('.controls').classList.toggle('wide',noRaise);
   rb.innerHTML=mu&&mu.raiseLabel?mu.raiseLabel:'<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 4l8 10h-5v6H9v-6H4z"/></svg>Raise';
   const sideHtml=mu&&mu.side?mu.side():'';$('#sideCol').innerHTML=sideHtml;$('#sideCol').hidden=!sideHtml;$('#sideCol').classList.toggle('narrow',!!(mu&&mu.narrow));
+  // desktop plays on the keyboard: no on-screen buttons, just a one-line reminder of the keys
+  const keysOnly=!!(mu&&mu.deskNoFooter&&DESK.matches);
   document.querySelector('.controls').hidden=!!(mu&&mu.noFooter);
+  document.querySelector('.controls').classList.toggle('keysonly',keysOnly);$('#keyLine').textContent=keysOnly?mu.keys||'':'';$('#keyLine').hidden=!keysOnly;
+  {const lc=$('#leftCol'),lh=mu&&mu.left&&DESK.matches?mu.left():'';lc.innerHTML=lh;lc.hidden=!lh}
   if(mu&&mu.ctl)$('#modeCtl').innerHTML=mu.ctl();
   {const host=$('#slotHost');if(host&&mu&&mu.slots)host.appendChild(slots)}
   // Classic / Order Up / Boss Brawl: Incoming on top of the right column, items under it, Raise at the bottom
@@ -831,8 +848,10 @@ function drawPieceAt(c,p,cx,cy,s,a){
 }
 let bsideKey='';
 MODE_UI.blocks={
-  noTray:true,noRaise:true,slots:true,footClass:()=>'stackbtn',
-  side(){return '<button class="nextbox bholdbox" id="holdBox" type="button" aria-label="Hold"><span>Hold</span><canvas id="holdCv"></canvas></button><div class="nextbox"><span>Next</span><canvas id="bnextCv"></canvas></div><div id="slotHost"></div>'},
+  noTray:true,noRaise:true,slots:true,footClass:()=>'stackbtn',deskCols:true,deskNoFooter:true,keys:'← → move · ↓ soft drop · Space drop · ↑ / X turn · Z turn back · C / Shift hold · V item',
+  side(){return DESK.matches?'<div class="nextbox"><span>Next</span><canvas id="bnextCv"></canvas></div>'
+    :'<button class="nextbox bholdbox" id="holdBox" type="button" aria-label="Hold"><span>Hold</span><canvas id="holdCv"></canvas></button><div class="nextbox"><span>Next</span><canvas id="bnextCv"></canvas></div><div id="slotHost"></div>'},
+  left(){return '<button class="nextbox bholdbox" id="holdBox" type="button" aria-label="Hold"><span>Hold</span><canvas id="holdCv"></canvas></button><div id="slotHost"></div>'},
   sideW(){return 76},
   ctl(){return `<div class="stackrow blocksrow"><div class="movepad row" id="movePad"><span>◀</span><span>▶</span></div><button class="spin icon" id="bSoft" type="button" aria-label="Soft drop">▼</button><button class="spin icon" id="bCCW" type="button" aria-label="Turn left">↺</button><button class="spin icon" id="bCW" type="button" aria-label="Turn right">↻</button><button class="spin drop" id="bHard" type="button">Drop</button></div>`},
   bind(){
@@ -863,7 +882,7 @@ MODE_UI.blocks={
   },
   drawSide(B){
     const K=BT(),hc=$('#holdCv'),nc=$('#bnextCv');if(!K||!hc||!nc)return;
-    const colW=(SIDEW||76)/SIDEZ-16,ps=Math.max(8,Math.min(colW/4.2,(S*COLS/10)/SIDEZ)),q=B.queue||[];
+    const cs=S*COLS/10,full=DESK.matches,colW=(SIDEW||76)/SIDEZ-16,ps=full?cs:Math.max(8,Math.min(colW/4.2,cs/SIDEZ)),q=B.queue||[];
     const hid=B.hideT>0;
     const key=[B.hold,B.holdUsed,q.slice(0,5).join(''),ps.toFixed(1),hid].join('|');if(key===bsideKey)return;bsideKey=key;
     const hw=Math.round(ps*4.4),hh=Math.round(ps*2.8);
@@ -872,7 +891,9 @@ MODE_UI.blocks={
     const qm=(c,w,h)=>{c.fillStyle='#9AA3BC';c.font=`800 ${Math.round(ps*1.4)}px Figtree,sans-serif`;c.textAlign='center';c.textBaseline='middle';c.fillText('?',w/2,h/2)};
     if(hid)qm(x,hw,hh);else if(B.hold)drawPieceAt(x,B.hold,hw/2,hh/2,ps,B.holdUsed?.35:1);
     $('#holdBox').classList.toggle('used',!!B.holdUsed);
-    const sizes=[1,.8,.8,.7,.7],gap=ps*.6;let th=0;sizes.forEach(z=>th+=ps*z*2+gap);
+    const sizes=full?[1,1,1,1,1]:[1,.8,.8,.7,.7],gap=ps*.6;
+    let th=0;   // desktop: every piece at its real size
+   sizes.forEach(z=>th+=ps*z*2+gap);
     nc.width=hw*DPR;nc.height=Math.round(th)*DPR;nc.style.width=hw+'px';nc.style.height=Math.round(th)+'px';
     x=nc.getContext('2d');x.setTransform(DPR,0,0,DPR,0,0);x.clearRect(0,0,hw,th);
     if(hid){qm(x,hw,th);return}
@@ -939,7 +960,7 @@ MODE_UI.blocks={
 // ----- Snack Stack -----
 let sd=null,nextKey='';
 MODE_UI.stack={
-  growSide:true,slots:true,noTray:true,footClass:()=>prefs.stackCtl==='buttons'?'stackbtn':'',
+  deskNoFooter:true,keys:'← → move · ↓ faster · ↑ / X spin · Z spin back · Space drop · C bank · Shift unbank · V item',growSide:true,slots:true,noTray:true,footClass:()=>prefs.stackCtl==='buttons'?'stackbtn':'',
   noRaise:()=>prefs.stackCtl==='buttons',
   raiseLabel:'Drop',
   side(){return prefs.stackCtl==='buttons'?'<div class="nextbox"><span>Next</span><canvas id="nextCv"></canvas></div><button class="nextbox bankbox" id="bankBox" type="button" aria-label="Bank: tap to save this piece, tap again to bring it back"><span>Bank</span><canvas id="bankCv"></canvas></button><div id="slotHost"></div>':''},

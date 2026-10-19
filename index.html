@@ -298,6 +298,14 @@ button.nextbox:active{background:var(--gold)}
 .fly.scramble{background:#CC79A7;border-radius:6px}.fly.twist{background:#A65BD9;border-radius:6px}.fly.quake{background:#E5682A;border-radius:4px}
 .fly.speed{background:#E5682A}.fly.dark{background:#2A2F48;box-shadow:0 0 0 2px #9AA3BC}.fly.shotgun{background:#E5484D;width:14px;height:14px;margin:-7px 0 0 -7px}
 .fly.blast{background:#6B7080;border-radius:4px;width:30px;height:16px;margin:-8px 0 0 -15px}.fly.hide{background:#9AA3BC}
+.sidecol.left{right:auto}
+.sidecol.left .bholdbox,.sidecol .nextbox{width:100%}
+.sidecol.left #slotHost{margin-top:auto}
+.sidecol.left #slotHost .slots{flex-direction:column-reverse;gap:8px;align-items:center}
+.sidecol #slotHost + .keyhint{margin-top:8px}
+.keyhint{margin-top:auto;font-size:11px;line-height:1.5;color:var(--muted);text-align:center;background:var(--panel);border-radius:12px;padding:8px 6px}
+.keyline{font-size:12px;color:var(--muted);text-align:center;font-weight:600;padding:2px 0}
+.controls.keysonly .raise,.controls.keysonly .modectl,.controls.keysonly .slots,.controls.keysonly .aimline{display:none!important}
 .nextbox.now{border:2px solid var(--gold)}
 .spin{border:0;border-radius:14px;background:var(--panel2);height:52px;padding:0 18px;font-weight:800;font-size:15px;touch-action:none;color:var(--ink)}
 .spin:active{background:var(--gold);color:var(--gold-ink)}
@@ -512,6 +520,12 @@ button.nextbox:active{background:var(--gold)}
   .opps{width:auto;min-width:210px}
   .opps .foe .nm{font-size:18px}
   .brand{font-size:28px}
+  .app{max-width:min(1680px,100%)}
+  .opps.deskgrid{display:grid;align-content:start;gap:8px;width:auto;min-width:0}
+  .opps.deskgrid .foe{padding:8px}
+  .opps.deskgrid .foe .body{flex-direction:column;align-items:center;gap:4px}
+  .opps.deskgrid .foe .who{flex-direction:row;flex-wrap:wrap;gap:4px 8px;align-items:center;justify-content:center;width:100%}
+  .opps.deskgrid .foe canvas{width:var(--mw,60px);height:calc(var(--mw,60px)*2)}
 }
 @media (prefers-reduced-motion:reduce){.fly{transition:none}.movepad.reversed{animation:none}.slot.new{animation:none}}
 </style>
@@ -549,6 +563,7 @@ button.nextbox:active{background:var(--gold)}
       <div class="tray" id="tray"><span class="lbl">Incoming</span><span class="none">Nothing yet</span></div>
       <div class="boardwrap" id="wrap"><canvas id="board"></canvas>
         <div class="sidecol" id="sideCol" hidden></div>
+        <div class="sidecol left" id="leftCol" hidden></div>
         <div class="specbar" id="specBar" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg><span id="specName">Watching</span><button id="bSpecOff" type="button">My board</button></div>
         <div class="watchpill" id="watchPill" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg><span id="watchText">Someone is watching</span></div>
       </div>
@@ -560,6 +575,7 @@ button.nextbox:active{background:var(--gold)}
       <div class="aimline" id="aimline">Tap to throw at <b>—</b></div>
       <div class="slots" id="slots"></div>
       <div class="modectl" id="modeCtl" hidden></div>
+      <div class="keyline" id="keyLine" hidden></div>
     </div>
   </footer>
 </div>
