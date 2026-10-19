@@ -156,7 +156,7 @@ class StackBoard{
     if(blocked){this.blocked+=blocked;this.pop(`Blocked ${blocked}`,3,6,'#56B4E9',.9);this.sfx('block')}
     if(a<=0)return;
     const tgt=this.pickTarget();if(!tgt)return;
-    if(this.isBot)a=Math.max(1,Math.round(a*.6));   // bots chain hard; keep their throws human-sized
+    if(this.isBot)a=Math.max(1,Math.round(a*[.35,.6,.6][this.game.d]));   // bots chain hard; keep their throws human-sized (Easy: much smaller)
     this.game.launch(this,{k:'pie',cells:a,at:null},tgt);
   }
   pickTarget(){

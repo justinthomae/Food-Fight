@@ -3,10 +3,11 @@
 const COLS=6,ROWS=12,NT=5,CLR=40,POP=9,HOVER=9,INC_T=220,GRACE=150,FLY=34;
 const DIFFS=[
   // think = frames between moves, miss = chance to skip a turn, fire = frames between throws, noise = how sloppy move choice is, hit = size of bot throws (v0.9.5: toned down again)
-  {name:'Easy',  think:[85,125], miss:.45, raiseH:4, fire:[260,520], noise:4,   hit:.6},
+  {name:'Easy',  think:[120,175],miss:.55, raiseH:4, fire:[480,900], noise:5.5, hit:.4},   // v1.13.4: easier again
   {name:'Normal',think:[40,60],  miss:.28, raiseH:5, fire:[140,300], noise:2.2, hit:.7},
   {name:'Hard',  think:[21,32],  miss:.13, raiseH:6, fire:[75,190],  noise:1.4, hit:.66},
 ];
+const ORDER_EASY={think:[90,130],miss:.48};
 // game modes. Classic, Order Up! and Boss Brawl use the swap board; Snack Stack and Splat Shot bring their own boards (stack.js, shot.js)
 const VARIANTS=['classic','order','stack','shot','boss','blocks'];
 const BOARD_TYPES={};   // variant -> board class, filled in by stack.js / shot.js
@@ -460,7 +461,8 @@ class Board{
     if(this.frozenT>0)return;
     if(--this.think>0)return;
     if(this.creamT>0&&Math.random()<.5){this.think=20;return}
-    const D=DIFFS[this.game.d];
+    // Order Up! is a race: Easy bots still need to finish orders, so they move a little quicker there
+    const D=this.game.variant==='order'&&this.game.d===0?ORDER_EASY:DIFFS[this.game.d];
     this.think=D.think[0]+rnd(D.think[1]-D.think[0]+1);
     if(Math.random()<D.miss)return;
     const mv=this.bestMove();

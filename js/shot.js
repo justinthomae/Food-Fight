@@ -217,7 +217,7 @@ class ShotBoard{
     if(blocked){this.blocked+=blocked;this.pop(`Blocked ${blocked}`,3,7.5,'#56B4E9',.9);this.sfx('block')}
     if(a<=0)return;
     const tgt=this.pickTarget();if(!tgt)return;
-    if(this.isBot)a=Math.max(1,Math.round(a*[.4,.38,.5][this.game.d]));
+    if(this.isBot)a=Math.max(1,Math.round(a*[.25,.38,.5][this.game.d]));
     this.game.launch(this,{k:'pie',cells:a,at:null},tgt);
   }
   pickTarget(){

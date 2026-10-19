@@ -32,7 +32,7 @@ const ITEMS=['swap','scramble','twist','quake','speed','dark','shotgun','blast',
 const ITEM_NAME={swap:'Switcheroo',scramble:'Scramble',twist:'Twist',quake:'Earthquake',speed:'Speed up',dark:'Darkness',shotgun:'Shotgun',blast:'Garbage blast',hide:'Hide',shield:'Shield',avalanche:'Avalanche',push:'Push'};
 const SELF=['shield','avalanche','push'],RACK_N=3,SP=16;   // a locked cell value with the 16 bit set is a "?" block
 const FX_T={speed:360,dark:480,hide:600,shield:600};
-const BOT={think:[46,26,12],move:[8,4,2],noise:[.9,.35,.06],drop:[0,1,1]};
+const BOT={think:[70,26,12],move:[12,4,2],noise:[1.5,.35,.06],drop:[0,1,1]};
 
 class BlocksBoard{
   constructor(game,name,isBot,idx,id,seed){
@@ -203,6 +203,7 @@ class BlocksBoard{
     if(blocked){this.blocked+=blocked;this.pop(`Blocked ${blocked}`,3,9,'#56B4E9',.85);this.sfx('block')}
     if(a<=0)return;
     const tgt=this.pickTarget();if(!tgt)return;
+    if(this.isBot&&this.game.d===0)a=Math.ceil(a/2);   // Easy bots send half
     this.game.launch(this,{k:'pie',cells:a,at:null},tgt);
   }
   pickTarget(){
@@ -336,7 +337,7 @@ class BlocksBoard{
     if(this.state!=='fall'||!this.piece)return;
     const d=this.game.d|0;
     if(this.rack.length&&--this.fireT<=0){
-      this.fireT=[600,360,220][d]+rnd(240);const h=this.rows();
+      this.fireT=[1000,360,220][d]+rnd(240);const h=this.rows();
       const sh=this.rack.findIndex(x=>x.k==='shield'),av=this.rack.findIndex(x=>x.k==='avalanche'||x.k==='push'),atk=this.rack.findIndex(x=>!SELF.includes(x.k));
       if(sh>=0&&this.incoming()>0)this.fire(sh);else if(av>=0&&h>=11)this.fire(av);else if(atk>=0)this.fire(atk);
     }
