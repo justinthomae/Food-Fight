@@ -99,7 +99,7 @@ class ConveyorBoard extends E.BaseBoard{
       b.x+=b.vx/3;b.y+=b.vy/3;
       const hit=this.hitTest(b.x,b.y);
       if(hit){this.insert(hit,b.t);this.ball=null;return}
-      if(b.y<-0.6||b.x<-0.6||b.x>COLS+0.6){this.ball=null;return}
+      if(b.y<-0.6||b.x<-0.6||b.x>COLS+0.6){this.ball=null;this.toBack(b.t);return}
     }
   }
   // which food a throw at (x,y) touches, and whether it goes in front of it or behind it
@@ -110,6 +110,13 @@ class ConveyorBoard extends E.BaseBoard{
     const s=this.sOf(best),f=at(s+D/2),r=at(s-D/2);
     const front=(f[0]-x)**2+(f[1]-y)**2<(r[0]-x)**2+(r[1]-y)**2;
     return {i:best,front};
+  }
+  // a throw that missed the line and flew off the board isn't lost: it rolls onto the back of the line
+  toBack(t){
+    const b=this.mk(t);b.ins=8;this.line.push(b);this.feed-=D;b.vs=this.sOf(this.line.length-1)-D*.8;
+    this.pop('Missed! To the back of the line',2.4,1.9,'#EEF0FA',.6,45);this.sfx('tap');
+    const run=this.runAt(this.line.length-1);
+    if(run&&run[1]-run[0]+1>=3){this.chain=0;this.pend=0;this.popRun(run[0],run[1])}
   }
   insert(hit,t){
     const at_=hit.front?hit.i:hit.i+1,b=this.mk(t);b.ins=8;

@@ -42,3 +42,10 @@ for(const d of [0,1,2]){const g=new E.Game('brawl',d,{},true,{variant:'conveyor'
 // Easy is easy: an Easy bot alone loses faster than a Medium one
 {const t=d=>{let tot=0;for(let k=0;k<3;k++){const g=new E.Game('duel',d,{},false,{variant:'conveyor'});const P=g.player;P.isBot=false;P.step=()=>{};g.boards[1].isBot=true;let f=0;while(!g.boards[1].dead&&f<60*600){g.step();f++}tot+=f}return tot/3/60};
  const e=t(0),m=t(1);check(e<m,`an Easy bot lasts less than a Medium bot on its own (${e.toFixed(0)}s vs ${m.toFixed(0)}s)`);}
+// a throw that misses the line goes to the back of the line instead of vanishing
+{const E=require('../js/engine.js');require('../js/modes/conveyor.js');
+ const g=new E.Game('duel',1,{},false,{variant:'conveyor'});const P=g.player;g.boards[1].isBot=false;for(let i=0;i<30;i++)g.step();
+ const n0=P.line.length,head0=P.head(),t=P.cur;P.line.forEach(b=>{if(b.t===t)b.t=(t+1)%5});
+ P.cool=0;P.ball={x:3,y:-0.5,vx:0,vy:-0.5,t};P.moveBall();
+ const ok=P.line.length===n0+1&&P.line[P.line.length-1].t===t&&Math.abs(P.head()-head0)<.05;
+ console.log((ok?'PASS ':'FAIL ')+'a missed throw rolls onto the back of the line ('+n0+'→'+P.line.length+')');if(!ok)process.exitCode=1;}
