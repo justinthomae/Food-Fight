@@ -840,7 +840,14 @@ class Game{
   step(){
     if(this.over||this.paused)return;
     this.frame++;
-    for(const b of this.boards)if(!b.dead)b.step();
+    // one board hitting a bug must not stop the whole match (the error is logged, everything else keeps running)
+    for(const b of this.boards)if(!b.dead){try{b.step()}catch(e){if(!this._errs){this._errs=1;try{console.error('board step failed',b.name,e)}catch(_){}}}}
+    // online: a cook whose phone has gone quiet for 9 seconds (asleep, closed, lost signal) is out, so their
+    // frozen board doesn't hold everyone up
+    if(this.online&&!this.ffMode&&this.frame%30===0&&this.frame>60*9){
+      const quiet=new Set();for(const b of this.boards)if(b.remote&&!b.dead&&this.frame-(b.lastSnap||0)>60*9)quiet.add(b.owner);
+      quiet.forEach(o=>{if(this.hooks.dropped)this.hooks.dropped(o);this.netLeave(o)});
+    }
     if(this.online&&this.hooks.send){
       // everyone's boards ~5x a second; a board someone is spectating full screen goes out 10x a second
       const f=this.frame,base=this.ffMode?240:this.boards.length>4?20:12;let l=null;

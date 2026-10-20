@@ -240,7 +240,7 @@ const check=(cond,msg)=>{console.log((cond?'PASS ':'FAIL ')+msg);if(!cond)proces
   // ---- fast forward: only offered once every human is out ----
   {
     const fh=page('https://foodfight.grudgematchgames.com/');await sleep(2400);
-    fh.$('#bOnline').click();fh.$('#bCreate').click();await sleep(120);
+    fh.$('#bOnline').click();fh.$('#bCreate').click();await sleep(1800);
     const fg=page('https://foodfight.grudgematchgames.com/?room='+fh.$('#roomCode').textContent);await sleep(2500);
     setBots(fh,2);fh.$('#bStart').click();await sleep(4600);
     const FH=fh.w.__ff.game,FGg=fg.w.__ff.game;
@@ -265,7 +265,7 @@ const check=(cond,msg)=>{console.log((cond?'PASS ':'FAIL ')+msg);if(!cond)proces
   // ---- Grudge Match: both tap in after a match -> rematch with the same number of bots, champ tagged ----
   const h2=page('https://foodfight.grudgematchgames.com/');await sleep(2400);
   h2.$('#nameIn').value='Champ';h2.$('#nameIn').dispatchEvent(new h2.w.Event('input'));
-  h2.$('#bOnline').click();h2.$('#bCreate').click();await sleep(120);
+  h2.$('#bOnline').click();h2.$('#bCreate').click();await sleep(1800);
   const code2=h2.$('#roomCode').textContent;
   const g2=page('https://foodfight.grudgematchgames.com/?room='+code2);await sleep(2500);
   setBots(h2,2);h2.$('#bStart').click();await sleep(4600);
@@ -290,7 +290,7 @@ const check=(cond,msg)=>{console.log((cond?'PASS ':'FAIL ')+msg);if(!cond)proces
   // ---- Switcheroo across two phones ----
   {
     const sh=page('https://foodfight.grudgematchgames.com/');await sleep(2400);
-    sh.$('#bOnline').click();sh.$('#bCreate').click();await sleep(150);
+    sh.$('#bOnline').click();sh.$('#bCreate').click();await sleep(1800);
     sh.$('#lobbyVariants [data-v="classic"]').click();
     const sg=page('https://foodfight.grudgematchgames.com/?room='+sh.$('#roomCode').textContent);await sleep(2600);
     setBots(sh,0);sh.$('#bStart').click();await sleep(4700);
@@ -351,7 +351,7 @@ const check=(cond,msg)=>{console.log((cond?'PASS ':'FAIL ')+msg);if(!cond)proces
   for(const v of ['order','boss','stack','shot']){
     const oh=page('https://foodfight.grudgematchgames.com/');await sleep(2400);
     oh.$('#nameIn').value='Hosty';oh.$('#nameIn').dispatchEvent(new oh.w.Event('input'));
-    oh.$('#bOnline').click();oh.$('#bCreate').click();await sleep(150);
+    oh.$('#bOnline').click();oh.$('#bCreate').click();await sleep(1800);
     oh.$(`#lobbyVariants [data-v="${v}"]`).click();await sleep(100);
     const og=page('https://foodfight.grudgematchgames.com/?room='+oh.$('#roomCode').textContent);await sleep(2600);
     const vname={order:'Order Up!',boss:'Boss Brawl',stack:'Snack Stack',shot:'Splat Shot'}[v];
@@ -410,7 +410,7 @@ const check=(cond,msg)=>{console.log((cond?'PASS ':'FAIL ')+msg);if(!cond)proces
    const wrong=page('https://foodfight.grudgematchgames.com/#admin=nope');await sleep(2400);
    check(!wrong.$('#variants [data-v="blocks"]'),'blocks: a wrong passphrase does nothing');
    oh.$('#nameIn').value='Admin';oh.$('#nameIn').dispatchEvent(new oh.w.Event('input'));
-   oh.$('#bOnline').click();oh.$('#bCreate').click();await sleep(150);
+   oh.$('#bOnline').click();oh.$('#bCreate').click();await sleep(1800);
    oh.$('#lobbyVariants [data-v="blocks"]').click();await sleep(100);
    const og=page('https://foodfight.grudgematchgames.com/?room='+oh.$('#roomCode').textContent);await sleep(2600);
    check(og.$('#lobbyVariants [aria-checked="true"]')&&og.$('#lobbyVariants [aria-checked="true"]').dataset.v==='blocks'&&!og.$('#variants [data-v="blocks"]'),'blocks online: the guest (no passphrase) sees the mode by room code only');
@@ -428,9 +428,51 @@ const check=(cond,msg)=>{console.log((cond?'PASS ':'FAIL ')+msg);if(!cond)proces
    check(H.player.m.some(r=>r.join(',')==='7,7,7,7,0,7,7,7,7,7')||H.player.dead,'blocks online: Switcheroo trades wells across phones');
    oh.errors.concat(og.errors,plain.errors).slice(0,3).forEach(e=>console.log('  ',e));
    check(oh.errors.length===0&&og.errors.length===0&&plain.errors.length===0,'blocks online: no script errors');}
+  // ---- multiplayer stability: three phones in one room ----
+  {const A=page('https://foodfight.grudgematchgames.com/');await sleep(2400);
+   A.$('#nameIn').value='Ann';A.$('#nameIn').dispatchEvent(new A.w.Event('input'));A.$('#bOnline').click();A.$('#bCreate').click();await sleep(1800);
+   const code=A.$('#roomCode').textContent;
+   const B=page('https://foodfight.grudgematchgames.com/?room='+code);await sleep(2500);
+   const C=page('https://foodfight.grudgematchgames.com/?room='+code);await sleep(2500);
+   setBots(A,0);await sleep(200);
+   const bus=buses['ff:'+code],idOf=pg=>pg.w.FFNet.me.id;
+   check(A.w.document.querySelectorAll('#seats li:not(.bot):not(.empty)').length===3,'3 phones in the room');
+   // 1) a guest is updating their status (presence drops them for a moment) exactly when the host taps Start
+   const keyB=[...bus.members.keys()].find(k=>bus.members.get(k).id===idOf(B)),saved=bus.members.get(keyB);
+   bus.members.delete(keyB);bus.chans.forEach(c=>c._sync());await sleep(30);
+   A.$('#bStart').click();await sleep(30);bus.members.set(keyB,saved);bus.chans.forEach(c=>c._sync());await sleep(4700);
+   const GA=A.w.__ff.game,GB=B.w.__ff.game,GC=C.w.__ff.game;
+   check(GA&&GA.boards.length===3&&GA.boards.every(b=>!b.isBot),'start during a presence blip: all 3 humans are in, no bot took a seat ('+(GA&&GA.boards.map(b=>b.name).join(','))+')');
+   check(GA&&GB&&GC&&GA.mid===GB.mid&&GB.mid===GC.mid,'start during a presence blip: everyone is in the same match');
+   // 2) a phone goes quiet mid-match (asleep / lost signal): the others count it out instead of showing a frozen board
+   const cid=idOf(C);C.w.__ff.game.paused=true;   // stops C stepping and sending
+   await sleep(11000);
+   check(GA.byId(cid)&&GA.byId(cid).dead&&GB.byId(cid).dead,'a phone that goes quiet for 9s is counted out on the others');
+   // 3) ...and when that phone wakes up it knows it sat the round out
+   const realNow=C.w.Date.now.bind(C.w.Date);Object.defineProperty(C.w.document,'hidden',{configurable:true,get:()=>true});C.w.document.dispatchEvent(new C.w.Event('visibilitychange'));
+   C.w.Date.now=()=>realNow()+9000;Object.defineProperty(C.w.document,'hidden',{configurable:true,get:()=>false});C.w.document.dispatchEvent(new C.w.Event('visibilitychange'));C.w.Date.now=realNow;
+   C.w.__ff.game.paused=false;await sleep(400);
+   check(C.w.__ff.game.player.dead,'the phone that was away is out of that round on its own screen too');
+   // 4) an error while drawing never freezes the screen
+   const P=GA.player,f0=GA.frame;Object.defineProperty(P,'score',{configurable:true,get(){throw new Error('boom')}});await sleep(600);
+   check(GA.frame>f0+10,'an error in the HUD does not freeze the game loop ('+(GA.frame-f0)+' frames later)');
+   delete P.score;P.score=0;
+   GA.boards.filter(b=>!b.dead&&b!==GA.player).forEach(b=>{if(!b.remote)b.die()});GB.player.die();GA.player.die();await sleep(2500);
+   // 5) two starts cross: everyone ends up in the same one (the lower match id)
+   A.$('#bLobby').click();await sleep(300);B.$('#bLobby').click();await sleep(300);C.$('#bLobby')&&C.$('#bLobby').click();await sleep(1500);
+   const roster=[A,B,C].map(pg=>({id:idOf(pg),name:'X',av:'bun'}));
+   const mk=mid=>({t:'start',mid,seed:7,roster,diff:1,delay:3000,variant:'classic',host:idOf(A)});
+   A.$('#bStart').click();await sleep(5);
+   const sB=mk('0000late');bus.chans.forEach(c=>setTimeout(()=>c._msg(JSON.parse(JSON.stringify(sB))),3));   // a second start, as every phone would receive it
+   await sleep(4800);
+   const mids=[A,B,C].map(pg=>pg.w.__ff.game&&pg.w.__ff.game.mid);
+   check(mids.every(m=>m==='0000late'),'two starts cross: all three phones settle on the same match ('+mids.join(',')+')');
+   [A,B,C].forEach(pg=>pg.errors.slice(0,2).forEach(e=>console.log('  ',e)));
+   check(A.errors.length+B.errors.length+C.errors.length===0,'multiplayer stability: no script errors');
+   [A,B,C].forEach(pg=>{try{pg.w.close()}catch(e){}});}
   // grudge match with only bots left in the room: tapping it starts the next round straight away
   {const sp=page('https://foodfight.grudgematchgames.com/');await sleep(2400);
-   sp.$('#bOnline').click();sp.$('#bCreate').click();await sleep(1100);setBots(sp,2);sp.$('#bStart').click();await sleep(4700);
+   sp.$('#bOnline').click();sp.$('#bCreate').click();await sleep(1800);setBots(sp,2);sp.$('#bStart').click();await sleep(4700);
    const M1=sp.w.__ff.game;check(M1&&M1.online&&M1.boards.length===3,'solo grudge: online match vs 2 bots');
    M1.player.die();await sleep(300);M1.boards.filter(b=>b!==M1.player)[0].die();await sleep(1600);
    check(M1.over&&!sp.$('#ovEnd').hidden,'solo grudge: end screen');
@@ -442,7 +484,7 @@ const check=(cond,msg)=>{console.log((cond?'PASS ':'FAIL ')+msg);if(!cond)proces
   // open rooms: a host's room shows up for everyone else, who can join it with a tap
   {const oh=page('https://foodfight.grudgematchgames.com/');await sleep(2400);
    oh.$('#nameIn').value='Lister';oh.$('#nameIn').dispatchEvent(new oh.w.Event('input'));
-   oh.$('#bOnline').click();oh.$('#bCreate').click();await sleep(1100);
+   oh.$('#bOnline').click();oh.$('#bCreate').click();await sleep(1800);
    const code=oh.$('#roomCode').textContent;oh.$('#lobbyVariants [data-v="stack"]').click();await sleep(300);
    const vw=page('https://foodfight.grudgematchgames.com/');await sleep(2400);
    const card=()=>vw.$(`#roomList .room[data-code="${code}"]`);
@@ -461,7 +503,7 @@ const check=(cond,msg)=>{console.log((cond?'PASS ':'FAIL ')+msg);if(!cond)proces
    vw.$('#bLeave').click();await sleep(800);
    check(!v2.$(`#roomList .room[data-code="${code}"]`),'open rooms: an empty room drops off the list');
    const ad=page('https://foodfight.grudgematchgames.com/#admin=waffle-pickle-waffle-29');await sleep(2500);
-   ad.$('#bOnline').click();ad.$('#bCreate').click();await sleep(1100);ad.$('#lobbyVariants [data-v="blocks"]').click();await sleep(300);
+   ad.$('#bOnline').click();ad.$('#bCreate').click();await sleep(1800);ad.$('#lobbyVariants [data-v="blocks"]').click();await sleep(300);
    check(!v2.$(`#roomList .room[data-code="${ad.$('#roomCode').textContent}"]`),'open rooms: admin-only mode rooms stay join-by-code');
    ad.$('#bLeave').click();await sleep(300);
    [oh,vw,v2,ad].forEach(pg=>{try{pg.w.close()}catch(e){}});
@@ -481,7 +523,7 @@ const check=(cond,msg)=>{console.log((cond?'PASS ':'FAIL ')+msg);if(!cond)proces
     check(mp.errors.length===0,`${v}: no script errors in practice`);
     const oh=page('https://foodfight.grudgematchgames.com/#admin=waffle-pickle-waffle-29');await sleep(2500);
     oh.$('#nameIn').value='Host'+v;oh.$('#nameIn').dispatchEvent(new oh.w.Event('input'));
-    oh.$('#bOnline').click();oh.$('#bCreate').click();await sleep(1000);   // a clashing code is re-rolled after 0.7s
+    oh.$('#bOnline').click();oh.$('#bCreate').click();await sleep(1800);   // a clashing code is re-rolled after 0.7s (maybe twice)
     oh.$(`#lobbyVariants [data-v="${v}"]`).click();await sleep(100);
     const og=page('https://foodfight.grudgematchgames.com/?room='+oh.$('#roomCode').textContent);await sleep(2600);
     setBots(oh,1);oh.$('#bStart').click();await sleep(4800);

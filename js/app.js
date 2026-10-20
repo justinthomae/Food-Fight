@@ -1,6 +1,6 @@
 // Food Fight UI: drawing, input, settings, practice mode and the online lobby.
 (function(){
-const VERSION='1.17.0';
+const VERSION='1.17.1';
 let spec=null; // board being spectated after you're knocked out
 // how far we are between two 60Hz game steps (0..1): drawing uses it so motion is smooth on 90/120/144Hz screens too
 let ALPHA=0,lastDraw=performance.now(),drawDt=16,SIDEW=0;
@@ -700,7 +700,7 @@ function hud(){
 }
 
 /* ---------- sizing ---------- */
-const DESK=window.matchMedia?matchMedia('(min-width:760px) and (min-aspect-ratio:1/1)'):{matches:false};
+const DESK=window.matchMedia?matchMedia('(min-width:560px) and (min-aspect-ratio:1/1)'):{matches:false};
 let SIDEZ=1;
 function resize(){
   const mu=G&&MODE_UI[G.variant],desk=DESK.matches&&!!G,w=$('#wrap'),ar=$('.arena');
@@ -718,11 +718,18 @@ function resize(){
     const n=minis.length,nL=Math.ceil(n/2);
     if(n){const colW=(ar.clientWidth-playW-16)/2,availH=(ar.querySelector('.play')||w).clientHeight||H0;let best={c:1,mw:36};
       for(let c=1;c<=nL;c++){const rows=Math.ceil(nL/c),mwH=Math.floor(((availH-(rows-1)*8)/rows-74)/2),mwW=Math.floor((colW-(c-1)*8)/c-22),mw=Math.min(mwH,mwW,260);if(mw>best.mw+2)best={c,mw}}
-      ['#opps','#oppsR'].forEach(id=>{const op=$(id);if(!op)return;op.style.setProperty('--mw',Math.max(36,best.mw)+'px');op.style.gridTemplateColumns=`repeat(${best.c},auto)`;op.classList.add('deskgrid')})}
+      ['#opps','#oppsR'].forEach(id=>{const op=$(id);if(!op)return;op.style.setProperty('--mw',Math.max(36,best.mw)+'px');op.style.gridTemplateColumns=`repeat(${best.c},auto)`;op.classList.add('deskgrid')});
+      // the guess above can't know how tall the name and status lines really are: measure, and shrink the boards
+      // until each column fits (short screens, phones held sideways). If even the smallest don't fit, it scrolls.
+      ['#opps','#oppsR'].forEach(id=>{const op=$(id);if(!op||op.hidden)return;op.style.maxHeight=availH+'px';const cnt=op.children.length;
+        const fit=c=>{op.style.gridTemplateColumns=`repeat(${c},auto)`;let mw=Math.min(Math.max(36,best.mw),Math.floor((colW-(c-1)*8)/c-22)),k=0;op.style.setProperty('--mw',mw+'px');
+          while(op.scrollHeight>availH+1&&mw>28&&k++<40){mw-=4;op.style.setProperty('--mw',mw+'px')}return op.scrollHeight<=availH+1};
+        // still too tall: try one more column before falling back to scrolling
+        let c=best.c;if(!fit(c))while(c<cnt){c++;if(fit(c))break}if(op.scrollHeight>availH+1)fit(best.c)})}
     w.style.paddingLeft=w.style.paddingRight=wing?wing+'px':'';
   }else{
     ar.style.removeProperty('--playw');
-    ['#opps','#oppsR'].forEach(id=>{const op=$(id);if(op){op.style.removeProperty('--mw');op.style.gridTemplateColumns='';op.classList.remove('deskgrid')}});
+    ['#opps','#oppsR'].forEach(id=>{const op=$(id);if(op){op.style.removeProperty('--mw');op.style.gridTemplateColumns='';op.style.maxHeight='';op.classList.remove('deskgrid')}});
     w.style.paddingRight=side?side+'px':'';w.style.paddingLeft=left?left+'px':'';
   }
   const W=w.clientWidth,H=w.clientHeight,pad=desk?2*Math.max(side,left):side+left;
@@ -740,7 +747,9 @@ function resize(){
   {const sc=$('#sideCol');if(sc){const z=SIDEZ;sc.style.zoom=z===1?'':String(z);
     sc.style.height=S*ROWS/z+'px';sc.style.width=side?(side/z-4)+'px':'';
     // sit right against the board instead of the far edge of the screen
-    if(side){sc.style.left=(cv.offsetLeft+S*COLS+6)/z+'px';sc.style.right='auto'}else{sc.style.left='';sc.style.right=''}}
+    if(side){sc.style.left=(cv.offsetLeft+S*COLS+6)/z+'px';sc.style.right='auto'}else{sc.style.left='';sc.style.right=''}
+    // short screens: squeeze the column (smaller slots and Raise) so nothing spills below the board
+    sc.classList.remove('tight','tighter');if(side&&sc.scrollHeight>sc.clientHeight+1){sc.classList.add('tight');if(sc.scrollHeight>sc.clientHeight+1)sc.classList.add('tighter')}}
    const lc=$('#leftCol');if(lc){if(deskCols&&!lc.hidden){lc.style.height=S*ROWS+'px';lc.style.width=(left-6)+'px';lc.style.left=(cv.offsetLeft-left+2)+'px'}}}
   nextKey='';bankKey='';
   sizeMinis();render();
@@ -1327,6 +1336,8 @@ function gameSfx(n,a){
 }
 const baseHooks={
   sfx:gameSfx,
+  // a cook's phone went quiet mid-match
+  dropped(owner){const b=G&&G.boards.find(x=>x.owner===owner&&!x.isBot);if(b&&G.player&&!G.player.dead)G.player.pops.push({text:`${b.name} lost connection`,x:3,y:4,col:'#EEF0FA',size:.7,life:110})},
   fly,
   rack:renderRack,
   swapped(){drag=null;kb.on=false;if(plating!=null)cancelPlate()},
@@ -1558,7 +1569,14 @@ $('#bAgain').addEventListener('click',()=>{if(G&&G.online){if(lastMatch)joinGrud
 $('#bLobby').addEventListener('click',backToLobby);
 $('#bMenu').addEventListener('click',()=>{if(G&&G.online)leaveRoom();else toMenu()});
 $('#bSound').addEventListener('click',()=>{prefs.muted=!prefs.muted;savePrefs();wakeAudio();showMute()});
+let hiddenAt=0;
 document.addEventListener('visibilitychange',()=>{
+  if(document.hidden)hiddenAt=Date.now();
+  else if(hiddenAt&&G&&G.online&&!G.over&&!G.waiting&&Date.now()-hiddenAt>7000){
+    // the others stopped hearing from this phone and knocked its boards out; match that here
+    const mine=G.local().filter(b=>!b.dead);
+    if(mine.length){mine.forEach(b=>{b.lastAttacker=null;b.die()});G.player.pops.push({text:'You were away, so you sat this round out',x:3,y:5,col:'#EEF0FA',size:.7,life:160})}
+  }
   if(document.hidden&&G&&!G.over&&!G.online&&!G.paused&&!anyOverlay()&&!G.playerOut)openPause();   // nothing to pause for once you're out: the bots keep cooking
   if(!document.hidden&&!anyOverlay())restoreOut();
 });
@@ -1855,6 +1873,16 @@ $('#bStart').addEventListener('click',()=>{
 function pickBoss(roster){const used=new Set(roster.map(r=>r.av));const free=FIGHTERS.filter(a=>!used.has(a));const pool=free.length?free:FIGHTERS;return {av:pool[Math.floor(Math.random()*pool.length)]}}
 function onStart(m){
   if(!inRoom||!m||!Array.isArray(m.roster)||m.roster.length<2||m.roster.length>MAX_PLAYERS)return;
+  if(G&&G.online&&G.mid===m.mid)return;         // same start twice
+  // two starts crossed (say the host tapped Start just as a Grudge Match kicked off): every phone keeps the same one,
+  // the start with the lower match id, so nobody ends up in a different match from their friends
+  if(G&&G.online&&G.mid&&!G.over){
+    if(!G.waiting)return;                       // already playing: a late start can't pull you out
+    if(String(m.mid)>String(G.mid))return;      // the one we're in wins
+    if(!m.roster.some(r=>r.id===ME.id)){        // the winner doesn't include us: drop ours and wait in the room
+      clearInterval(vsTimer);G.over=true;G=null;cancelGrudge();NET.setState('lobby');show('#ovLobby');renderLobby();
+      lobbyMsg('A match just started. You will be in the next one.');return}
+  }
   if(!m.roster.some(r=>r.id===ME.id)){if(!$('#ovLobby').hidden)lobbyMsg('A match just started. You will be in the next one.');return}
   wakeAudio();cancelGrudge();NET.setState('playing');spec=null;watchers={};
   const variant=VARIANT_INFO[m.variant]?m.variant:'classic';
@@ -1941,7 +1969,7 @@ function maybeGone(id){
   goneTimers[id]=setTimeout(()=>{
     delete goneTimers[id];
     if(!G||!G.online||G.over)return;
-    if(NET.members.some(x=>x.id===id))return; // still here: it was only a status update
+    if(NET.present(id))return; // still here: it was only a status update
     G.netLeave(id);
   },4000);
 }
@@ -2072,6 +2100,10 @@ window.__ff={get game(){return G}}; // handy for debugging in the console
 
 let acc=0,last=performance.now(),hf=0,lastMargin=1,lastG=null;
 function loop(now){
+  requestAnimationFrame(loop);   // asked for first, so an error below can never freeze the screen
+  try{frameBody(now)}catch(e){if(!loop.err){loop.err=1;try{console.error('frame failed',e)}catch(_){}}}
+}
+function frameBody(now){
   acc+=Math.min(100,now-last);last=now;
   while(acc>=1000/60){if(G)G.step();acc-=1000/60}
   if(G&&G.ffMode&&!G.over&&G.local().some(b=>b.isBot&&!b.dead)){
@@ -2098,7 +2130,6 @@ function loop(now){
     if(G.online)refreshWatched();
   }
   if(hf%180===0&&spec&&G&&G.online&&!G.over)sendWatch();
-  requestAnimationFrame(loop);
 }
 requestAnimationFrame(loop);
 })();

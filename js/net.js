@@ -12,17 +12,25 @@ window.FFNet=(function(){
     });
   }
   function makeCode(){return String(100+Math.floor(Math.random()*900))}  // 3 digits, quick to read out and type
+  // Presence briefly drops a member while they update their status (lobby -> playing -> lobby), so someone who
+  // vanished in the last few seconds still counts as here. Without this a match could start in that gap and
+  // give their seat to a bot.
+  const GRACE=4500;let seen=new Map(),graceT=null;
   function readMembers(){
     if(!ch)return[];
-    const st=ch.presenceState(),list=[];
-    for(const k in st){const p=st[k]&&st[k][0];if(p&&p.id)list.push({id:p.id,name:String(p.name||'Cook').slice(0,14),av:String(p.av||''),joinedAt:+p.joinedAt||0,state:p.state||'lobby',mode:String(p.mode||'classic')})}
+    const st=ch.presenceState(),list=[],now=Date.now(),here=new Set();
+    for(const k in st){const p=st[k]&&st[k][0];if(p&&p.id&&!here.has(p.id)){here.add(p.id);const m={id:p.id,name:String(p.name||'Cook').slice(0,14),av:String(p.av||''),joinedAt:+p.joinedAt||0,state:p.state||'lobby',mode:String(p.mode||'classic')};seen.set(p.id,{m,at:now});list.push(m)}}
+    seen.forEach((v,id)=>{if(here.has(id))return;if(now-v.at<GRACE)list.push(Object.assign({},v.m,{stale:true}));else seen.delete(id)});
     list.sort((a,b)=>a.joinedAt-b.joinedAt||(a.id<b.id?-1:1));
+    // someone is in their grace period: look again once it runs out
+    clearTimeout(graceT);if(list.some(m=>m.stale))graceT=setTimeout(()=>{members=readMembers();if(handlers.members)handlers.members(members)},GRACE+50);
     return list;
   }
+  function present(id){if(!ch)return false;const st=ch.presenceState();for(const k in st){const p=st[k]&&st[k][0];if(p&&p.id===id)return true}return false}
   async function join(roomCode,profile){
     if(!enabled)throw new Error('offline');
     init();await leave();
-    code=String(roomCode).toUpperCase();me=profile;joinedAt=Date.now();state='lobby';
+    code=String(roomCode).toUpperCase();me=profile;joinedAt=Date.now();state='lobby';seen=new Map();
     ch=client.channel('ff:'+code,{config:{broadcast:{self:false,ack:false},presence:{key:profile.id}}});
     ch.on('broadcast',{event:'m'},({payload})=>{if(payload&&handlers.message)handlers.message(payload)});
     ch.on('presence',{event:'sync'},()=>{members=readMembers();if(handlers.members)handlers.members(members)});
@@ -68,11 +76,11 @@ window.FFNet=(function(){
   }
   function unlistRoom(){if(!dirInfo)return;dirInfo=null;if(dir&&dirReady)dir.untrack().catch(()=>{})}
   async function leave(){
-    const c=ch;ch=null;members=[];code=null;
+    const c=ch;ch=null;members=[];code=null;seen=new Map();clearTimeout(graceT);
     if(c){try{await c.untrack()}catch(e){}try{await client.removeChannel(c)}catch(e){}}
   }
   return {
-    enabled,makeCode,join,leave,send,setState,setProfile,watchRooms,listRoom,unlistRoom,rooms:readRooms,
+    enabled,makeCode,join,leave,send,setState,setProfile,present,watchRooms,listRoom,unlistRoom,rooms:readRooms,
     client(){init();return client},
     on(h){Object.assign(handlers,h)},
     get members(){return members},get code(){return code},get me(){return me}
