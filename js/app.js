@@ -1,6 +1,6 @@
 // Food Fight UI: drawing, input, settings, practice mode and the online lobby.
 (function(){
-const VERSION='1.18.0';
+const VERSION='1.19.0';
 let spec=null; // board being spectated after you're knocked out
 // how far we are between two 60Hz game steps (0..1): drawing uses it so motion is smooth on 90/120/144Hz screens too
 let ALPHA=0,lastDraw=performance.now(),drawDt=16,SIDEW=0;
@@ -1618,7 +1618,7 @@ function fillPicker(box){
     const b=document.createElement('button');b.type='button';b.className='pick';b.dataset.av=av;
     b.innerHTML=`<img src="${body(av)}" alt="" width="120" height="120"><span>${FIGHTER_INFO[av].name}</span>`;
     b.setAttribute('aria-label',`${FIGHTER_INFO[av].name}, ${FIGHTER_INFO[av].tag}`);
-    b.addEventListener('click',()=>{prefs.av=av;savePrefs();renderPicker();wakeAudio();sfx('tap');if(NET&&inRoom){NET.setProfile({av});renderLobby()}if(G&&G.paused&&!G.online&&G.player)G.player.av=av});
+    b.addEventListener('click',()=>{prefs.av=av;savePrefs();renderPicker();wakeAudio();sfx('tap');if(window.FFSocial&&window.FFSocial.fighterChanged)window.FFSocial.fighterChanged(av);if(NET&&inRoom){NET.setProfile({av});renderLobby()}if(G&&G.paused&&!G.online&&G.player)G.player.av=av});
     box.appendChild(b);
   });
 }
@@ -2045,6 +2045,9 @@ if(SOC){
     },
     modeName:v=>VARIANT_INFO[v]?VARIANT_INFO[v].name:'',
     myName:()=>prefs.name||'',
+    // Food Fight profile pictures are fighter faces
+    fighters:FIGHTERS,face:av=>face(av),
+    setFighter(av){if(!FIGHTERS.includes(av)||prefs.av===av)return;prefs.av=av;savePrefs();renderPicker();if(NET&&inRoom){NET.setProfile({av});renderLobby()}if(G&&G.paused&&!G.online&&G.player)G.player.av=av},
     sfx:n=>sfx(n),
     // first sign-in on this device: play under your account name unless you've picked one
     signedIn(name){if(!prefs.name&&name){setMyName(name);nameIn.value=prefs.name}},

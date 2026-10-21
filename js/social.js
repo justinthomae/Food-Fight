@@ -5,7 +5,8 @@
 //  - auth.users + public.users (created by BoomTown's handle_new_user trigger on first sign-in)
 //  - public.friends: one row per pair. Sender inserts {user_id: me, friend_user_id: them, status:'pending'};
 //    the recipient flips it to 'accepted'; decline / cancel / remove delete the row(s); 'blocked' rows are respected.
-//  - public.users_public: other players' names and avatars (no emails)
+//  - public.users_public: other players' usernames for search (no emails; other games' pictures are not used here)
+//  - public.gm_app_profiles, app 'foodfight': this game's own picture (your fighter), name and stats, so a picture never carries over between games
 //  - public.user_statuses: BoomTown's "online" heartbeat (read only here, so BoomTown activity shows too)
 //  - Realtime channel 'ff:social': presence of signed-in Food Fight players + invite / room-code messages
 window.FFSocial=(function(){
@@ -14,10 +15,22 @@ window.FFSocial=(function(){
   const $=s=>document.querySelector(s);
   const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
   const ONLINE_MS=3*60*1000;   // BoomTown counts a heartbeat this fresh as online
-  let sb=null,bridge=null,user=null,me=null,rows=[],people=new Map(),bt=new Map(),pres=new Map(),ch=null,fch=null,lastTrack='',
+  const APP='foodfight',PIC_RE=/^https:\/\/zhfkcjzajazsrpqeyaea\.supabase\.co\/storage\/v1\/object\/public\/uploads\/[0-9a-f-]{36}\/[A-Za-z0-9_./-]{1,120}$/;
+  let sb=null,bridge=null,user=null,me=null,prof=null,fprofs=new Map(),rows=[],people=new Map(),bt=new Map(),pres=new Map(),ch=null,fch=null,lastTrack='',
     searchRes=null,searchQ='',busy=false,msg='',view='list',pendingInvite=null,toastT=null,authMode='in',ready=false,tick=null;
-  const nameOf=p=>p?(p.display_name||p.username||'Player'):'Player';
-  const picOf=p=>p&&((p.avatar&&p.avatar.url)||p.profile_picture_url)||'';
+  const nameOf=p=>{if(!p)return'Player';const f=p.id&&(user&&p.id===user.id?prof:fprofs.get(p.id));return(f&&f.display_name)||p.display_name||p.username||'Player'};
+  // each player's Food Fight picture: the fighter on their Food Fight profile (never their BoomTown or other games' picture)
+  const picOf=p=>{if(!p||!p.id)return'';const f=user&&p.id===user.id?prof:fprofs.get(p.id),a=f&&f.avatar||'';
+    if(a.startsWith('av:'))return bridge&&bridge.face?bridge.face(a.slice(3)):'';return PIC_RE.test(a)?a:''};
+  async function loadProfs(ids){ids=ids.filter(id=>id&&!fprofs.has(id));if(!ids.length)return;
+    try{const {data}=await sb.from('gm_app_profiles').select('user_id,display_name,avatar').eq('app',APP).in('user_id',ids);(data||[]).forEach(p=>fprofs.set(p.user_id,p))}catch(e){}}
+  async function saveProfile(patch){
+    if(!user)return;prof=Object.assign(prof||{user_id:user.id,stats:{}},patch);
+    try{const {error}=await sb.from('gm_app_profiles').upsert({user_id:user.id,app:APP,display_name:prof.display_name||null,avatar:prof.avatar||null,stats:prof.stats||{}},{onConflict:'user_id,app'});if(error)throw error}catch(e){console.warn('profile save',e)}
+    render();
+  }
+  // the fighter you pick is your Food Fight picture
+  function fighterChanged(av){if(user&&prof&&(bridge.fighters||[]).includes(av)&&prof.avatar!=='av:'+av)saveProfile({avatar:'av:'+av})}
   const other=r=>r.user_id===user.id?r.friend_user_id:r.user_id;
 
   // ---------- sign-in ----------
@@ -30,11 +43,16 @@ window.FFSocial=(function(){
   }
   async function setUser(u){
     if((u&&u.id)===(user&&user.id))return;
-    user=u||null;me=null;rows=[];people.clear();bt.clear();pres.clear();searchRes=null;
+    user=u||null;me=null;prof=null;fprofs.clear();rows=[];people.clear();bt.clear();pres.clear();searchRes=null;
     if(ch){try{await sb.removeChannel(ch)}catch(e){}ch=null}
     if(fch){try{await sb.removeChannel(fch)}catch(e){}fch=null}
     if(user){
-      try{const {data}=await sb.from('users_public').select('id,username,display_name,profile_picture_url,avatar').eq('id',user.id).maybeSingle();me=data||{id:user.id,username:(user.email||'').split('@')[0]}}catch(e){me={id:user.id}}
+      try{const {data}=await sb.from('users_public').select('id,username,display_name').eq('id',user.id).maybeSingle();me=data||{id:user.id,username:(user.email||'').split('@')[0]}}catch(e){me={id:user.id}}
+      // your Food Fight profile: its fighter follows you to every device; the first time, it starts from the fighter picked here
+      try{const {data}=await sb.from('gm_app_profiles').select('user_id,display_name,avatar,stats').eq('user_id',user.id).eq('app',APP).maybeSingle();prof=data||null}catch(e){}
+      const st=bridge&&bridge.state?bridge.state():{};
+      if(prof&&prof.avatar&&prof.avatar.startsWith('av:')&&bridge&&bridge.setFighter)bridge.setFighter(prof.avatar.slice(3));
+      else if(!prof||!prof.avatar)await saveProfile({display_name:(prof&&prof.display_name)||((bridge&&bridge.myName&&bridge.myName())||me.display_name||me.username||'').slice(0,14)||null,avatar:(bridge.fighters||[]).includes(st.av)?'av:'+st.av:null});
       await loadFriends();joinSocial();
       // friend requests and accepts show up straight away
       try{fch=sb.channel('ff-friends-'+user.id).on('postgres_changes',{event:'*',schema:'public',table:'friends'},()=>loadFriends()).subscribe()}catch(e){}
@@ -70,7 +88,8 @@ window.FFSocial=(function(){
       if(error)throw error;
       const seen=new Set();rows=(data||[]).filter(r=>r&&!seen.has(r.id)&&seen.add(r.id));
       const ids=[...new Set(rows.map(other))].filter(id=>!people.has(id));
-      if(ids.length){const {data:ps}=await sb.from('users_public').select('id,username,display_name,profile_picture_url,avatar').in('id',ids);(ps||[]).forEach(p=>people.set(p.id,p))}
+      if(ids.length){const {data:ps}=await sb.from('users_public').select('id,username,display_name').in('id',ids);(ps||[]).forEach(p=>people.set(p.id,p))}
+      await loadProfs([...new Set(rows.map(other))]);
       const acc=rows.filter(r=>r.status==='accepted').map(other);
       if(acc.length){const {data:st}=await sb.from('user_statuses').select('user_id,status,last_activity_at').in('user_id',acc);bt.clear();(st||[]).forEach(s=>bt.set(s.user_id,s))}
     }catch(e){}
@@ -106,9 +125,9 @@ window.FFSocial=(function(){
     searchQ=q;q=String(q||'').replace(/[^\p{L}\p{N} _.\-]/gu,'').trim().slice(0,24);
     if(q.length<2){searchRes=null;render();return}
     try{
-      const {data}=await sb.from('users_public').select('id,username,display_name,profile_picture_url,avatar').or(`username.ilike.%${q}%,display_name.ilike.%${q}%`).limit(12);
+      const {data}=await sb.from('users_public').select('id,username,display_name').or(`username.ilike.%${q}%,display_name.ilike.%${q}%`).limit(12);
       if(searchQ.replace(/[^\p{L}\p{N} _.\-]/gu,'').trim().slice(0,24)!==q)return;   // a newer search is on its way
-      searchRes=(data||[]).filter(p=>p.id!==user.id);
+      searchRes=(data||[]).filter(p=>p.id!==user.id);await loadProfs(searchRes.map(p=>p.id));
     }catch(e){searchRes=[]}
     render();
   }
@@ -233,5 +252,5 @@ window.FFSocial=(function(){
     if(e.target.closest('#inviteJoin')){const m=pendingInvite;$('#inviteToast').hidden=true;pendingInvite=null;if(m)bridge.join(String(m.code))}
     else if(e.target.closest('#inviteNo')){$('#inviteToast').hidden=true;pendingInvite=null}
   });
-  return {enabled:true,init,open,render,stateChanged,get user(){return user},get me(){return me},_lists:lists,_pres:pres};
+  return {enabled:true,init,open,render,stateChanged,fighterChanged,get user(){return user},get me(){return me},_lists:lists,_pres:pres};
 })();
