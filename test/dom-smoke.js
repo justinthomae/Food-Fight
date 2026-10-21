@@ -42,6 +42,8 @@ function fakeQuery(table,uidOf){
         if(table==='users'){const up=DB.users_public.find(x=>x.id===r.id);if(up&&q.payload.display_name)up.display_name=q.payload.display_name}}
       changed();return {data:rows,error:null}}
     if(q.op==='delete'){DB[table]=T.filter(r=>!rows.includes(r));changed();return {data:rows,error:null}}
+    if(q.op==='upsert'){const o=Object.assign({},q.payload);if(table==='gm_app_profiles'&&o.user_id!==uid)return {data:null,error:{message:'new row violates row-level security policy'}};
+      const i=T.findIndex(r=>r.user_id===o.user_id&&r.app===o.app);if(i>=0)T[i]=o;else T.push(o);return {data:[o],error:null}}
     return {data:null,error:null};
   }
   return api;
@@ -520,9 +522,19 @@ const check=(cond,msg)=>{console.log((cond?'PASS ':'FAIL ')+msg);if(!cond)proces
    check(C.$('#roomCode').textContent===code&&!C.$('#ovLobby').hidden,'friends: Join takes Cat into Ann\'s room');
    // strangers can't send you invites
    const D=page('https://foodfight.grudgematchgames.com/');await sleep(2400);await signUp(D,'dan@x.com','Dan');await sleep(300);
-   const bobId=DB.users_public.find(u=>u.username==='bob').id,ch=[...buses['ff:social'].chans].find(c=>true);
-   buses['ff:social'].chans.forEach(c=>c._msg({t:'invite',to:bobId,from:DB.users_public.find(u=>u.username==='dan').id,name:'Dan',code:'999'}));await sleep(200);
+   const bobId=DB.users_public.find(u=>u.username==='bob').id,ch=[...buses['gm:social'].chans].find(c=>true);
+   buses['gm:social'].chans.forEach(c=>c._msg({t:'invite',to:bobId,from:DB.users_public.find(u=>u.username==='dan').id,name:'Dan',code:'999'}));await sleep(200);
    check(B.$('#inviteToast').hidden||!/Dan/.test(B.$('#inviteToast').textContent),'friends: an invite from a non-friend is ignored');
+   // pictures are Food Fight's own: your fighter, saved for your friends; never a BoomTown picture
+   const annId=DB.users_public.find(u=>u.username==='ann').id;DB.users_public.forEach(u=>{u.avatar={url:'https://boomtown.example/pic.png'};u.profile_picture_url='https://boomtown.example/pic.png'});
+   check(DB.gm_app_profiles&&DB.gm_app_profiles.some(r=>r.user_id===annId&&r.app==='foodfight'&&/^av:[a-z]+$/.test(r.avatar)),'pictures: your fighter is saved as your Food Fight picture');
+   B.w.FFSocial.open();await sleep(500);
+   const annPic=[...B.w.document.querySelectorAll('#friendsBody .frow')].find(r=>/Ann/.test(r.textContent));
+   check(!/boomtown\.example/.test(B.$('#friendsBody').innerHTML)&&annPic&&/face\.webp/.test(annPic.innerHTML),'pictures: friends show their Food Fight fighter, not their BoomTown picture');
+   // a friend over in another Grudge Match game shows as there, with no Join button
+   buses['gm:social'].members.set(annId,{uid:annId,game:'broadside',name:'Ann',st:'room',mode:''});buses['gm:social'].chans.forEach(c=>c._sync());await sleep(300);B.w.FFSocial.render();
+   const annRow=[...B.w.document.querySelectorAll('#friendsBody .frow')].find(r=>/Ann/.test(r.textContent));
+   check(annRow&&/In a Broadside lobby/.test(annRow.textContent)&&!annRow.querySelector('[data-join]'),'friends: a friend in Broadside shows "In a Broadside lobby", no Join');
    // Bob removes Ann; signing out goes back to the sign-in screen
    B.$('#bLobbyFriends').click();await sleep(300);B.w.FFSocial.open();await sleep(300);B.w.confirm=()=>true;B.$('#friendsBody [data-unf]').click();await sleep(500);
    check(!DB.friends.some(r=>[r.user_id,r.friend_user_id].includes(bobId)),'friends: removing a friend deletes the row');

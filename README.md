@@ -93,6 +93,6 @@ and uses BoomTown's own tables, so friends are shared between the games:
 - `public.users_public`: other players' usernames for search (no emails). Their BoomTown pictures are not used.
 - `public.gm_app_profiles` (app `foodfight`): each player's own Food Fight picture (the fighter they pick) and name. Every game keeps its own row, so pictures never carry over between games. Picking a fighter while signed in saves it, and signing in on another device brings it along. The table is created by Fliptide's migration `supabase/migrations/20261021000001_gm_app_profiles.sql` in justinthomae/fliptide.
 - `public.user_statuses`: read only, so friends playing BoomTown show as online.
-- Realtime channel `ff:social`: presence of signed-in Food Fight players, plus invite / room-code messages that are only acted on when they come from an accepted friend.
+- Realtime channel `gm:social`, shared by all the Grudge Match games: presence `{uid, game, name, st, mode}` plus invite / room-code messages carrying `game`. Food Fight only acts on messages for `foodfight` from accepted friends; a friend in another game shows where they are ("In a Broadside lobby") with no Join button.
 
 No further database changes are needed (`gm_app_profiles` is already in the shared project). One dashboard step for Google / Facebook sign-in: in Supabase, Authentication → URL Configuration → Redirect URLs, add `https://foodfight.grudgematchgames.com/**`. Guests can still play without an account.
