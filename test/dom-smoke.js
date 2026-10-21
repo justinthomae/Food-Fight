@@ -641,6 +641,7 @@ const check=(cond,msg)=>{console.log((cond?'PASS ':'FAIL ')+msg);if(!cond)proces
     oh.$(`#lobbyVariants [data-v="${v}"]`).click();await sleep(100);
     const og=page('https://foodfight.grudgematchgames.com/?room='+oh.$('#roomCode').textContent);await sleep(2600);
     setBots(oh,1);oh.$('#bStart').click();await sleep(4800);
+    for(let i=0;i<48;i++){const h=oh.w.__ff.game,g=og.w.__ff.game;if(h&&g&&h.variant===v&&g.variant===v&&h.mid===g.mid)break;await sleep(250)}
     const H=oh.w.__ff.game,Gg=og.w.__ff.game;
     check(H&&Gg&&H.variant===v&&Gg.variant===v&&H.mid===Gg.mid,`${v} online: both phones in the match`+(H&&Gg?` (${H.variant}/${Gg.variant})`:''));
     if(H&&Gg&&Gg.variant===v){await sleep(900);const rem=Gg.byId(H.player.id);
