@@ -50,6 +50,9 @@
 }
 html{height:100%;box-sizing:border-box;background:var(--bg);padding-top:env(safe-area-inset-top,0px);padding-bottom:max(2px,calc(env(safe-area-inset-bottom,0px) - 14px))}
 *,*::before,*::after{box-sizing:inherit}
+/* iOS 27 scroll-edge blur: WebKit hides its frosted top band when an opaque, full-width fixed box sits at the top edge,
+   and fills the status bar with that box's color. Sits above game content (max z 25), below fly (30), toasts (35) and overlays (40). */
+.ios-top-edge{position:fixed;top:0;left:0;right:0;width:100%;height:max(11px,env(safe-area-inset-top,0px));background:var(--ios-top-edge-color,var(--bg));pointer-events:none;z-index:29}
 /* no double-tap or pinch zoom anywhere: every element pans/taps only (the board and hold buttons opt out further below) */
 *,*::before,*::after{touch-action:manipulation}
 body{height:100%;margin:0;background:var(--bg);color:var(--ink);font-family:var(--body);font-size:14px;overflow:hidden;overscroll-behavior:none;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
@@ -622,6 +625,7 @@ button.nextbox:active{background:var(--gold)}
 </style>
 </head>
 <body>
+<div class="ios-top-edge" aria-hidden="true"></div>
 <div class="app">
   <header class="top">
     <div class="brand"><img src="assets/logo.webp" alt="Food Fight" width="45" height="30"></div>
