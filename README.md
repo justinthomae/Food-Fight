@@ -83,3 +83,15 @@ python3 tools/build-artifact.py           # single-file practice build in dist/
 ```
 
 Version: shown on the start screen (`VERSION` in js/app.js). Bump MINOR for features, PATCH for tweaks.
+
+## Friends (shared Grudge Match account)
+
+`js/social.js` signs players in with the same Supabase Auth accounts as BoomTown (email + password, Google, Facebook)
+and uses BoomTown's own tables, so friends are shared between the games:
+
+- `public.friends`: one row per pair; the sender inserts `pending`, the recipient flips it to `accepted`; decline / cancel / remove delete the row(s). Existing RLS enforces this.
+- `public.users_public`: other players' names and avatars for search (no emails).
+- `public.user_statuses`: read only, so friends playing BoomTown show as online.
+- Realtime channel `ff:social`: presence of signed-in Food Fight players, plus invite / room-code messages that are only acted on when they come from an accepted friend.
+
+No database changes are needed. One dashboard step for Google / Facebook sign-in: in Supabase, Authentication → URL Configuration → Redirect URLs, add `https://foodfight.grudgematchgames.com/**`. Guests can still play without an account.

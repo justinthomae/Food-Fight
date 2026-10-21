@@ -8,7 +8,7 @@ window.FFNet=(function(){
 
   function init(){
     if(!client)client=window.supabase.createClient(cfg.supabaseUrl,cfg.supabaseAnonKey,{
-      auth:{persistSession:false},realtime:{params:{eventsPerSecond:30}}
+      auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}   // signed-in Grudge Match accounts stay signed in,realtime:{params:{eventsPerSecond:30}}
     });
   }
   function makeCode(){return String(100+Math.floor(Math.random()*900))}  // 3 digits, quick to read out and type

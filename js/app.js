@@ -1,6 +1,6 @@
 // Food Fight UI: drawing, input, settings, practice mode and the online lobby.
 (function(){
-const VERSION='1.17.1';
+const VERSION='1.18.0';
 let spec=null; // board being spectated after you're knocked out
 // how far we are between two 60Hz game steps (0..1): drawing uses it so motion is smooth on 90/120/144Hz screens too
 let ALPHA=0,lastDraw=performance.now(),drawDt=16,SIDEW=0;
@@ -1304,7 +1304,7 @@ document.addEventListener('keyup',e=>{if(!G)return;const mu=MODE_UI[G.variant];i
 if(matchMedia('(pointer:fine)').matches)$('#kbd').hidden=false;
 
 /* ---------- overlays ---------- */
-const OVS=['#ovLoad','#ovStart','#ovHow','#ovLook','#ovBoard','#ovOnline','#ovLobby','#ovVs','#ovPause','#ovEnd'];
+const OVS=['#ovLoad','#ovStart','#ovHow','#ovLook','#ovBoard','#ovOnline','#ovLobby','#ovVs','#ovPause','#ovEnd','#ovFriends'];
 let backTo='#ovStart';
 function show(id){OVS.forEach(s=>$(s).hidden=s!==id);sheetTint();if(id!=='#ovEnd')$('#outToast').hidden=true;if(SND)SND.ambience(id==='#ovLobby')}
 function hideAll(){OVS.forEach(s=>$(s).hidden=true);sheetTint();if(SND)SND.ambience(false);restoreOut()}
@@ -2027,6 +2027,29 @@ function renderRooms(){
 }
 $('#roomList').addEventListener('click',e=>{const b=e.target.closest('.room');if(!b||b.disabled||!NET)return;wakeAudio();sfx('tap');codeIn.value=b.dataset.code;enterRoom(b.dataset.code)});
 if(NET)NET.watchRooms(list=>{openRooms=list;renderRooms()});
+/* ---------- friends (shared Grudge Match account; site only) ---------- */
+const SOC=window.FFSocial&&window.FFSocial.enabled?window.FFSocial:null;
+if(SOC){
+  $('#bFriends').hidden=false;$('#bLobbyFriends').hidden=false;
+  const openFriends=()=>{wakeAudio();sfx('tap');openSub('#ovFriends');SOC.open()};
+  $('#bFriends').addEventListener('click',openFriends);$('#bLobbyFriends').addEventListener('click',openFriends);
+  SOC.init({
+    // what friends see about you, and the room they can join
+    state:()=>({st:G&&G.online&&!G.over?'playing':inRoom?'room':'menu',mode:inRoom?(G&&G.online&&!G.over?G.variant:roomMode):prefs.variant,code:inRoom&&NET?NET.code:null,av:prefs.av}),
+    // join a friend's room (from an invite or the Join button)
+    join(code){
+      if(!NET)return;
+      if(G&&!G.online&&!G.over){G.over=true}   // a practice game gives way
+      if(inRoom&&NET.code===code){show('#ovLobby');return}
+      backTo='#ovStart';codeIn.value=code;show('#ovOnline');enterRoom(code,true);
+    },
+    modeName:v=>VARIANT_INFO[v]?VARIANT_INFO[v].name:'',
+    myName:()=>prefs.name||'',
+    sfx:n=>sfx(n),
+    // first sign-in on this device: play under your account name unless you've picked one
+    signedIn(name){if(!prefs.name&&name){setMyName(name);nameIn.value=prefs.name}},
+  });
+}
 function afterLoad(){
   const q=NET?new URLSearchParams(location.search).get('room'):null;
   // invite link: skip the menu and go straight into the room (older 4-letter links still work)

@@ -361,6 +361,39 @@ button.nextbox:active{background:var(--gold)}
 .field{display:flex;flex-direction:column;gap:6px}
 .field input{width:100%;border:2px solid var(--line);background:var(--well);color:var(--ink);border-radius:12px;padding:11px 12px;font:inherit;font-size:16px;-webkit-user-select:text;user-select:text}
 .join{display:flex;gap:8px}
+/* friends */
+.friendsbtn{display:flex;align-items:center;justify-content:center;gap:8px;position:relative}
+.friendsbtn .fbadge{position:static;margin-left:2px}
+.fbadge{font-size:10px;font-weight:800;background:#3DDC84;color:#08221A;border-radius:99px;padding:2px 7px;white-space:nowrap}
+.fbadge.req{background:var(--gold);color:var(--gold-ink)}
+.coderow .btn.friendsmini{flex:none;position:relative;padding-inline:14px;display:flex;align-items:center;justify-content:center}
+.friendsmini .fbadge{position:absolute;top:-7px;right:-6px;font-size:9px;padding:1px 5px}
+.friendscard{gap:10px}
+#friendsBody{display:flex;flex-direction:column;gap:12px}
+#friendsBody .btn.oauth,#friendsBody .fform .btn{width:100%}
+.fsub{margin:0;font-size:13px;color:var(--muted);line-height:1.4}.fsub b{color:var(--ink)}
+.btn.oauth{display:flex;align-items:center;justify-content:center;gap:10px;background:#FFFFFF;color:#1F2330;border-color:#D6DAE3}
+.for{display:flex;align-items:center;gap:10px;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.1em}.for::before,.for::after{content:'';flex:1;height:1px;background:var(--line)}
+.fform{display:flex;flex-direction:column;gap:8px}
+.fform input,.fsearch{width:100%;border:2px solid var(--line);background:var(--well);color:var(--ink);border-radius:12px;padding:11px 12px;font:inherit;font-size:16px;-webkit-user-select:text;user-select:text}
+.linkbtn{background:none;border:0;color:var(--accent-text);font-weight:700;font-size:13px;padding:4px;text-decoration:underline}
+.fmsg{margin:0;font-size:13px;color:var(--accent-text)}
+.fme{display:flex;align-items:center;gap:10px;background:var(--well);border-radius:14px;padding:8px}
+.flist{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.frow{display:flex;align-items:center;gap:10px;background:var(--well);border-radius:14px;padding:7px 8px}
+.fav{width:36px;height:36px;border-radius:50%;flex:none;object-fit:cover;background:var(--panel2);display:flex;align-items:center;justify-content:center;font-weight:800;color:var(--ink)}
+.fwho{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+.fwho b{font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fwho small{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fact{display:flex;gap:6px;flex:none;align-items:center}
+.btn.small{padding:7px 10px;font-size:13px;border-radius:10px;box-shadow:0 2px 0 var(--outline)}
+.btn.small.go{background:linear-gradient(#FFD45E,var(--gold));color:var(--gold-ink)}
+.btn.small.ghost{background:transparent;border-color:transparent;box-shadow:none;color:var(--muted);padding:7px 6px}
+.ftag{font-size:11px;font-weight:800;color:var(--muted);padding:0 4px}
+.fnone{font-size:13px;color:var(--muted);padding:6px 2px}.fnone b{color:var(--ink)}
+.fdot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px;vertical-align:0;background:#6B7080}
+.fdot.on{background:#3DDC84}.fdot.play{background:var(--gold)}.fdot.bt{background:#56B4E9}
+.invitetoast{z-index:40}.invitetoast p small{display:block}
 /* open rooms anyone can join */
 .rooms{display:flex;flex-direction:column;gap:6px;max-height:min(30vh,212px);overflow-y:auto;overscroll-behavior:contain}
 .room{display:flex;align-items:center;gap:10px;background:var(--well);border:2px solid var(--line);border-radius:14px;padding:7px 8px 7px 7px;text-align:left;width:100%;color:var(--ink)}
@@ -660,6 +693,7 @@ button.nextbox:active{background:var(--gold)}
     <div class="variants" id="variants" role="radiogroup" aria-label="Game mode"></div>
     <p class="modehow" id="modeHow"></p>
     <button class="btn primary big" id="bOnline">Play<small id="onlineNote" hidden></small><span class="livetag" id="roomsLive" hidden></span></button>
+    <button class="btn friendsbtn" id="bFriends" type="button" hidden><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.6-3.6 3.2-5.5 6.5-5.5s5.9 1.9 6.5 5.5"/><circle cx="17" cy="9" r="2.6"/><path d="M16 14.6c2.8.1 4.9 1.8 5.5 5.4"/></svg><span id="friendsLab">Friends</span><span class="fbadge" hidden></span></button>
     <div class="lab">Practice vs bots</div>
     <div class="seg three" id="mode">
       <button aria-pressed="true" data-m="duel" data-size="2">Duel<small>1 vs 1</small></button>
@@ -674,6 +708,14 @@ button.nextbox:active{background:var(--gold)}
     <div class="links three"><button class="btn" id="bHow">How to play</button><button class="btn" id="bBoard">Leaderboards</button><button class="btn" id="bLook">Colors &amp; look</button></div>
     <div class="best" id="best"></div>
     <footer class="credit"><a href="https://grudgematchgames.com" target="_blank" rel="noopener">© <span id="year">2026</span> Grudge Match Games</a></footer>
+  </div>
+</div>
+
+<!-- friends (shared Grudge Match account) -->
+<div class="overlay sheet" id="ovFriends" hidden>
+  <div class="card friendscard">
+    <div class="cardhead"><h2>Friends</h2><button class="x" data-close aria-label="Close"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+    <div id="friendsBody"></div>
   </div>
 </div>
 
@@ -799,7 +841,7 @@ button.nextbox:active{background:var(--gold)}
 <div class="overlay sheet" id="ovLobby" hidden>
   <div class="card">
     <div class="cardhead"><h2>Room</h2><button class="btn" id="bLeave">Leave</button></div>
-    <div class="coderow"><div class="code" id="roomCode">---</div><button class="btn" id="bInvite">Share invite link</button></div>
+    <div class="coderow"><div class="code" id="roomCode">---</div><button class="btn" id="bInvite">Share invite link</button><button class="btn friendsmini" id="bLobbyFriends" type="button" hidden aria-label="Invite friends"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.6-3.6 3.2-5.5 6.5-5.5s5.9 1.9 6.5 5.5"/><path d="M19 8v6M16 11h6"/></svg><span class="fbadge" hidden></span></button></div>
     <div class="lab" id="lobbyVarLab">Game mode</div>
     <div class="variants" id="lobbyVariants" role="radiogroup" aria-label="Game mode"></div>
     <p class="modehow" id="lobbyHow"></p>
@@ -850,6 +892,7 @@ button.nextbox:active{background:var(--gold)}
 </div>
 
 <!-- knocked out while others play -->
+<div class="toast invitetoast" id="inviteToast" hidden><p></p><button class="btn primary" id="inviteJoin" type="button">Join</button><button class="btn" id="inviteNo" type="button">Not now</button></div>
 <div class="toast" id="outToast" hidden><p id="outText">You placed 3rd. Watching the rest of the match.</p><button class="btn primary" id="bFF" hidden>Fast forward</button><button class="btn" id="bOutLeave">Lobby</button></div>
 
 <!-- end -->
@@ -895,6 +938,7 @@ button.nextbox:active{background:var(--gold)}
 <script src="js/modes/pest.js"></script>
 <script src="js/net.js" data-site-only></script>
 <script src="js/scores.js" data-site-only></script>
+<script src="js/social.js" data-site-only></script>
 <script src="js/ui/slurp.js"></script>
 <script src="js/ui/mold.js"></script>
 <script src="js/ui/pancake.js"></script>
