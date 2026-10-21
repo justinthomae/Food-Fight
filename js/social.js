@@ -202,7 +202,7 @@ window.FFSocial=(function(){
     const s=bridge?bridge.state():{};
     if(!user){
       box.innerHTML=`
-        <p class="fsub">Sign in with your <b>Grudge Match</b> account to add friends, see who's online and invite them to your room. It's the same login as BoomTown.</p>
+        <p class="fsub">Sign in with your <b>Grudge Match Games</b> account to add friends, see who's online and invite them to your room.</p>
         <button class="btn oauth" data-oauth="google" type="button"><svg viewBox="0 0 24 24" width="18" height="18"><path fill="#4285F4" d="M23 12.3c0-.8-.1-1.6-.2-2.3H12v4.4h6.2a5.3 5.3 0 0 1-2.3 3.5v2.9h3.7c2.2-2 3.4-5 3.4-8.5z"/><path fill="#34A853" d="M12 23.5c3.1 0 5.7-1 7.6-2.8l-3.7-2.9c-1 .7-2.4 1.1-3.9 1.1-3 0-5.5-2-6.4-4.7H1.8v3A11.5 11.5 0 0 0 12 23.5z"/><path fill="#FBBC05" d="M5.6 14.2a6.9 6.9 0 0 1 0-4.4v-3H1.8a11.5 11.5 0 0 0 0 10.4z"/><path fill="#EA4335" d="M12 5.1c1.7 0 3.2.6 4.4 1.7l3.3-3.3A11.5 11.5 0 0 0 1.8 6.8l3.8 3C6.5 7.1 9 5.1 12 5.1z"/></svg>Continue with Google</button>
         <button class="btn oauth" data-oauth="facebook" type="button"><svg viewBox="0 0 24 24" width="18" height="18"><path fill="#1877F2" d="M24 12a12 12 0 1 0-13.9 11.9v-8.4h-3V12h3V9.4c0-3 1.8-4.7 4.6-4.7 1.3 0 2.7.2 2.7.2v3h-1.5c-1.5 0-2 .9-2 1.9V12h3.4l-.5 3.5h-2.9v8.4A12 12 0 0 0 24 12z"/></svg>Continue with Facebook</button>
         <div class="for"><span>or with email</span></div>
@@ -224,7 +224,7 @@ window.FFSocial=(function(){
     const stLine=st=>`<small><i class="fdot ${st.dot}"></i>${esc(st.text)}</small>`;
     const keep=document.activeElement&&document.activeElement.id==='fSearch',caret=keep?document.activeElement.selectionStart:0;
     box.innerHTML=`
-      <div class="fme">${avatar(me)}<span class="fwho"><b>${esc(nameOf(me))}</b><small>Signed in · Grudge Match account</small></span><button class="btn small" id="fOut" type="button">Sign out</button></div>
+      <div class="fme">${avatar(me)}<span class="fwho"><b>${esc(nameOf(me))}</b><small>Signed in · Grudge Match Games account</small></span><button class="btn small" id="fOut" type="button">Sign out</button></div>
       <input id="fSearch" class="fsearch" placeholder="Add a friend by username" value="${esc(searchQ)}" autocomplete="off" spellcheck="false" enterkeyhint="search">
       ${searchRes?`<ul class="flist">${searchRes.length?searchRes.map(p=>{const rel=relation(p.id),x={id:p.id,p};
         const a=rel==='friend'?'<span class="ftag">Friends</span>':rel==='outgoing'?'<span class="ftag">Sent</span>':rel==='incoming'?`<button class="btn small go" data-acc="${esc(p.id)}">Accept</button>`:rel==='blocked'?'':`<button class="btn small go" data-add="${esc(p.id)}">Add</button>`;
