@@ -402,7 +402,8 @@ button.nextbox:active{background:var(--gold)}
 .fnone{font-size:13px;color:var(--muted);padding:6px 2px}.fnone b{color:var(--ink)}
 .fdot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px;vertical-align:0;background:#6B7080}
 .fdot.on{background:#3DDC84}.fdot.play{background:var(--gold)}.fdot.bt{background:#56B4E9}
-.invitetoast{z-index:40}.invitetoast p small{display:block}
+/* the invite pop-up sits above every screen (the plain .toast rule further down would otherwise put it behind the menu) */
+.toast.invitetoast{z-index:200}.invitetoast p small{display:block}
 /* open rooms anyone can join */
 .rooms{display:flex;flex-direction:column;gap:6px;max-height:min(30vh,212px);overflow-y:auto;overscroll-behavior:contain}
 .room{display:flex;align-items:center;gap:10px;background:var(--well);border:2px solid var(--line);border-radius:14px;padding:7px 8px 7px 7px;text-align:left;width:100%;color:var(--ink)}
