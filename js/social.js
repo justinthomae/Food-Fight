@@ -48,6 +48,9 @@ window.FFSocial=(function(){
         sound:()=>bridge.sfx&&bridge.sfx('earn')});
       window.GMInvites.onChange(()=>{if(view==='invite')render()});
     }
+    // invites from other Grudge Match games (Lost Empires, Silent Depths...) through the studio's shared gm_cross_invites
+    if(window.GMCrossInvites)window.GMCrossInvites.init({supabase:sb,app:APP,
+      isBusy:()=>bridge.busy?bridge.busy():bridge.state().st==='playing',sound:()=>bridge.sfx&&bridge.sfx('earn')});
     ready=true;render();
     clearInterval(tick);tick=setInterval(()=>{if(user){track();badge();stateChanged()}},2000);
   }
