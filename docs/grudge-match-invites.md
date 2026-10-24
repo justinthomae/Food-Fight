@@ -53,3 +53,16 @@ parameter. The game's own `?room=` handling does the joining.
 Games that can't use it yet: Riot Race (Unity, no supabase-js session in the page), Broadside (its
 supabase-js session is never refreshed after its own server takes over), On Belay (its CLAUDE.md forbids
 writing to the shared project's tables).
+
+## Invites from the other studio games (`gm_cross_invites`)
+
+Lost Empires, Silent Depths and the other studio games send invites through the studio-wide
+`public.gm_cross_invites` table (not created by this repo). `js/gm-cross-invites.js` receives them in Food Fight:
+
+- `rpc('gm_my_invites')` every 9 s while signed in and the tab is visible (and as soon as it becomes visible);
+  the table isn't on Realtime. Invites for `foodfight` itself and non-https links are ignored.
+- Card: "Ann invites you to Lost Empires". Mid-match it's a slim strip with Join now / After this game / x;
+  otherwise Join / No thanks. An invite answered "later" comes back once the match ends as
+  "Ann is waiting for you in Lost Empires" (Join / No thanks).
+- Answers go through `rpc('gm_respond_invite', {p_invite, p_choice:'now'|'later'|'decline', p_from_app:'foodfight'})`;
+  Join opens the join link it returns.

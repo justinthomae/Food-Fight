@@ -8,7 +8,7 @@ const html=fs.readFileSync(path.join(root,'index.html'),'utf8').replace(/<script
 const scripts=[...fs.readFileSync(path.join(root,'index.html'),'utf8').matchAll(/<script src="(js\/[^"]+)"/g)].map(m=>m[1]).filter(f=>f!=='js/config.js').map(f=>fs.readFileSync(path.join(root,f),'utf8'));
 
 // ---- fake Supabase Realtime: one shared bus per channel name ----
-const buses={},rpcLog=[],rpcRows=[{mode:'brawl',diff:1,name:'Top Chef',score:99999,device:'d-other-device'}];
+const buses={},rpcLog=[],crossLog=[],rpcRows=[{mode:'brawl',diff:1,name:'Top Chef',score:99999,device:'d-other-device'}];
 // ---- fake Supabase auth + tables (the shared Grudge Match account, friends, statuses), with the real RLS rules ----
 const DB={users_public:[],friends:[],user_statuses:[],users:[],gm_invites:[]},AUTH=[],pgSubs=new Set(),pgInv=new Set();let fid=1;
 // realtime for gm_invites: deliver to subscribers whose filter matches and who can see the row (RLS: either party)
@@ -98,6 +98,10 @@ function fakeSupabase(){
     async rpc(fn,a){
       if(fn==='ff_submit_score'){rpcLog.push(a);const better=rpcRows.filter(r=>r.mode===a.p_mode&&r.score>a.p_score).length;rpcRows.push({mode:a.p_mode,diff:a.p_difficulty,name:a.p_name,score:a.p_score,device:a.p_device_id});return{data:{ok:true,rank_day:better+1,rank_all:better+1,personal_best:true},error:null}}
       if(fn==='ff_leaderboard'){const rows=rpcRows.filter(r=>r.mode===a.p_mode).sort((x,y)=>y.score-x.score).map((r,i)=>({rank:i+1,name:r.name,score:r.score,max_chain:2,won:true,created_at:new Date().toISOString(),mine:r.device===a.p_device_id}));return{data:rows,error:null}}
+      // the studio's shared cross-game invites (gm_cross_invites), as the live functions behave
+      if(fn==='gm_my_invites'){const uid=A.uid(),T=DB.gm_cross_invites||[];return{data:T.filter(r=>uid&&r.to_user===uid&&['pending','later'].includes(r.status)&&new Date(r.expires_at)>new Date()).map(r=>Object.assign({},r)),error:null}}
+      if(fn==='gm_respond_invite'){const uid=A.uid(),r=(DB.gm_cross_invites||[]).find(x=>x.id===a.p_invite&&x.to_user===uid),st={now:'accepted',later:'later',decline:'declined'}[a.p_choice];
+        if(!r||!st)return{data:null,error:{message:'invite not found'}};crossLog.push(a);r.status=st;return{data:r.join_url,error:null}}
       return{data:null,error:{message:'unknown'}};
     }
   }}};
@@ -574,6 +578,29 @@ const check=(cond,msg)=>{console.log((cond?'PASS ':'FAIL ')+msg);if(!cond)proces
     DB.gm_invites.push(row);invChange('INSERT',row);await sleep(200);
     const t=[...B.w.document.querySelectorAll('.gmi')].find(n=>/Broadside/.test(n.textContent));check(!!t&&/invited you to play Broadside/.test(t.textContent.replace(/\s+/g,' ')),'invite: an invite to another game names it (Broadside)');
     t&&t.querySelector('[data-a="no"]').click();await sleep(200);check(row.status==='declined','invite: dismissing it tells the host no');}
+   // invites from other Grudge Match games (studio-wide gm_cross_invites, polled): Join / After this game / No thanks
+   {const annId0=DB.users_public.find(u=>u.username==='ann').id,BG=B.w.__ff.game,X=B.w.GMCrossInvites,went=[];X.go=u=>went.push(u);
+    const mk=(id,o)=>Object.assign({id,app:'lostempires',app_name:'Lost Empires',game_ref:'AB12',join_url:'https://lost-empires.onrender.com/?room=AB12&i='+id,from_user:annId0,from_name:'Ann',to_user:bobId,status:'pending',created_at:new Date().toISOString(),expires_at:new Date(Date.now()+600000).toISOString()},o);
+    DB.gm_cross_invites=[mk('x1'),mk('x0',{app:'foodfight',app_name:'Food Fight'})];
+    BG.demo=true;await X.poll();await sleep(100);
+    let c=B.$('.gmx[data-invite]');check(!!c&&/Ann invites you to Lost Empires/.test(c.textContent)&&!!c.querySelector('[data-a="now"]')&&!c.querySelector('[data-a="later"]')&&/No thanks/.test(c.textContent),'cross-game: in the menu, Ann\'s Lost Empires invite shows Join and No thanks');
+    check(B.w.document.querySelectorAll('.gmx[data-invite]').length===1&&!B.$('.gmx[data-invite="x0"]'),'cross-game: an invite to Food Fight itself is ignored');
+    BG.demo=false;BG.over=false;await sleep(1200);
+    c=B.$('.gmx[data-invite]');check(!!c&&c.classList.contains('gmx-slim')&&/Join now/.test(c.textContent)&&!!c.querySelector('[data-a="later"]'),'cross-game: mid-match the card is slim and offers After this game');
+    c.querySelector('[data-a="later"]').click();await sleep(100);
+    check(DB.gm_cross_invites[0].status==='later'&&crossLog.some(x=>x.p_invite==='x1'&&x.p_choice==='later'&&x.p_from_app==='foodfight'),'cross-game: After this game answers later (from foodfight)');
+    await X.poll();await sleep(100);check(!B.$('.gmx[data-invite]'),'cross-game: nothing shows for the rest of the match');
+    BG.over=true;await sleep(1200);
+    c=B.$('.gmx[data-invite]');check(!!c&&c.dataset.kind==='waiting'&&/Ann is waiting for you in Lost Empires/.test(c.textContent.replace(/\s+/g,' '))&&/No thanks/.test(c.textContent),'cross-game: when the match ends, "Ann is waiting for you in Lost Empires"');
+    c.querySelector('[data-a="now"]').click();await sleep(100);
+    check(DB.gm_cross_invites[0].status==='accepted'&&went.length===1&&went[0]===DB.gm_cross_invites[0].join_url&&!B.$('.gmx[data-invite]'),'cross-game: Join accepts and goes to the join link');
+    DB.gm_cross_invites.push(mk('x2',{app:'silentdepths',app_name:'Silent Depths',from_name:'Cat'}));await X.poll();await sleep(100);
+    c=B.$('.gmx[data-invite="x2"]');check(!!c&&/Cat invites you to Silent Depths/.test(c.textContent),'cross-game: a Silent Depths invite shows too');
+    c&&c.querySelector('[data-a="decline"]').click();await sleep(100);await X.poll();await sleep(100);
+    check(DB.gm_cross_invites[2].status==='declined'&&!B.$('.gmx[data-invite]')&&went.length===1,'cross-game: No thanks declines it');
+    DB.gm_cross_invites.push(mk('x3',{join_url:'javascript:alert(1)'}));await X.poll();await sleep(100);
+    check(!B.$('.gmx[data-invite]'),'cross-game: a non-https join link is never offered');
+    BG.demo=true;}
    // pictures are Food Fight's own: your fighter, saved for your friends; never a BoomTown picture
    const annId=DB.users_public.find(u=>u.username==='ann').id;DB.users_public.forEach(u=>{u.avatar={url:'https://boomtown.example/pic.png'};u.profile_picture_url='https://boomtown.example/pic.png'});
    check(DB.gm_app_profiles&&DB.gm_app_profiles.some(r=>r.user_id===annId&&r.app==='foodfight'&&/^av:[a-z]+$/.test(r.avatar)),'pictures: your fighter is saved as your Food Fight picture');

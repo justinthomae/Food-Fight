@@ -78,6 +78,7 @@ Serve the folder with any static server, for example `python3 -m http.server 517
 node test/net-sim.js                      # bot-vs-bot online matches over a fake network
 node test/specials-sim.js                 # special tiles/items get earned and used
 node test/modes-sim.js                    # every mode x size x difficulty finishes, all bots
+node test/gm-cross-invites.js             # which cross-game invite card / buttons show
 NODE_PATH=<dir with jsdom> node test/dom-smoke.js
 python3 tools/build-artifact.py           # single-file practice build in dist/
 ```
@@ -94,6 +95,7 @@ and uses BoomTown's own tables, so friends are shared between the games:
 - `public.gm_app_profiles` (app `foodfight`): each player's own Food Fight picture (the fighter they pick) and name. Every game keeps its own row, so pictures never carry over between games. Picking a fighter while signed in saves it, and signing in on another device brings it along. The table is created by Fliptide's migration `supabase/migrations/20261021000001_gm_app_profiles.sql` in justinthomae/fliptide.
 - `public.user_statuses`: read only, so friends playing BoomTown show as online.
 - `public.gm_invites`: invites shared by every Grudge Match game (see docs/grudge-match-invites.md and js/gm-invites.js). The room's Invite friends button lists all your friends; each invite reaches them in whatever Grudge Match game they're in, where they can join now or after their game, and you see their answer.
+- `public.gm_cross_invites` (studio-wide, read through `gm_my_invites` / answered through `gm_respond_invite`; not created by this repo): invites from friends in other Grudge Match games such as Lost Empires or Silent Depths. `js/gm-cross-invites.js` polls every 9 s while you're signed in and the tab is visible and shows a slim card: Join now, After this game (only mid-match; the card comes back as "… is waiting for you" when the match ends) or No thanks.
 - Realtime channel `gm:social`, shared by all the Grudge Match games: presence `{uid, game, name, st, mode}` plus invite / room-code messages carrying `game`. Food Fight only acts on messages for `foodfight` from accepted friends; a friend in another game shows where they are ("In a Broadside lobby") with no Join button.
 
 No further database changes are needed (`gm_app_profiles` is already in the shared project). One dashboard step for Google / Facebook sign-in: in Supabase, Authentication → URL Configuration → Redirect URLs, add `https://foodfight.grudgematchgames.com/**`. Guests can still play without an account.
