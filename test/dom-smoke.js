@@ -10,7 +10,9 @@ const scripts=[...fs.readFileSync(path.join(root,'index.html'),'utf8').matchAll(
 // ---- fake Supabase Realtime: one shared bus per channel name ----
 const buses={},rpcLog=[],rpcRows=[{mode:'brawl',diff:1,name:'Top Chef',score:99999,device:'d-other-device'}];
 // ---- fake Supabase auth + tables (the shared Grudge Match account, friends, statuses), with the real RLS rules ----
-const DB={users_public:[],friends:[],user_statuses:[],users:[]},AUTH=[],pgSubs=new Set();let fid=1;
+const DB={users_public:[],friends:[],user_statuses:[],users:[],gm_invites:[]},AUTH=[],pgSubs=new Set(),pgInv=new Set();let fid=1;
+// realtime for gm_invites: deliver to subscribers whose filter matches and who can see the row (RLS: either party)
+function invChange(type,row){pgInv.forEach(s=>{if(s.event!==type&&s.event!=='*')return;const [c,v]=s.filter.split('=eq.');if(String(row[c])!==v)return;if(![row.from_user,row.to_user].includes(s.uid()))return;const copy=Object.assign({},row);setTimeout(()=>s.cb({eventType:type,new:copy}),3)})}
 function splitTop(str){const out=[];let d=0,cur='';for(const ch of str){if(ch==='('){d++}else if(ch===')'){d--}if(ch===','&&d===0){out.push(cur);cur=''}else cur+=ch}if(cur)out.push(cur);return out}
 function termMatch(row,t){
   if(t.startsWith('and(')){return splitTop(t.slice(4,-1)).every(x=>termMatch(row,x))}
@@ -21,7 +23,7 @@ function termMatch(row,t){
 }
 function fakeQuery(table,uidOf){
   const q={filters:[],op:'select',payload:null,single:false,lim:0};
-  const api={select(){return api},eq(c,v){q.filters.push(r=>String(r[c])===String(v));return api},in(c,arr){q.filters.push(r=>arr.map(String).includes(String(r[c])));return api},
+  const api={select(){return api},gt(c,v){q.filters.push(r=>String(r[c])>String(v));return api},order(){return api},single(){q.single=true;return api},eq(c,v){q.filters.push(r=>String(r[c])===String(v));return api},in(c,arr){q.filters.push(r=>arr.map(String).includes(String(r[c])));return api},
     or(str){const terms=splitTop(str);q.filters.push(r=>terms.some(t=>termMatch(r,t)));return api},limit(n){q.lim=n;return api},maybeSingle(){q.single=true;return api},
     insert(o){q.op='insert';q.payload=o;return api},update(o){q.op='update';q.payload=o;return api},delete(){q.op='delete';return api},upsert(o){q.op='upsert';q.payload=o;return api},
     then(res,rej){return Promise.resolve().then(()=>run()).then(res,rej)}};
@@ -30,14 +32,22 @@ function fakeQuery(table,uidOf){
     const uid=uidOf(),T=DB[table]||(DB[table]=[]);
     let rows=T.filter(r=>q.filters.every(f=>f(r)));
     if(table==='friends')rows=rows.filter(r=>uid&&(r.user_id===uid||r.friend_user_id===uid));   // RLS: either party
+    if(table==='gm_invites')rows=rows.filter(r=>uid&&(r.from_user===uid||r.to_user===uid));
     if(q.op==='select'){if(q.lim)rows=rows.slice(0,q.lim);rows=rows.map(r=>Object.assign({},r));return {data:q.single?(rows[0]||null):rows,error:null}}
     if(q.op==='insert'){const o=Object.assign({},q.payload);
       if(table==='friends'){if(!uid||o.user_id!==uid||!['pending','blocked'].includes(o.status))return {data:null,error:{message:'new row violates row-level security policy'}};
         if(T.some(r=>r.user_id===o.user_id&&r.friend_user_id===o.friend_user_id))return {data:null,error:{message:'duplicate key value violates unique constraint "friends_unique_pair"'}};
         o.id=String(fid++);o.created_at=new Date().toISOString()}
+      if(table==='gm_invites'){
+        const fr=DB.friends.some(f=>f.status==='accepted'&&((f.user_id===o.from_user&&f.friend_user_id===o.to_user)||(f.user_id===o.to_user&&f.friend_user_id===o.from_user)));
+        if(!uid||o.from_user!==uid||!fr||!/^https:\/\/([a-z0-9-]+\.)*(grudgematchgames\.com|boomtowngame\.com)(\/[A-Za-z0-9\/?=&#._~%-]*)?$/.test(o.url||''))return {data:null,error:{message:'new row violates row-level security policy for table "gm_invites"'}};
+        o.id='inv-'+(fid++);o.status='pending';o.created_at=new Date().toISOString();o.expires_at=new Date(Date.now()+20*60000).toISOString();
+        T.push(o);invChange('INSERT',o);return {data:q.single?Object.assign({},o):[Object.assign({},o)],error:null}}
       T.push(o);changed();return {data:[o],error:null}}
     if(q.op==='update'){for(const r of rows){const n=Object.assign({},r,q.payload);
         if(table==='friends'&&!((n.status==='accepted'&&uid===n.friend_user_id)||(['pending','blocked'].includes(n.status)&&uid===n.user_id)))return {data:null,error:{message:'new row violates row-level security policy'}};
+        if(table==='gm_invites'){const ok=(uid===r.to_user&&['now','later','declined','joined'].includes(n.status))||(uid===r.from_user&&n.status==='cancelled');
+          if(!ok||Object.keys(q.payload).some(k=>k!=='status'))return {data:null,error:{message:'bad status'}};Object.assign(r,q.payload);invChange('UPDATE',r);continue}
         if(table==='users'&&r.id!==uid)continue;Object.assign(r,q.payload);
         if(table==='users'){const up=DB.users_public.find(x=>x.id===r.id);if(up&&q.payload.display_name)up.display_name=q.payload.display_name}}
       changed();return {data:rows,error:null}}
@@ -70,7 +80,7 @@ function fakeSupabase(){
       const bus=buses[name]||(buses[name]={members:new Map(),chans:new Set()});
       const key=opts&&opts.config&&opts.config.presence?opts.config.presence.key:'k'+Math.random().toString(36).slice(2),h={broadcast:[],sync:[],leave:[]};
       const ch={
-        on(type,f,cb){if(type==='broadcast')h.broadcast.push(cb);else if(type==='postgres_changes')pgSubs.add(cb);else h[f.event].push(cb);return ch},
+        on(type,f,cb){if(type==='broadcast')h.broadcast.push(cb);else if(type==='postgres_changes'){if(f.table==='gm_invites'){const s={event:f.event,filter:f.filter,cb,uid:A.uid};pgInv.add(s);(ch._inv||(ch._inv=[])).push(s)}else pgSubs.add(cb)}else h[f.event].push(cb);return ch},
         subscribe(cb){bus.chans.add(ch);setTimeout(()=>cb&&cb('SUBSCRIBED'),5);return ch},
         // like real Supabase: updating your presence (e.g. lobby -> playing) also emits a 'leave' for your old state
         async track(p){const old=bus.members.get(key);bus.members.set(key,p);if(old)bus.chans.forEach(c=>{if(c!==ch)c._leave(old)});bus.chans.forEach(c=>c._sync())},
@@ -80,7 +90,7 @@ function fakeSupabase(){
         _sync(){setTimeout(()=>h.sync.forEach(cb=>cb()),1)},
         _leave(p){setTimeout(()=>h.leave.forEach(cb=>cb({leftPresences:[p]})),1)},
         _msg(p){h.broadcast.forEach(cb=>cb({payload:p}))},
-        _close(){bus.chans.delete(ch)}
+        _close(){bus.chans.delete(ch);(ch._inv||[]).forEach(s=>pgInv.delete(s))}
       };
       return ch;
     },
@@ -520,13 +530,16 @@ const check=(cond,msg)=>{console.log((cond?'PASS ':'FAIL ')+msg);if(!cond)proces
    A.w.document.querySelector('#ovFriends [data-close]').click();A.$('#bOnline').click();A.$('#bCreate').click();await sleep(1800);
    const code=A.$('#roomCode').textContent;check(!A.$('#bLobbyFriends').hidden&&/Invite friends/.test(A.$('#bLobbyFriends').textContent),'invite: the room has an Invite friends button');
    A.$('#bLobbyFriends').click();await sleep(2600);A.w.FFSocial.render();
-   check(A.$('#friendsTitle').textContent==='Invite friends'&&new RegExp('Room '+code).test(A.$('#friendsBody').textContent)&&/In Food Fight now/.test(A.$('#friendsBody').textContent)&&!!A.$('#friendsBody [data-sharelink]'),'invite: it opens a list for this room, with the share link too');
+   check(A.$('#friendsTitle').textContent==='Invite friends'&&new RegExp('Room '+code).test(A.$('#friendsBody').textContent)&&!!A.$('#friendsBody [data-sharelink]'),'invite: it opens a list for this room, with the share link too');
    const inv=A.$('#friendsBody [data-inv]');check(!!inv&&/Bobby/.test(inv.closest('.frow').textContent),'friends: in a room, online friends get an Invite button');
    inv&&inv.click();await sleep(400);
    check(/Invited/.test(A.$('#friendsBody').textContent)&&!A.$('#friendsBody [data-inv]'),'invite: the button turns into Invited');
-   check(!B.$('#inviteToast').hidden&&/Ann/.test(B.$('#inviteToast').textContent),'friends: Bob gets an invite pop-up from Ann');
-   B.$('#inviteJoin').click();await sleep(2200);
-   check(!B.$('#ovLobby').hidden&&B.$('#roomCode').textContent===code,'friends: tapping Join puts Bob in Ann\'s room');
+   check(DB.gm_invites.length===1&&DB.gm_invites[0].game==='foodfight'&&/\?room=/.test(DB.gm_invites[0].url),'invite: saved as a shared Grudge Match invite with the room link');
+   const bt=B.$('.gmi');check(!!bt&&/Ann/.test(bt.textContent)&&/invited you to play/.test(bt.textContent)&&!!bt.querySelector('[data-a="now"]'),'invite: Bob gets the invite pop-up with Accept invite');
+   bt&&bt.querySelector('[data-a="now"]').click();await sleep(2400);
+   check(!B.$('#ovLobby').hidden&&B.$('#roomCode').textContent===code,'friends: accepting puts Bob in Ann\'s room');
+   check(DB.gm_invites[0].status==='joined','invite: marked joined once Bob is in');
+   A.w.FFSocial.render();check(/Joined/.test(A.$('#friendsBody').textContent)&&[...A.w.document.querySelectorAll('.gmi')].some(n=>/Bobby/.test(n.textContent)),'invite: Ann sees Bob accepted');
    // Cat befriends Ann, then joins Ann's room from her friends list
    C.$('#fSearch').value='ann';C.$('#fSearch').dispatchEvent(new C.w.Event('input'));await sleep(500);C.$('#friendsBody [data-add]').click();await sleep(500);
    A.w.FFSocial.open();await sleep(400);A.$('#friendsBody [data-accrow]').click();await sleep(2800);C.w.FFSocial.render();
@@ -538,6 +551,29 @@ const check=(cond,msg)=>{console.log((cond?'PASS ':'FAIL ')+msg);if(!cond)proces
    const bobId=DB.users_public.find(u=>u.username==='bob').id,ch=[...buses['gm:social'].chans].find(c=>true);
    buses['gm:social'].chans.forEach(c=>c._msg({t:'invite',to:bobId,from:DB.users_public.find(u=>u.username==='dan').id,name:'Dan',code:'999'}));await sleep(200);
    check(B.$('#inviteToast').hidden||!/Dan/.test(B.$('#inviteToast').textContent),'friends: an invite from a non-friend is ignored');
+   {const r=await D.w.GMInvites.send({to:bobId,toName:'Bob',url:'https://foodfight.grudgematchgames.com/?room=999',code:'999'});
+    check(!!r.error&&DB.gm_invites.every(x=>x.from_name!=='Dan'),'invite: a non-friend can\'t send one ('+r.error+')');
+    const bad=await A.w.GMInvites.send({to:bobId,toName:'Bob',url:'https://evil.example.com/?room=1',code:'1'});
+    check(!!bad.error,'invite: links outside Grudge Match sites are refused');}
+   // Bob is mid-game: "After this game"; Ann hears he's coming; when Bob's game ends he gets a heads-up
+   {B.w.document.querySelectorAll('.gmi').forEach(n=>n.remove());A.w.document.querySelectorAll('.gmi').forEach(n=>n.remove());
+    const BG=B.w.__ff.game;BG.demo=false;BG.over=false;
+    await A.w.GMInvites.send({to:bobId,toName:'Bobby',url:'https://foodfight.grudgematchgames.com/?room='+code,code,mode:'Classic'});await sleep(300);
+    const t=B.$('.gmi');check(!!t&&!!t.querySelector('[data-a="later"]')&&/Join now/.test(t.textContent),'invite: mid-game, Bob can join now or after this game');
+    t&&t.querySelector('[data-a="later"]').click();await sleep(300);
+    const last=DB.gm_invites[DB.gm_invites.length-1];check(last.status==='later','invite: "After this game" is saved');
+    check([...A.w.document.querySelectorAll('.gmi')].some(n=>/after their current game/.test(n.textContent)),'invite: Ann is told Bob joins after his current game');
+    A.w.FFSocial.openInvite();await sleep(200);check(/After their game/.test(A.$('#friendsBody').textContent),'invite: Ann\'s list shows "After their game"');
+    BG.over=true;await sleep(1600);
+    const h=[...B.w.document.querySelectorAll('.gmi')].find(n=>/Game over, joining/.test(n.textContent));check(!!h,'invite: when Bob\'s game ends he gets a heads-up before joining');
+    h&&h.querySelector('[data-a="stay"]').click();await sleep(300);
+    check(last.status==='declined'&&!B.w.GMInvites.pending(),'invite: "Stay here" cancels it');
+    BG.demo=true;}
+   // an invite to another Grudge Match game says which game
+   {const annId0=DB.users_public.find(u=>u.username==='ann').id,row={id:'inv-x',from_user:annId0,to_user:bobId,from_name:'Ann',game:'broadside',game_name:'Broadside',url:'https://broadside.grudgematchgames.com/?room=ABCD',code:'ABCD',mode:'',status:'pending',expires_at:new Date(Date.now()+600000).toISOString()};
+    DB.gm_invites.push(row);invChange('INSERT',row);await sleep(200);
+    const t=[...B.w.document.querySelectorAll('.gmi')].find(n=>/Broadside/.test(n.textContent));check(!!t&&/invited you to play Broadside/.test(t.textContent.replace(/\s+/g,' ')),'invite: an invite to another game names it (Broadside)');
+    t&&t.querySelector('[data-a="no"]').click();await sleep(200);check(row.status==='declined','invite: dismissing it tells the host no');}
    // pictures are Food Fight's own: your fighter, saved for your friends; never a BoomTown picture
    const annId=DB.users_public.find(u=>u.username==='ann').id;DB.users_public.forEach(u=>{u.avatar={url:'https://boomtown.example/pic.png'};u.profile_picture_url='https://boomtown.example/pic.png'});
    check(DB.gm_app_profiles&&DB.gm_app_profiles.some(r=>r.user_id===annId&&r.app==='foodfight'&&/^av:[a-z]+$/.test(r.avatar)),'pictures: your fighter is saved as your Food Fight picture');

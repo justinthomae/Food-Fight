@@ -1,6 +1,6 @@
 // Food Fight UI: drawing, input, settings, practice mode and the online lobby.
 (function(){
-const VERSION='1.20.1';
+const VERSION='1.21.0';
 let spec=null; // board being spectated after you're knocked out
 // how far we are between two 60Hz game steps (0..1): drawing uses it so motion is smooth on 90/120/144Hz screens too
 let ALPHA=0,lastDraw=performance.now(),drawDt=16,SIDEW=0;
@@ -1582,7 +1582,7 @@ document.addEventListener('visibilitychange',()=>{
   if(!document.hidden&&!anyOverlay())restoreOut();
 });
 function toMenu(){showBest();demo();show('#ovStart')}
-function demo(){G=new Game('duel',1,baseHooks,false,{av:prefs.av,name:ME.name});G.paused=true;rackIds='~';trayKey='~';plating=null;buildOpps();renderRack()}
+function demo(){G=new Game('duel',1,baseHooks,false,{av:prefs.av,name:ME.name});G.paused=true;G.demo=true;rackIds='~';trayKey='~';plating=null;buildOpps();renderRack()}
 
 /* ---------- profile ---------- */
 const ME={id:(crypto.randomUUID?crypto.randomUUID():'u'+Math.random().toString(36).slice(2)+Date.now().toString(36)),name:''};
@@ -2046,6 +2046,8 @@ if(SOC){
       if(inRoom&&NET.code===code){show('#ovLobby');return}
       backTo='#ovStart';codeIn.value=code;show('#ovOnline');enterRoom(code,true);
     },
+    // mid-game (online or practice): an invite offers "After this game"
+    busy:()=>!!(G&&!G.over&&!G.demo),
     modeName:v=>VARIANT_INFO[v]?VARIANT_INFO[v].name:'',
     myName:()=>prefs.name||'',
     // Food Fight profile pictures are fighter faces

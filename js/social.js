@@ -40,6 +40,14 @@ window.FFSocial=(function(){
     bridge=br;sb=NET.client();
     try{const {data}=await sb.auth.getSession();await setUser(data&&data.session&&data.session.user)}catch(e){}
     sb.auth.onAuthStateChange((ev,s)=>{setUser(s&&s.user)});
+    // invites shared with every Grudge Match game: a friend in BoomTown, Fliptide… gets yours there, and theirs show up here
+    if(window.GMInvites){
+      window.GMInvites.init({supabase:sb,game:APP,gameName:'Food Fight',myName:()=>nameOf(me),
+        isBusy:()=>bridge.busy?bridge.busy():bridge.state().st==='playing',
+        joinHere:inv=>{if(!/^\d{3,5}$/.test(String(inv.code||'')))return false;const s=bridge.state();if(s.code===String(inv.code))return true;bridge.join(String(inv.code));return true},
+        sound:()=>bridge.sfx&&bridge.sfx('earn')});
+      window.GMInvites.onChange(()=>{if(view==='invite')render()});
+    }
     ready=true;render();
     clearInterval(tick);tick=setInterval(()=>{if(user){track();badge();stateChanged()}},2000);
   }
@@ -193,7 +201,17 @@ window.FFSocial=(function(){
     wantCode=id;send({t:'ask',to:id});msg='Asking for their room…';render();
     clearTimeout(askT);askT=setTimeout(()=>{if(wantCode===id){wantCode=null;msg='They didn’t answer. They may have just left their room.';render()}},5000);
   }
-  function invite(id,quiet){const s=bridge.state();if(!s.code)return;send({t:'invite',to:id,code:s.code,mode:s.mode});sent.set(id,{code:s.code,at:Date.now()});if(!quiet){msg=`Invite sent to ${nameOf(people.get(id))}.`;render()}}
+  // invites go through the shared Grudge Match invites (they reach your friend in whichever game they're in);
+  // if that isn't available, the live channel still reaches friends who are in Food Fight
+  async function invite(id,quiet){
+    const s=bridge.state();if(!s.code)return;
+    sent.set(id,{code:s.code,at:Date.now()});
+    const GI=window.GMInvites,name=nameOf(people.get(id));
+    const r=GI?await GI.send({to:id,toName:name,url:roomUrl(s.code),code:s.code,mode:bridge.modeName?bridge.modeName(s.mode):s.mode}):{error:'off'};
+    if(r.error){send({t:'invite',to:id,code:s.code,mode:s.mode});if(!statusOf(id).ff&&!quiet)msg=`${name} isn't in Food Fight right now, so the invite may not reach them.`}
+    if(!quiet){if(!msg)msg=`Invite sent to ${name}.`;render()}
+  }
+  const roomUrl=code=>{const o=/grudgematchgames\.com$/.test(location.hostname)?location.origin:'https://foodfight.grudgematchgames.com';return o+'/?room='+encodeURIComponent(code)};
   // invited to the room you're in now (a new room starts fresh); after 20s you can send it again
   const sent=new Map(),invited=id=>{const x=sent.get(id),s=bridge.state();return x&&x.code===s.code?x:null};
   const SEND_AGAIN_MS=20000;
@@ -272,22 +290,24 @@ window.FFSocial=(function(){
   // friends in Food Fight get an Invite each (a friend mid-match sees it when their match ends);
   // friends elsewhere are listed without a button; the share link covers everyone else
   function renderInvite(box,s,L,row,stLine){
-    const mode=bridge.modeName?bridge.modeName(s.mode):'',now=Date.now();
-    const here=L.friends.filter(x=>x.s.ff),away=L.friends.filter(x=>!x.s.ff);
-    const btn=x=>{const v=invited(x.id);
+    const mode=bridge.modeName?bridge.modeName(s.mode):'',now=Date.now(),GI=window.GMInvites;
+    // one list: everyone you're friends with, the ones online first, each with their own Invite button
+    const friends=L.friends.slice().sort((x,y)=>(y.s.rank>=2)-(x.s.rank>=2));
+    const TAG={pending:'Invited',now:'On the way',later:'After their game',declined:'Can’t make it',joined:'Joined'};
+    const btn=x=>{const v=invited(x.id),st=GI&&v?GI.status(x.id,s.code):null,tag=st?TAG[st]:v?'Invited':'';
       if(!v)return`<button class="btn small go" data-inv="${esc(x.id)}">Invite</button>`;
-      return now-v.at>SEND_AGAIN_MS?`<span class="ftag">Invited</span><button class="btn small" data-inv="${esc(x.id)}">Again</button>`:'<span class="ftag">Invited ✓</span>'};
-    const fresh=here.filter(x=>!invited(x.id));
+      const again=(st==='pending'||st==='declined'||!st)&&now-v.at>SEND_AGAIN_MS;
+      return`<span class="ftag${st==='now'||st==='later'||st==='joined'?' ok':''}">${esc(tag)}${st==='now'||st==='joined'||st==='later'?' ✓':''}</span>${again?`<button class="btn small" data-inv="${esc(x.id)}">Again</button>`:''}`};
+    const fresh=friends.filter(x=>!invited(x.id)&&x.s.rank>=2);
     box.innerHTML=`
-      <div class="finvhead"><p>Room <b>${esc(s.code)}</b>${mode?` · ${esc(mode)}`:''}</p>${fresh.length>1?`<button class="btn small go" data-invall type="button">Invite all ${fresh.length}</button>`:''}</div>
+      <div class="finvhead"><p>Room <b>${esc(s.code)}</b>${mode?` · ${esc(mode)}`:''}</p>${fresh.length>1?`<button class="btn small go" data-invall type="button">Invite all online</button>`:''}</div>
       ${msg?`<p class="fmsg">${esc(msg)}</p>`:''}
-      <div class="lab">In Food Fight now${here.length?` · ${here.length}`:''}</div>
-      <ul class="flist">${here.length?here.map(x=>row(x,btn(x),stLine(x.s.rank===4?{dot:x.s.dot,text:x.s.text+' · sees it after their match'}:x.s))).join(''):`<li class="fnone">${L.friends.length?'None of your friends are in Food Fight right now. Share the invite link to bring them in.':'No friends yet. Tap Add friends, or share the invite link.'}</li>`}</ul>
-      ${away.length?`<div class="lab">Not in Food Fight</div><ul class="flist fdim">${away.map(x=>row(x,'',stLine(x.s))).join('')}</ul>`:''}
+      <ul class="flist">${friends.length?friends.map(x=>row(x,btn(x),stLine(x.s))).join(''):'<li class="fnone">No friends yet. Tap Add friends, or share the invite link.</li>'}</ul>
+      <p class="fhint">Friends playing another Grudge Match game get the invite there, and can join now or after their game.</p>
       <div class="finvfoot"><button class="btn" data-sharelink type="button">Share invite link</button><button class="btn" data-manage type="button">Add friends</button></div>`;
     const on=(attr,fn)=>box.querySelectorAll(`[${attr}]`).forEach(b=>b.addEventListener('click',()=>fn(b.getAttribute(attr))));
-    on('data-inv',id=>{if(bridge.sfx)bridge.sfx('tap');invite(id)});
-    on('data-invall',()=>{fresh.forEach(x=>invite(x.id,true));msg=`Invites sent to ${fresh.length} friends.`;if(bridge.sfx)bridge.sfx('tap');render()});
+    on('data-inv',id=>{if(bridge.sfx)bridge.sfx('tap');msg='';invite(id)});
+    on('data-invall',async()=>{if(bridge.sfx)bridge.sfx('tap');for(const x of fresh)await invite(x.id,true);msg=`Invites sent to ${fresh.length} friends.`;render()});
     on('data-sharelink',()=>bridge.shareLink&&bridge.shareLink());
     on('data-manage',()=>{view='list';msg='';render()});
     // "Again" appears on its own once 20s have passed
