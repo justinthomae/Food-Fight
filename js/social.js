@@ -178,8 +178,10 @@ window.FFSocial=(function(){
     wantCode=id;send({t:'ask',to:id});msg='Asking for their room…';render();
     clearTimeout(askT);askT=setTimeout(()=>{if(wantCode===id){wantCode=null;msg='They didn’t answer. They may have just left their room.';render()}},5000);
   }
-  function invite(id){const s=bridge.state();if(!s.code)return;send({t:'invite',to:id,code:s.code,mode:s.mode});sent.add(id);msg=`Invite sent to ${nameOf(people.get(id))}.`;render()}
-  const sent=new Set();
+  function invite(id,quiet){const s=bridge.state();if(!s.code)return;send({t:'invite',to:id,code:s.code,mode:s.mode});sent.set(id,{code:s.code,at:Date.now()});if(!quiet){msg=`Invite sent to ${nameOf(people.get(id))}.`;render()}}
+  // invited to the room you're in now (a new room starts fresh); after 20s you can send it again
+  const sent=new Map(),invited=id=>{const x=sent.get(id),s=bridge.state();return x&&x.code===s.code?x:null};
+  const SEND_AGAIN_MS=20000;
 
   // ---------- invite pop-up ----------
   function showInvite(m){
@@ -200,9 +202,11 @@ window.FFSocial=(function(){
     const box=$('#friendsBody');if(!box)return;
     if(!ready){box.innerHTML='<p class="fmsg">Loading…</p>';return}
     const s=bridge?bridge.state():{};
+    if(view==='invite'&&!s.code)view='list';
+    const title=$('#friendsTitle');if(title)title.textContent=view==='invite'?'Invite friends':'Friends';
     if(!user){
       box.innerHTML=`
-        <p class="fsub">Sign in with your <b>Grudge Match Games</b> account to add friends, see who's online and invite them to your room.</p>
+        <p class="fsub">Sign in with your <b>Grudge Match Games</b> account to ${view==='invite'?'invite your friends straight into this room':'add friends, see who\'s online and invite them to your room'}.</p>${view==='invite'?'<button class="btn" data-sharelink type="button">Share invite link instead</button><div class="for"><span>sign in</span></div>':''}
         <button class="btn oauth" data-oauth="google" type="button"><svg viewBox="0 0 24 24" width="18" height="18"><path fill="#4285F4" d="M23 12.3c0-.8-.1-1.6-.2-2.3H12v4.4h6.2a5.3 5.3 0 0 1-2.3 3.5v2.9h3.7c2.2-2 3.4-5 3.4-8.5z"/><path fill="#34A853" d="M12 23.5c3.1 0 5.7-1 7.6-2.8l-3.7-2.9c-1 .7-2.4 1.1-3.9 1.1-3 0-5.5-2-6.4-4.7H1.8v3A11.5 11.5 0 0 0 12 23.5z"/><path fill="#FBBC05" d="M5.6 14.2a6.9 6.9 0 0 1 0-4.4v-3H1.8a11.5 11.5 0 0 0 0 10.4z"/><path fill="#EA4335" d="M12 5.1c1.7 0 3.2.6 4.4 1.7l3.3-3.3A11.5 11.5 0 0 0 1.8 6.8l3.8 3C6.5 7.1 9 5.1 12 5.1z"/></svg>Continue with Google</button>
         <button class="btn oauth" data-oauth="facebook" type="button"><svg viewBox="0 0 24 24" width="18" height="18"><path fill="#1877F2" d="M24 12a12 12 0 1 0-13.9 11.9v-8.4h-3V12h3V9.4c0-3 1.8-4.7 4.6-4.7 1.3 0 2.7.2 2.7.2v3h-1.5c-1.5 0-2 .9-2 1.9V12h3.4l-.5 3.5h-2.9v8.4A12 12 0 0 0 24 12z"/></svg>Continue with Facebook</button>
         <div class="for"><span>or with email</span></div>
@@ -214,6 +218,7 @@ window.FFSocial=(function(){
         </form>
         <button class="linkbtn" id="fMode" type="button">${authMode==='up'?'Already have an account? Sign in':'New here? Create an account'}</button>
         ${msg?`<p class="fmsg">${esc(msg)}</p>`:''}`;
+      box.querySelectorAll('[data-sharelink]').forEach(b=>b.addEventListener('click',()=>bridge.shareLink&&bridge.shareLink()));
       box.querySelectorAll('[data-oauth]').forEach(b=>b.addEventListener('click',()=>oauth(b.dataset.oauth)));
       $('#fMode').addEventListener('click',()=>{authMode=authMode==='up'?'in':'up';msg='';render()});
       $('#fAuth').addEventListener('submit',e=>{e.preventDefault();const em=$('#fEmail').value.trim(),pw=$('#fPw').value;if(authMode==='up')signUp(em,pw,($('#fName')&&$('#fName').value.trim())||(bridge.myName&&bridge.myName()));else signIn(em,pw)});
@@ -222,6 +227,7 @@ window.FFSocial=(function(){
     const L=lists(),inRoom=!!s.code;
     const row=(x,actions,line)=>`<li class="frow">${avatar(x.p)}<span class="fwho"><b>${esc(nameOf(x.p))}</b>${line||''}</span><span class="fact">${actions}</span></li>`;
     const stLine=st=>`<small><i class="fdot ${st.dot}"></i>${esc(st.text)}</small>`;
+    if(view==='invite'){renderInvite(box,s,L,row,stLine);return}
     const keep=document.activeElement&&document.activeElement.id==='fSearch',caret=keep?document.activeElement.selectionStart:0;
     box.innerHTML=`
       <div class="fme">${avatar(me)}<span class="fwho"><b>${esc(nameOf(me))}</b><small>Signed in · Grudge Match Games account</small></span><button class="btn small" id="fOut" type="button">Sign out</button></div>
@@ -234,7 +240,7 @@ window.FFSocial=(function(){
       <div class="lab">Friends${L.friends.length?` · ${L.friends.filter(x=>x.s.rank>=2).length} online`:''}</div>
       <ul class="flist">${L.friends.length?L.friends.map(x=>{
         const st=x.s;let a='';
-        if(inRoom&&st.ff)a=sent.has(x.id)?'<span class="ftag">Invited</span>':`<button class="btn small go" data-inv="${esc(x.id)}">Invite</button>`;
+        if(inRoom&&st.ff)a=invited(x.id)?'<span class="ftag">Invited</span>':`<button class="btn small go" data-inv="${esc(x.id)}">Invite</button>`;
         else if(st.join)a=`<button class="btn small go" data-join="${esc(x.id)}">Join</button>`;
         a+=`<button class="btn small ghost" data-unf="${esc(x.id)}" aria-label="Remove ${esc(nameOf(x.p))}">✕</button>`;
         return row(x,a,stLine(st))}).join(''):'<li class="fnone">No friends yet. Search for someone above, or share your username: <b>'+esc((me&&me.username)||'')+'</b></li>'}</ul>
@@ -247,16 +253,42 @@ window.FFSocial=(function(){
     on('data-add',request);on('data-acc',request);on('data-accrow',id=>accept(id));on('data-drop',drop);on('data-inv',invite);on('data-join',joinFriend);
     on('data-unf',id=>{const p=people.get(id);if(confirm(`Remove ${nameOf(p)} from your friends?`))drop(id)});
   }
+  // ---------- inviting friends into your room ----------
+  // friends in Food Fight get an Invite each (a friend mid-match sees it when their match ends);
+  // friends elsewhere are listed without a button; the share link covers everyone else
+  function renderInvite(box,s,L,row,stLine){
+    const mode=bridge.modeName?bridge.modeName(s.mode):'',now=Date.now();
+    const here=L.friends.filter(x=>x.s.ff),away=L.friends.filter(x=>!x.s.ff);
+    const btn=x=>{const v=invited(x.id);
+      if(!v)return`<button class="btn small go" data-inv="${esc(x.id)}">Invite</button>`;
+      return now-v.at>SEND_AGAIN_MS?`<span class="ftag">Invited</span><button class="btn small" data-inv="${esc(x.id)}">Again</button>`:'<span class="ftag">Invited ✓</span>'};
+    const fresh=here.filter(x=>!invited(x.id));
+    box.innerHTML=`
+      <div class="finvhead"><p>Room <b>${esc(s.code)}</b>${mode?` · ${esc(mode)}`:''}</p>${fresh.length>1?`<button class="btn small go" data-invall type="button">Invite all ${fresh.length}</button>`:''}</div>
+      ${msg?`<p class="fmsg">${esc(msg)}</p>`:''}
+      <div class="lab">In Food Fight now${here.length?` · ${here.length}`:''}</div>
+      <ul class="flist">${here.length?here.map(x=>row(x,btn(x),stLine(x.s.rank===4?{dot:x.s.dot,text:x.s.text+' · sees it after their match'}:x.s))).join(''):`<li class="fnone">${L.friends.length?'None of your friends are in Food Fight right now. Share the invite link to bring them in.':'No friends yet. Tap Add friends, or share the invite link.'}</li>`}</ul>
+      ${away.length?`<div class="lab">Not in Food Fight</div><ul class="flist fdim">${away.map(x=>row(x,'',stLine(x.s))).join('')}</ul>`:''}
+      <div class="finvfoot"><button class="btn" data-sharelink type="button">Share invite link</button><button class="btn" data-manage type="button">Add friends</button></div>`;
+    const on=(attr,fn)=>box.querySelectorAll(`[${attr}]`).forEach(b=>b.addEventListener('click',()=>fn(b.getAttribute(attr))));
+    on('data-inv',id=>{if(bridge.sfx)bridge.sfx('tap');invite(id)});
+    on('data-invall',()=>{fresh.forEach(x=>invite(x.id,true));msg=`Invites sent to ${fresh.length} friends.`;if(bridge.sfx)bridge.sfx('tap');render()});
+    on('data-sharelink',()=>bridge.shareLink&&bridge.shareLink());
+    on('data-manage',()=>{view='list';msg='';render()});
+    // "Again" appears on its own once 20s have passed
+    clearTimeout(renderInvite.t);if([...sent.values()].some(v=>v.code===s.code&&now-v.at<=SEND_AGAIN_MS))renderInvite.t=setTimeout(()=>{if(view==='invite')render()},SEND_AGAIN_MS/4);
+  }
   // the little "2 online" on the Friends buttons
   function badge(){
     const n=user?lists().friends.filter(x=>x.s.rank>=2).length:0,inc=user?lists().incoming.length:0;
     document.querySelectorAll('.fbadge').forEach(el=>{el.hidden=!n&&!inc;el.textContent=inc?`${inc} request${inc>1?'s':''}`:`${n} online`;el.classList.toggle('req',!!inc)});
   }
-  function open(){msg='';searchRes=null;searchQ='';loadFriends();render()}
+  function open(){view='list';msg='';searchRes=null;searchQ='';loadFriends();render()}
+  function openInvite(){view='invite';msg='';searchRes=null;searchQ='';loadFriends();render()}
   // the invite pop-up's buttons
   document.addEventListener('click',e=>{
     if(e.target.closest('#inviteJoin')){const m=pendingInvite;$('#inviteToast').hidden=true;pendingInvite=null;if(m)bridge.join(String(m.code))}
     else if(e.target.closest('#inviteNo')){$('#inviteToast').hidden=true;pendingInvite=null}
   });
-  return {enabled:true,init,open,render,stateChanged,fighterChanged,get user(){return user},get me(){return me},_lists:lists,_pres:pres};
+  return {enabled:true,init,open,openInvite,render,stateChanged,fighterChanged,get user(){return user},get me(){return me},_lists:lists,_pres:pres};
 })();

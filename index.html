@@ -366,6 +366,13 @@ button.nextbox:active{background:var(--gold)}
 .friendsbtn .fbadge{position:static;margin-left:2px}
 .fbadge{font-size:10px;font-weight:800;background:#3DDC84;color:#08221A;border-radius:99px;padding:2px 7px;white-space:nowrap}
 .fbadge.req{background:var(--gold);color:var(--gold-ink)}
+.btn.inviterow{width:100%;margin-top:8px;min-height:48px;display:flex;align-items:center;justify-content:center;gap:8px;position:relative}
+.inviterow .fbadge{position:static;margin-left:4px}
+.fdim{opacity:.6}
+.finvhead{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:2px 0 10px}
+.finvhead p{margin:0;color:var(--muted,#9aa0c0);font-size:14px}
+.finvfoot{display:flex;gap:8px;margin-top:14px}
+.finvfoot .btn{flex:1}
 .coderow .btn.friendsmini{flex:none;position:relative;padding-inline:14px;display:flex;align-items:center;justify-content:center}
 .friendsmini .fbadge{position:absolute;top:-7px;right:-6px;font-size:9px;padding:1px 5px}
 .friendscard{gap:10px}
@@ -714,7 +721,7 @@ button.nextbox:active{background:var(--gold)}
 <!-- friends (shared Grudge Match account) -->
 <div class="overlay sheet" id="ovFriends" hidden>
   <div class="card friendscard">
-    <div class="cardhead"><h2>Friends</h2><button class="x" data-close aria-label="Close"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+    <div class="cardhead"><h2 id="friendsTitle">Friends</h2><button class="x" data-close aria-label="Close"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
     <div id="friendsBody"></div>
   </div>
 </div>
@@ -841,7 +848,8 @@ button.nextbox:active{background:var(--gold)}
 <div class="overlay sheet" id="ovLobby" hidden>
   <div class="card">
     <div class="cardhead"><h2>Room</h2><button class="btn" id="bLeave">Leave</button></div>
-    <div class="coderow"><div class="code" id="roomCode">---</div><button class="btn" id="bInvite">Share invite link</button><button class="btn friendsmini" id="bLobbyFriends" type="button" hidden aria-label="Invite friends"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.6-3.6 3.2-5.5 6.5-5.5s5.9 1.9 6.5 5.5"/><path d="M19 8v6M16 11h6"/></svg><span class="fbadge" hidden></span></button></div>
+    <div class="coderow"><div class="code" id="roomCode">---</div><button class="btn" id="bInvite">Share invite link</button></div>
+    <button class="btn inviterow" id="bLobbyFriends" type="button" hidden><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.6-3.6 3.2-5.5 6.5-5.5s5.9 1.9 6.5 5.5"/><path d="M19 8v6M16 11h6"/></svg>Invite friends<span class="fbadge" hidden></span></button>
     <div class="lab" id="lobbyVarLab">Game mode</div>
     <div class="variants" id="lobbyVariants" role="radiogroup" aria-label="Game mode"></div>
     <p class="modehow" id="lobbyHow"></p>

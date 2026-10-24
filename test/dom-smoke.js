@@ -93,14 +93,14 @@ function fakeSupabase(){
   }}};
 }
 const ctxProxy=new Proxy({},{get:(t,k)=>k==='measureText'?()=>({width:10}):(typeof k==='string'?(t[k]!==undefined?t[k]:()=>{}):undefined),set:(t,k,v)=>{t[k]=v;return true}});
-function page(url){
+function page(url,opt){
   const dom=new JSDOM(html,{url,runScripts:'outside-only',pretendToBeVisual:true});
   const w=dom.window,errors=[];
   w.addEventListener('error',e=>errors.push(e.message));
   w.HTMLCanvasElement.prototype.getContext=()=>ctxProxy;
   w.HTMLCanvasElement.prototype.toDataURL=()=>'data:,';
   w.ResizeObserver=class{observe(){}};
-  w.matchMedia=()=>({matches:false,addEventListener(){}});
+  w.matchMedia=()=>({matches:!!(opt&&opt.desk),addEventListener(){}});
   w.AudioContext=undefined;
   w.supabase=fakeSupabase();
   w.FF_CONFIG={supabaseUrl:'https://x.supabase.co',supabaseAnonKey:'k'};
@@ -190,6 +190,16 @@ const check=(cond,msg)=>{console.log((cond?'PASS ':'FAIL ')+msg);if(!cond)proces
   solo.$('#ovBoard [data-close]').click();
   check(vis(solo,'#ovEnd'),'closing the board returns to the end screen');
   check(/Tap to throw at/.test(solo.$('#aimline').textContent),'aim line shows a target');
+
+  // desktop: opponents split into two columns; a second round must not keep the first round's boards
+  {const dk=page('https://foodfight.grudgematchgames.com/',{desk:true});await sleep(2400);
+   dk.$('#mode [data-size="8"]').click();dk.$('.diff [data-d="1"]').click();await sleep(3600);
+   const cnt=()=>[dk.w.document.querySelectorAll('#opps .foe').length,dk.w.document.querySelectorAll('#oppsR .foe').length];
+   const c1=cnt();check(c1[0]+c1[1]===7&&c1[1]>0,`desktop: 7 opponents split across both sides (${c1})`);
+   dk.w.__ff.game.player.die();await sleep(1500);for(let i=0;i<40&&dk.$('#ovEnd').hidden;i++){dk.w.__ff.game.boards.forEach(b=>{if(b!==dk.w.__ff.game.player&&!b.dead)b.die()});await sleep(250)}
+   dk.$('#bAgain').click();await sleep(3600);
+   const c2=cnt();check(c2[0]+c2[1]===7,`desktop: the next round shows only its own 7 opponents (${c2})`);
+   check(dk.errors.length===0,'desktop rounds: no script errors');}
 
   // online: host creates, guest joins via link
   const host=page('https://foodfight.grudgematchgames.com/');
@@ -508,9 +518,12 @@ const check=(cond,msg)=>{console.log((cond?'PASS ':'FAIL ')+msg);if(!cond)proces
    check(/1 online/.test(A.$('#bFriends .fbadge').textContent),'friends: the Friends button shows how many are online ('+A.$('#bFriends .fbadge').textContent+')');
    // Ann opens a room and invites Bob, who joins from the pop-up
    A.w.document.querySelector('#ovFriends [data-close]').click();A.$('#bOnline').click();A.$('#bCreate').click();await sleep(1800);
-   const code=A.$('#roomCode').textContent;A.$('#bLobbyFriends').click();await sleep(2600);A.w.FFSocial.render();
-   const inv=A.$('#friendsBody [data-inv]');check(!!inv,'friends: in a room, online friends get an Invite button');
+   const code=A.$('#roomCode').textContent;check(!A.$('#bLobbyFriends').hidden&&/Invite friends/.test(A.$('#bLobbyFriends').textContent),'invite: the room has an Invite friends button');
+   A.$('#bLobbyFriends').click();await sleep(2600);A.w.FFSocial.render();
+   check(A.$('#friendsTitle').textContent==='Invite friends'&&new RegExp('Room '+code).test(A.$('#friendsBody').textContent)&&/In Food Fight now/.test(A.$('#friendsBody').textContent)&&!!A.$('#friendsBody [data-sharelink]'),'invite: it opens a list for this room, with the share link too');
+   const inv=A.$('#friendsBody [data-inv]');check(!!inv&&/Bobby/.test(inv.closest('.frow').textContent),'friends: in a room, online friends get an Invite button');
    inv&&inv.click();await sleep(400);
+   check(/Invited/.test(A.$('#friendsBody').textContent)&&!A.$('#friendsBody [data-inv]'),'invite: the button turns into Invited');
    check(!B.$('#inviteToast').hidden&&/Ann/.test(B.$('#inviteToast').textContent),'friends: Bob gets an invite pop-up from Ann');
    B.$('#inviteJoin').click();await sleep(2200);
    check(!B.$('#ovLobby').hidden&&B.$('#roomCode').textContent===code,'friends: tapping Join puts Bob in Ann\'s room');

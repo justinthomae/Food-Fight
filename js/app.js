@@ -1,6 +1,6 @@
 // Food Fight UI: drawing, input, settings, practice mode and the online lobby.
 (function(){
-const VERSION='1.19.2';
+const VERSION='1.20.0';
 let spec=null; // board being spectated after you're knocked out
 // how far we are between two 60Hz game steps (0..1): drawing uses it so motion is smooth on 90/120/144Hz screens too
 let ALPHA=0,lastDraw=performance.now(),drawDt=16,SIDEW=0;
@@ -561,7 +561,8 @@ function placeOpps(){
   R.hidden=!desk||!R.children.length;
 }
 function buildOpps(){
-  const box=$('#opps');box.innerHTML='';box.classList.toggle('duel',!multi());box.classList.toggle('many',G.boards.length>4);
+  // both columns start empty: the right one (desktop) holds half of the last match's boards
+  const box=$('#opps'),R=$('#oppsR');box.innerHTML='';if(R)R.innerHTML='';box.classList.toggle('duel',!multi());box.classList.toggle('many',G.boards.length>4);
   minis=G.boards.filter(b=>b!==G.player).map(b=>{
     const el=document.createElement('div');el.className='foe';el.title=b.name;
     el.innerHTML=`<div class="nm">${avImg(b.av)}<span>${esc(b.name)}</span></div><div class="body"><div class="mb"><canvas></canvas></div><div class="who"><div class="st">Cooking</div><div class="meta"></div><div class="tag" hidden>Aim</div><div class="eye">Watching</div></div></div>`;
@@ -1807,12 +1808,13 @@ function backToLobby(){
   cancelGrudge();NET.setState('lobby');$('#outToast').hidden=true;
   show('#ovLobby');renderLobby();
 }
-$('#bInvite').addEventListener('click',async()=>{
+async function shareRoomLink(){
   const url=location.origin+location.pathname+'?room='+NET.code;
   const text=`Join my Food Fight room: ${NET.code}`;
   try{if(navigator.share){await navigator.share({title:'Food Fight',text,url});return}}catch(e){if(e&&e.name==='AbortError')return}
   try{await navigator.clipboard.writeText(url);lobbyMsg('Invite link copied.')}catch(e){lobbyMsg(url)}
-});
+}
+$('#bInvite').addEventListener('click',shareRoomLink);
 const botRoom=()=>Math.max(0,MAX_PLAYERS-Math.min(MAX_PLAYERS,lobbyMembers.filter(m=>m.state!=='playing').length||1));
 function setBots(n){botCount=Math.max(0,Math.min(MAX_PLAYERS-1,n));renderLobby()}
 $('#botMinus').addEventListener('click',()=>{setBots(Math.min(botCount,botRoom())-1);sfx('tap')});
@@ -2032,7 +2034,8 @@ const SOC=window.FFSocial&&window.FFSocial.enabled?window.FFSocial:null;
 if(SOC){
   $('#bFriends').hidden=false;$('#bLobbyFriends').hidden=false;
   const openFriends=()=>{wakeAudio();sfx('tap');openSub('#ovFriends');SOC.open()};
-  $('#bFriends').addEventListener('click',openFriends);$('#bLobbyFriends').addEventListener('click',openFriends);
+  $('#bFriends').addEventListener('click',openFriends);
+  $('#bLobbyFriends').addEventListener('click',()=>{wakeAudio();sfx('tap');openSub('#ovFriends');SOC.openInvite()});
   SOC.init({
     // what friends see about you, and the room they can join
     state:()=>({st:G&&G.online&&!G.over?'playing':inRoom?'room':'menu',mode:inRoom?(G&&G.online&&!G.over?G.variant:roomMode):prefs.variant,code:inRoom&&NET?NET.code:null,av:prefs.av}),
@@ -2049,6 +2052,7 @@ if(SOC){
     fighters:FIGHTERS,face:av=>face(av),
     setFighter(av){if(!FIGHTERS.includes(av)||prefs.av===av)return;prefs.av=av;savePrefs();renderPicker();if(NET&&inRoom){NET.setProfile({av});renderLobby()}if(G&&G.paused&&!G.online&&G.player)G.player.av=av},
     sfx:n=>sfx(n),
+    shareLink:()=>shareRoomLink(),
     // first sign-in on this device: play under your account name unless you've picked one
     signedIn(name){if(!prefs.name&&name){setMyName(name);nameIn.value=prefs.name}},
   });
