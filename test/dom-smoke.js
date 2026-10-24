@@ -8,7 +8,7 @@ const html=fs.readFileSync(path.join(root,'index.html'),'utf8').replace(/<script
 const scripts=[...fs.readFileSync(path.join(root,'index.html'),'utf8').matchAll(/<script src="(js\/[^"]+)"/g)].map(m=>m[1]).filter(f=>f!=='js/config.js').map(f=>fs.readFileSync(path.join(root,f),'utf8'));
 
 // ---- fake Supabase Realtime: one shared bus per channel name ----
-const buses={},rpcLog=[],crossLog=[],rpcRows=[{mode:'brawl',diff:1,name:'Top Chef',score:99999,device:'d-other-device'}];
+const buses={},rpcLog=[],crossLog=[],sendLog=[],markLog=[],rpcRows=[{mode:'brawl',diff:1,name:'Top Chef',score:99999,device:'d-other-device'}];
 // ---- fake Supabase auth + tables (the shared Grudge Match account, friends, statuses), with the real RLS rules ----
 const DB={users_public:[],friends:[],user_statuses:[],users:[],gm_invites:[]},AUTH=[],pgSubs=new Set(),pgInv=new Set();let fid=1;
 // realtime for gm_invites: deliver to subscribers whose filter matches and who can see the row (RLS: either party)
@@ -33,6 +33,7 @@ function fakeQuery(table,uidOf){
     let rows=T.filter(r=>q.filters.every(f=>f(r)));
     if(table==='friends')rows=rows.filter(r=>uid&&(r.user_id===uid||r.friend_user_id===uid));   // RLS: either party
     if(table==='gm_invites')rows=rows.filter(r=>uid&&(r.from_user===uid||r.to_user===uid));
+    if(table==='gm_cross_invites'){rows=rows.filter(r=>uid&&(r.from_user===uid||r.to_user===uid));if(q.op!=='select')return {data:null,error:{message:'permission denied for table gm_cross_invites'}}}   // read only; changes go through the functions
     if(q.op==='select'){if(q.lim)rows=rows.slice(0,q.lim);rows=rows.map(r=>Object.assign({},r));return {data:q.single?(rows[0]||null):rows,error:null}}
     if(q.op==='insert'){const o=Object.assign({},q.payload);
       if(table==='friends'){if(!uid||o.user_id!==uid||!['pending','blocked'].includes(o.status))return {data:null,error:{message:'new row violates row-level security policy'}};
@@ -102,6 +103,13 @@ function fakeSupabase(){
       if(fn==='gm_my_invites'){const uid=A.uid(),T=DB.gm_cross_invites||[];return{data:T.filter(r=>uid&&r.to_user===uid&&['pending','later'].includes(r.status)&&new Date(r.expires_at)>new Date()).map(r=>Object.assign({},r)),error:null}}
       if(fn==='gm_respond_invite'){const uid=A.uid(),r=(DB.gm_cross_invites||[]).find(x=>x.id===a.p_invite&&x.to_user===uid),st={now:'accepted',later:'later',decline:'declined'}[a.p_choice];
         if(!r||!st)return{data:null,error:{message:'invite not found'}};crossLog.push(a);r.status=st;return{data:r.join_url,error:null}}
+      if(fn==='gm_send_invite'){const uid=A.uid(),T=DB.gm_cross_invites||(DB.gm_cross_invites=[]);sendLog.push(Object.assign({uid},a));
+        const fr=DB.friends.some(f=>f.status==='accepted'&&((f.user_id===uid&&f.friend_user_id===a.p_to)||(f.user_id===a.p_to&&f.friend_user_id===uid)));
+        if(!uid||!fr)return{data:null,error:{message:'You can only invite friends.'}};
+        if(T.filter(r=>r.from_user===uid&&Date.now()-new Date(r.created_at)<600000).length>=30)return{data:null,error:{message:'Too many invites; try again later.'}};
+        const r={id:'cx-'+(fid++),app:a.p_app,app_name:'Food Fight',game_ref:String(a.p_code),join_url:'https://foodfight.grudgematchgames.com/?room='+encodeURIComponent(a.p_code),from_user:uid,from_name:a.p_from_name,to_user:a.p_to,status:'pending',created_at:new Date().toISOString(),expires_at:new Date(Date.now()+20*60000).toISOString()};
+        T.push(r);return{data:r.id,error:null}}
+      if(fn==='gm_mark_joined'){const uid=A.uid();markLog.push(Object.assign({uid},a));(DB.gm_cross_invites||[]).forEach(r=>{if(r.to_user===uid&&r.app===a.p_app&&r.game_ref===a.p_game_ref&&['pending','accepted','later'].includes(r.status))r.status='joined'});return{data:null,error:null}}
       return{data:null,error:{message:'unknown'}};
     }
   }}};
@@ -538,13 +546,17 @@ const check=(cond,msg)=>{console.log((cond?'PASS ':'FAIL ')+msg);if(!cond)proces
    const inv=A.$('#friendsBody [data-inv]');check(!!inv&&/Bobby/.test(inv.closest('.frow').textContent),'friends: in a room, online friends get an Invite button');
    inv&&inv.click();await sleep(400);
    check(/Invited/.test(A.$('#friendsBody').textContent)&&!A.$('#friendsBody [data-inv]'),'invite: the button turns into Invited');
-   check(DB.gm_invites.length===1&&DB.gm_invites[0].game==='foodfight'&&/\?room=/.test(DB.gm_invites[0].url),'invite: saved as a shared Grudge Match invite with the room link');
+   const cx=()=>(DB.gm_cross_invites||[]).filter(r=>r.app==='foodfight'&&r.game_ref===code);
+   check(sendLog.length===1&&sendLog[0].p_app==='foodfight'&&sendLog[0].p_code===code&&sendLog[0].p_from_name==='Ann'&&cx().length===1&&cx()[0].join_url==='https://foodfight.grudgematchgames.com/?room='+code,'invite: sent through the shared gm_send_invite (app foodfight, the room code, Ann\'s name)');
+   check(DB.gm_invites.length===0,'invite: nothing goes into the old gm_invites table');
    const bt=B.$('#inviteToast');check(!!bt&&!bt.hidden&&/Ann/.test(bt.textContent)&&/invited you to their room/.test(bt.textContent),'invite: Bob gets Food Fight\'s own invite pop-up');
-   check(!B.$('.gmi')&&!B.$('.gmi-wrap')&&!A.$('.gmi'),'invite: no second card from the retired gm_invites drop-in');
+   await B.w.GMCrossInvites.poll();await sleep(100);
+   check(!B.$('.gmi')&&!B.$('.gmx[data-invite]')&&!A.$('.gmi'),'invite: Bob gets one card, not a second cross-game card for the same invite');
    B.$('#inviteJoin').click();await sleep(2400);
    check(!B.$('#ovLobby').hidden&&B.$('#roomCode').textContent===code,'friends: accepting puts Bob in Ann\'s room');
-   check(DB.gm_invites[0].status==='joined','invite: marked joined once Bob is in');
-   A.w.FFSocial.render();check(/Joined/.test(A.$('#friendsBody').textContent),'invite: Ann sees Bob joined');
+   check(cx()[0].status==='joined'&&markLog.some(x=>x.p_app==='foodfight'&&x.p_game_ref===code),'invite: arriving calls gm_mark_joined and the invite is marked joined');
+   await sleep(4800);
+   {const t=A.$('#friendsBody').textContent;check(/Joined/.test(t)&&!/Invited/.test(t),'invite: Ann\'s open list picks up "Joined" on its own (polled)');}
    // Cat befriends Ann, then joins Ann's room from her friends list
    C.$('#fSearch').value='ann';C.$('#fSearch').dispatchEvent(new C.w.Event('input'));await sleep(500);C.$('#friendsBody [data-add]').click();await sleep(500);
    A.w.FFSocial.open();await sleep(400);A.$('#friendsBody [data-accrow]').click();await sleep(2800);C.w.FFSocial.render();
@@ -556,16 +568,29 @@ const check=(cond,msg)=>{console.log((cond?'PASS ':'FAIL ')+msg);if(!cond)proces
    const bobId=DB.users_public.find(u=>u.username==='bob').id,ch=[...buses['gm:social'].chans].find(c=>true);
    buses['gm:social'].chans.forEach(c=>c._msg({t:'invite',to:bobId,from:DB.users_public.find(u=>u.username==='dan').id,name:'Dan',code:'999'}));await sleep(200);
    check(B.$('#inviteToast').hidden||!/Dan/.test(B.$('#inviteToast').textContent),'friends: an invite from a non-friend is ignored');
-   {const r=await D.w.FFSocial._gmSend({to:bobId,url:'https://foodfight.grudgematchgames.com/?room=999',code:'999'});
-    check(!!r.error&&DB.gm_invites.every(x=>x.from_name!=='Dan'),'invite: a non-friend can\'t send one ('+r.error+')');
-    const bad=await A.w.FFSocial._gmSend({to:bobId,url:'https://evil.example.com/?room=1',code:'1'});
-    check(!!bad.error,'invite: links outside Grudge Match sites are refused');}
+   {const r=await D.w.FFSocial._sendInvite(bobId,'999');
+    check(r.refused&&r.error==='You can only invite friends.'&&!(DB.gm_cross_invites||[]).some(x=>x.game_ref==='999'),'invite: a non-friend can\'t send one (the server\'s message is shown: '+r.error+')');}
+   // the host's list shows each answer: Joining now, Joins after their game, Declined, Expired
+   {const annId0=DB.users_public.find(u=>u.username==='ann').id,catId=DB.users_public.find(u=>u.username==='cat').id;
+    const row=(to,status,o)=>Object.assign({id:'cx-'+(fid++),app:'foodfight',app_name:'Food Fight',game_ref:code,join_url:'https://foodfight.grudgematchgames.com/?room='+code,from_user:annId0,from_name:'Ann',to_user:to,status,created_at:new Date().toISOString(),expires_at:new Date(Date.now()+600000).toISOString()},o);
+    const tagOf=name=>{const li=[...A.w.document.querySelectorAll('#friendsBody .frow')].find(r=>new RegExp(name).test(r.textContent));return li?li.querySelector('.ftag')&&li.querySelector('.ftag').textContent:''};
+    A.$('#bLobbyFriends').click();await sleep(300);
+    for(const [st,label,o] of [['accepted','Joining now'],['later','Joins after their game'],['declined','Declined'],['later','Expired',{expires_at:new Date(Date.now()-1000).toISOString()}]]){
+      DB.gm_cross_invites.push(row(catId,st,o));await A.w.FFSocial._loadAnswers();
+      check(new RegExp(label).test(tagOf('Cat')),'invite: Ann sees "'+label+'" for Cat ('+st+(o?', past expiry':'')+')');}}
+   // too many invites: the server's message shows, and no pop-up goes out
+   {const annId0=DB.users_public.find(u=>u.username==='ann').id,catId=DB.users_public.find(u=>u.username==='cat').id;
+    for(let i=0;i<30;i++)DB.gm_cross_invites.push({id:'flood'+i,app:'foodfight',game_ref:'1',from_user:annId0,to_user:catId,status:'declined',created_at:new Date().toISOString(),expires_at:new Date().toISOString()});
+    const r=await A.w.FFSocial._sendInvite(catId,code);
+    check(r.refused&&/Too many invites/.test(r.error),'invite: "Too many invites" comes back as the send\'s error');
+    DB.gm_cross_invites=DB.gm_cross_invites.filter(x=>!/^flood/.test(x.id));}
    // "Not now" on Food Fight's pop-up tells the host no
-   {const annId0=DB.users_public.find(u=>u.username==='ann').id,r=await A.w.FFSocial._gmSend({to:bobId,url:'https://foodfight.grudgematchgames.com/?room=4321',code:'4321'});
-    buses['gm:social'].chans.forEach(c=>c._msg({t:'invite',game:'foodfight',to:bobId,from:annId0,name:'Ann',code:'4321',gmi:r.id}));await sleep(200);
-    check(!B.$('#inviteToast').hidden,'invite: an invite to another room shows the pop-up');
+   {const annId0=DB.users_public.find(u=>u.username==='ann').id,r=await A.w.FFSocial._sendInvite(bobId,'4321');
+    buses['gm:social'].chans.forEach(c=>c._msg({t:'invite',game:'foodfight',to:bobId,from:annId0,name:'Ann',code:'4321'}));await sleep(200);
+    check(!r.error&&!B.$('#inviteToast').hidden,'invite: an invite to another room shows the pop-up');
     B.$('#inviteNo').click();await sleep(200);
-    check(B.$('#inviteToast').hidden&&DB.gm_invites.find(x=>x.id===r.id).status==='declined','invite: "Not now" marks the shared invite declined');}
+    const x=DB.gm_cross_invites.find(i=>i.game_ref==='4321'&&i.to_user===bobId);
+    check(B.$('#inviteToast').hidden&&x&&x.status==='declined'&&crossLog.some(c=>c.p_invite===x.id&&c.p_choice==='decline'&&c.p_from_app==='foodfight'),'invite: "Not now" declines the shared invite (gm_respond_invite)');}
    // invites sent TO you through gm_invites (e.g. from Broadside) no longer get their own card here
    {const annId0=DB.users_public.find(u=>u.username==='ann').id,row={id:'inv-x',from_user:annId0,to_user:bobId,from_name:'Ann',game:'broadside',game_name:'Broadside',url:'https://broadside.grudgematchgames.com/?room=ABCD',code:'ABCD',mode:'',status:'pending',expires_at:new Date(Date.now()+600000).toISOString()};
     DB.gm_invites.push(row);invChange('INSERT',row);await sleep(200);
