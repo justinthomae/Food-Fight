@@ -1,16 +1,15 @@
-# Grudge Match invites (shared by every game)
+# Grudge Match invites (`gm_invites`, the older shared table)
 
-One player invites a friend into their game session. Whichever Grudge Match game the friend is in shows:
-
-> **Ann** invited you to play **Food Fight** · Packed Lunch · room 605
-> [Join now] [After this game] [x]
-
-- **Join now / Accept invite**: same game, straight into the room; another game, it opens that game's link.
-- **After this game** (shown only mid-match): when their match ends they get a 4-second heads-up
-  ("Game over, joining Ann in Food Fight…", Go now / Stay here), then go.
-- **x**: declines.
-- The host gets a note for every answer: "Tim accepted, on the way!", "Tim accepted, joining after their
-  current game.", "Tim can't make it right now.", "Tim joined." Food Fight's invite list also shows it per friend.
+> **Food Fight no longer shows these.** The studio standardised on `public.gm_cross_invites` (see the last
+> section). Food Fight's copy of the `gm_invites` drop-in, `js/gm-invites.js`, was retired in v1.22.1 because its
+> card overlapped the `gm_cross_invites` card at the top of the screen. The last version of that file is in this
+> repo's history (commit 2412cce) for games that still use it.
+>
+> Food Fight still **sends** room invites into `gm_invites` (`gmSend` in `js/social.js`), because
+> `gm_cross_invites` has no sender Food Fight can use (its live senders are game-specific: `le_invite`,
+> `sd_online_invite`). Friends in BoomTown, Fliptide… keep getting them there; the answers show in Food Fight's
+> Invite friends list. Friends in Food Fight get the invite over the `gm:social` channel as Food Fight's own
+> pop-up (Join / Not now), which marks the shared invite joined or declined.
 
 ## Storage: `public.gm_invites` (Supabase project zhfkcjzajazsrpqeyaea)
 
@@ -29,30 +28,12 @@ Migration: `supabase/migrations/20261024000007_gm_invites.sql` in this repo.
 RLS: you see invites you sent or got; only the status can change after sending; 30 invites per 10 minutes.
 The table is in the `supabase_realtime` publication.
 
-## Adding it to a game
+## How the old drop-in worked (for games that still use it)
 
-Copy `js/gm-invites.js` (plain JS, no dependencies, styles itself, ASCII only) and call once, after the
-game's supabase-js client exists (it must hold the player's Grudge Match session):
-
-```js
-GMInvites.init({
-  supabase,                         // the game's supabase-js v2 client
-  game: 'boomtown', gameName: 'BoomTown',
-  isBusy: () => inAMatch,           // true while a match is being played
-  joinHere: inv => false,           // optional: invite to THIS game -> join inv.code in-app, return true
-  myName: () => 'Ann',              // only needed to send invites
-});
-GMInvites.send({ to, toName, url, code, mode });   // send (host side)
-GMInvites.status(friendId, code);                  // 'pending' | 'now' | 'later' | 'declined' | 'joined' | null
-GMInvites.onChange(fn);                            // re-render your list when answers come in
-```
-
-A game opened from an invite link gets `?gmi=<id>`; `init` marks that invite `joined` and removes the
-parameter. The game's own `?room=` handling does the joining.
-
-Games that can't use it yet: Riot Race (Unity, no supabase-js session in the page), Broadside (its
-supabase-js session is never refreshed after its own server takes over), On Belay (its CLAUDE.md forbids
-writing to the shared project's tables).
+`js/gm-invites.js` (removed here, see commit 2412cce) showed "Ann invited you to play Food Fight"
+[Join now] [After this game] [x], told the host each answer, and marked `?gmi=<id>` arrivals joined.
+Food Fight keeps only that last part: opening Food Fight from an invite link with `?gmi=<id>` still marks the
+invite `joined` and removes the parameter; the game's own `?room=` handling does the joining.
 
 ## Invites from the other studio games (`gm_cross_invites`)
 

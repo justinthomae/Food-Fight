@@ -8,6 +8,8 @@
 //  - public.users_public: other players' usernames for search (no emails; other games' pictures are not used here)
 //  - public.gm_app_profiles, app 'foodfight': this game's own picture (your fighter), name and stats, so a picture never carries over between games
 //  - public.user_statuses: BoomTown's "online" heartbeat (read only here, so BoomTown activity shows too)
+//  - public.gm_invites: room invites you send are saved here so friends in BoomTown, Fliptide… get them (send only;
+//    invites to you come from friends in Food Fight over 'gm:social' or from other games through gm_cross_invites)
 //  - Realtime channel 'gm:social' (shared by the Grudge Match games): presence {uid, game, name, st, mode} +
 //    invite / room-code messages; Food Fight acts only on messages for game 'foodfight' from accepted friends
 window.FFSocial=(function(){
@@ -40,14 +42,6 @@ window.FFSocial=(function(){
     bridge=br;sb=NET.client();
     try{const {data}=await sb.auth.getSession();await setUser(data&&data.session&&data.session.user)}catch(e){}
     sb.auth.onAuthStateChange((ev,s)=>{setUser(s&&s.user)});
-    // invites shared with every Grudge Match game: a friend in BoomTown, Fliptide… gets yours there, and theirs show up here
-    if(window.GMInvites){
-      window.GMInvites.init({supabase:sb,game:APP,gameName:'Food Fight',myName:()=>nameOf(me),
-        isBusy:()=>bridge.busy?bridge.busy():bridge.state().st==='playing',
-        joinHere:inv=>{if(!/^\d{3,5}$/.test(String(inv.code||'')))return false;const s=bridge.state();if(s.code===String(inv.code))return true;bridge.join(String(inv.code));return true},
-        sound:()=>bridge.sfx&&bridge.sfx('earn')});
-      window.GMInvites.onChange(()=>{if(view==='invite')render()});
-    }
     // invites from other Grudge Match games (Lost Empires, Silent Depths...) through the studio's shared gm_cross_invites
     if(window.GMCrossInvites)window.GMCrossInvites.init({supabase:sb,app:APP,
       isBusy:()=>bridge.busy?bridge.busy():bridge.state().st==='playing',sound:()=>bridge.sfx&&bridge.sfx('earn')});
@@ -60,6 +54,8 @@ window.FFSocial=(function(){
     if(ch){try{await sb.removeChannel(ch)}catch(e){}ch=null}
     if(old){try{await sb.removeChannel(old)}catch(e){}old=null}
     if(fch){try{await sb.removeChannel(fch)}catch(e){}fch=null}
+    if(gmch){try{await sb.removeChannel(gmch)}catch(e){}gmch=null}
+    gmSent.clear();
     if(user){
       try{const {data}=await sb.from('users_public').select('id,username,display_name').eq('id',user.id).maybeSingle();me=data||{id:user.id,username:(user.email||'').split('@')[0]}}catch(e){me={id:user.id}}
       // your Food Fight profile: its fighter follows you to every device; the first time, it starts from the fighter picked here
@@ -70,6 +66,7 @@ window.FFSocial=(function(){
       await loadFriends();joinSocial();
       // friend requests and accepts show up straight away
       try{fch=sb.channel('ff-friends-'+user.id).on('postgres_changes',{event:'*',schema:'public',table:'friends'},()=>loadFriends()).subscribe()}catch(e){}
+      gmWatch();
       if(bridge&&bridge.signedIn)bridge.signedIn(nameOf(me));
     }
     render();badge();
@@ -204,15 +201,43 @@ window.FFSocial=(function(){
     wantCode=id;send({t:'ask',to:id});msg='Asking for their room…';render();
     clearTimeout(askT);askT=setTimeout(()=>{if(wantCode===id){wantCode=null;msg='They didn’t answer. They may have just left their room.';render()}},5000);
   }
-  // invites go through the shared Grudge Match invites (they reach your friend in whichever game they're in);
-  // if that isn't available, the live channel still reaches friends who are in Food Fight
+  // an invite is saved in the shared gm_invites table (it reaches your friend in BoomTown, Fliptide… and you see
+  // their answer) and also sent on the live channel, which is how friends in Food Fight get it (the invite pop-up)
   async function invite(id,quiet){
     const s=bridge.state();if(!s.code)return;
     sent.set(id,{code:s.code,at:Date.now()});
-    const GI=window.GMInvites,name=nameOf(people.get(id));
-    const r=GI?await GI.send({to:id,toName:name,url:roomUrl(s.code),code:s.code,mode:bridge.modeName?bridge.modeName(s.mode):s.mode}):{error:'off'};
-    if(r.error){send({t:'invite',to:id,code:s.code,mode:s.mode});if(!statusOf(id).ff&&!quiet)msg=`${name} isn't in Food Fight right now, so the invite may not reach them.`}
+    const name=nameOf(people.get(id));
+    const r=await gmSend({to:id,url:roomUrl(s.code),code:s.code,mode:bridge.modeName?bridge.modeName(s.mode):s.mode});
+    send({t:'invite',to:id,code:s.code,mode:s.mode,gmi:r.id||undefined});
+    if(r.error&&!statusOf(id).ff&&!quiet)msg=`${name} isn't in Food Fight right now, so the invite may not reach them.`;
     if(!quiet){if(!msg)msg=`Invite sent to ${name}.`;render()}
+  }
+  // ---------- sending into public.gm_invites (the older shared invites table) ----------
+  // Food Fight no longer shows gm_invites invites sent TO you (invites from other games come through
+  // gm_cross_invites, js/gm-cross-invites.js), but it still sends them: the studio's gm_cross_invites has no
+  // sender Food Fight can use, and BoomTown, Fliptide… still read gm_invites. RLS: friends only, 20 minutes.
+  const GMI_URL=/^https:\/\/([a-z0-9-]+\.)*(grudgematchgames\.com|boomtowngame\.com)(\/[A-Za-z0-9\/?=&#._~%-]*)?$/,GMI_ID=/^[A-Za-z0-9-]{1,64}$/;
+  const gmSent=new Map();let gmch=null;   // invite id -> {to,code,status,at}
+  async function gmSend({to,url,code,mode}){
+    if(!user)return {error:'Sign in first'};
+    if(!GMI_URL.test(url||''))return {error:'That link can’t be shared'};
+    const row={to_user:to,from_user:user.id,from_name:String(nameOf(me)).slice(0,40),game:APP,game_name:'Food Fight',url,code:String(code||'').slice(0,24),mode:String(mode||'').slice(0,40)};
+    try{
+      const {data,error}=await sb.from('gm_invites').insert(row).select().single();
+      if(error)return {error:/row-level/.test(error.message||'')?'You can only invite friends':error.message||'Couldn’t send'};
+      const r=Array.isArray(data)?data[0]:data;
+      gmSent.set(r.id,{to,code:row.code,status:'pending',at:Date.now()});return {id:r.id};
+    }catch(e){return {error:'Couldn’t send'}}
+  }
+  const gmSetStatus=(id,status)=>{if(GMI_ID.test(String(id||'')))sb.from('gm_invites').update({status}).eq('id',id).then(()=>{},()=>{})};
+  // the latest invite you sent this friend for this room code: 'pending'|'now'|'later'|'declined'|'joined'|null
+  function gmStatus(to,code){let best=null;gmSent.forEach(x=>{if(x.to===to&&x.code===String(code)&&(!best||x.at>best.at))best=x});return best?best.status:null}
+  function gmWatch(){
+    // the answers to invites you sent show in the Invite friends list
+    try{gmch=sb.channel('ff-gmi-'+user.id).on('postgres_changes',{event:'UPDATE',schema:'public',table:'gm_invites',filter:'from_user=eq.'+user.id},p=>{
+      const r=p&&p.new,x=r&&gmSent.get(r.id);if(!x||x.status===r.status)return;x.status=r.status;if(view==='invite')render()}).subscribe()}catch(e){}
+    // opened from a Food Fight invite in another game (?gmi=<id>): tell the host you joined; ?room= does the joining
+    try{const q=new URLSearchParams(location.search),g=q.get('gmi');if(g){gmSetStatus(g,'joined');q.delete('gmi');const s=q.toString();history.replaceState(null,'',location.pathname+(s?'?'+s:'')+location.hash)}}catch(e){}
   }
   const roomUrl=code=>{const o=/grudgematchgames\.com$/.test(location.hostname)?location.origin:'https://foodfight.grudgematchgames.com';return o+'/?room='+encodeURIComponent(code)};
   // invited to the room you're in now (a new room starts fresh); after 20s you can send it again
@@ -293,11 +318,11 @@ window.FFSocial=(function(){
   // friends in Food Fight get an Invite each (a friend mid-match sees it when their match ends);
   // friends elsewhere are listed without a button; the share link covers everyone else
   function renderInvite(box,s,L,row,stLine){
-    const mode=bridge.modeName?bridge.modeName(s.mode):'',now=Date.now(),GI=window.GMInvites;
+    const mode=bridge.modeName?bridge.modeName(s.mode):'',now=Date.now();
     // one list: everyone you're friends with, the ones online first, each with their own Invite button
     const friends=L.friends.slice().sort((x,y)=>(y.s.rank>=2)-(x.s.rank>=2));
     const TAG={pending:'Invited',now:'On the way',later:'After their game',declined:'Can’t make it',joined:'Joined'};
-    const btn=x=>{const v=invited(x.id),st=GI&&v?GI.status(x.id,s.code):null,tag=st?TAG[st]:v?'Invited':'';
+    const btn=x=>{const v=invited(x.id),st=v?gmStatus(x.id,s.code):null,tag=st?TAG[st]:v?'Invited':'';
       if(!v)return`<button class="btn small go" data-inv="${esc(x.id)}">Invite</button>`;
       const again=(st==='pending'||st==='declined'||!st)&&now-v.at>SEND_AGAIN_MS;
       return`<span class="ftag${st==='now'||st==='later'||st==='joined'?' ok':''}">${esc(tag)}${st==='now'||st==='joined'||st==='later'?' ✓':''}</span>${again?`<button class="btn small" data-inv="${esc(x.id)}">Again</button>`:''}`};
@@ -325,8 +350,8 @@ window.FFSocial=(function(){
   function openInvite(){view='invite';msg='';searchRes=null;searchQ='';loadFriends();render()}
   // the invite pop-up's buttons
   document.addEventListener('click',e=>{
-    if(e.target.closest('#inviteJoin')){const m=pendingInvite;$('#inviteToast').hidden=true;pendingInvite=null;if(m)bridge.join(String(m.code))}
-    else if(e.target.closest('#inviteNo')){$('#inviteToast').hidden=true;pendingInvite=null}
+    if(e.target.closest('#inviteJoin')){const m=pendingInvite;$('#inviteToast').hidden=true;pendingInvite=null;if(m){bridge.join(String(m.code));if(m.gmi)gmSetStatus(m.gmi,'joined')}}
+    else if(e.target.closest('#inviteNo')){const m=pendingInvite;$('#inviteToast').hidden=true;pendingInvite=null;if(m&&m.gmi)gmSetStatus(m.gmi,'declined')}
   });
-  return {enabled:true,init,open,openInvite,render,stateChanged,fighterChanged,get user(){return user},get me(){return me},_lists:lists,_pres:pres};
+  return {enabled:true,init,open,openInvite,render,stateChanged,fighterChanged,get user(){return user},get me(){return me},_lists:lists,_pres:pres,_gmSend:gmSend};
 })();
