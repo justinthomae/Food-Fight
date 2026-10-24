@@ -548,6 +548,14 @@ const check=(cond,msg)=>{console.log((cond?'PASS ':'FAIL ')+msg);if(!cond)proces
    buses['gm:social'].members.set(annId,{uid:annId,game:'broadside',name:'Ann',st:'room',mode:''});buses['gm:social'].chans.forEach(c=>c._sync());await sleep(300);B.w.FFSocial.render();
    const annRow=[...B.w.document.querySelectorAll('#friendsBody .frow')].find(r=>/Ann/.test(r.textContent));
    check(annRow&&/In a Broadside lobby/.test(annRow.textContent)&&!annRow.querySelector('[data-join]'),'friends: a friend in Broadside shows "In a Broadside lobby", no Join');
+   // a friend on an older Food Fight (old 'ff:social' channel) still shows as in Food Fight
+   buses['gm:social'].members.delete(annId);buses['gm:social'].chans.forEach(c=>c._sync());
+   check(!!buses['ff:social'],'friends: also listens on the old Food Fight channel');
+   if(buses['ff:social']){buses['ff:social'].members.set(annId,{uid:annId,name:'Ann',st:'room',mode:''});buses['ff:social'].chans.forEach(c=>c._sync())}
+   await sleep(300);B.w.FFSocial.render();
+   const annOld=[...B.w.document.querySelectorAll('#friendsBody .frow')].find(r=>/Ann/.test(r.textContent));
+   check(annOld&&/In a Food Fight room/.test(annOld.textContent)&&!!annOld.querySelector('[data-join],[data-inv]'),'friends: a friend on an older copy of Food Fight shows as in Food Fight, with Join or Invite');
+   if(buses['ff:social']){buses['ff:social'].members.delete(annId);buses['ff:social'].chans.forEach(c=>c._sync())}
    // Bob removes Ann; signing out goes back to the sign-in screen
    B.$('#bLobbyFriends').click();await sleep(300);B.w.FFSocial.open();await sleep(300);B.w.confirm=()=>true;B.$('#friendsBody [data-unf]').click();await sleep(500);
    check(!DB.friends.some(r=>[r.user_id,r.friend_user_id].includes(bobId)),'friends: removing a friend deletes the row');

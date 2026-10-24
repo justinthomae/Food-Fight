@@ -47,6 +47,7 @@ window.FFSocial=(function(){
     if((u&&u.id)===(user&&user.id))return;
     user=u||null;me=null;prof=null;fprofs.clear();rows=[];people.clear();bt.clear();pres.clear();searchRes=null;
     if(ch){try{await sb.removeChannel(ch)}catch(e){}ch=null}
+    if(old){try{await sb.removeChannel(old)}catch(e){}old=null}
     if(fch){try{await sb.removeChannel(fch)}catch(e){}fch=null}
     if(user){
       try{const {data}=await sb.from('users_public').select('id,username,display_name').eq('id',user.id).maybeSingle();me=data||{id:user.id,username:(user.email||'').split('@')[0]}}catch(e){me={id:user.id}}
@@ -135,19 +136,33 @@ window.FFSocial=(function(){
   }
 
   // ---------- who's online (Realtime presence) ----------
+  // older Food Fight copies (before v1.19.1) still use 'ff:social'; we sit in both so everyone sees everyone
+  let old=null,oldTrack='';
   function joinSocial(){
     if(!user||ch)return;
+    try{old=sb.channel('ff:social',{config:{broadcast:{self:false,ack:false},presence:{key:user.id}}});
+      old.on('presence',{event:'sync'},()=>{readPres();render();badge()});
+      old.on('broadcast',{event:'m'},({payload})=>onMsg(payload||{}));
+      old.subscribe(st=>{if(st==='SUBSCRIBED'){oldTrack='';track()}})}catch(e){old=null}
     ch=sb.channel('gm:social',{config:{broadcast:{self:false,ack:false},presence:{key:user.id}}});
     ch.on('presence',{event:'sync'},()=>{readPres();render();badge()});
     ch.on('broadcast',{event:'m'},({payload})=>onMsg(payload||{}));
     ch.subscribe(st=>{if(st==='SUBSCRIBED'){lastTrack='';track()}});
   }
-  function readPres(){pres.clear();if(!ch)return;const st=ch.presenceState();for(const k in st){const p=st[k]&&st[k][0];if(p&&p.uid)pres.set(p.uid,p)}}
+  const oldOnly=new Set();   // friends we can only reach on the old channel
+  function readPres(){
+    pres.clear();oldOnly.clear();
+    const add=(c,legacy)=>{if(!c)return;let st={};try{st=c.presenceState()||{}}catch(e){}
+      for(const k in st){const p=st[k]&&st[k][0];if(!p||!p.uid||pres.has(p.uid))continue;
+        if(legacy){pres.set(p.uid,Object.assign({game:APP},p));oldOnly.add(p.uid)}else pres.set(p.uid,p)}};
+    add(ch,false);add(old,true);
+  }
   function track(){
     if(!ch||!user||!bridge)return;
     const s=bridge.state()||{},info={uid:user.id,game:APP,name:nameOf(me),av:s.av||'',st:s.st||'menu',mode:s.mode||''};
-    const k=JSON.stringify(info);if(k===lastTrack)return;lastTrack=k;
-    ch.track(info).catch(()=>{});
+    const k=JSON.stringify(info);
+    if(k!==lastTrack){lastTrack=k;ch.track(info).catch(()=>{})}
+    if(old&&k!==oldTrack){oldTrack=k;old.track(info).catch(()=>{})}
   }
   function statusOf(id){
     const p=pres.get(id);
@@ -164,7 +179,7 @@ window.FFSocial=(function(){
   }
   const ago=ms=>{const m=Math.round(ms/60000);if(m<60)return`${Math.max(1,m)}m ago`;const h=Math.round(m/60);if(h<48)return`${h}h ago`;return`${Math.round(h/24)}d ago`};
   const isFriend=id=>rows.some(r=>r.status==='accepted'&&other(r)===id)&&!rows.some(r=>r.status==='blocked'&&other(r)===id);
-  function send(m){if(ch)ch.send({type:'broadcast',event:'m',payload:Object.assign({from:user.id,name:nameOf(me),game:APP},m)}).catch(()=>{})}
+  function send(m){const c=m.to&&oldOnly.has(m.to)&&old?old:ch;if(c)c.send({type:'broadcast',event:'m',payload:Object.assign({from:user.id,name:nameOf(me),game:APP},m)}).catch(()=>{})}
   function onMsg(m){
     if(!user||m.to!==user.id||!isFriend(m.from))return;   // only friends can reach you
     if((m.game||APP)!==APP)return;                        // another game's invite isn't for this page

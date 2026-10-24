@@ -1,6 +1,6 @@
 // Food Fight UI: drawing, input, settings, practice mode and the online lobby.
 (function(){
-const VERSION='1.20.0';
+const VERSION='1.20.1';
 let spec=null; // board being spectated after you're knocked out
 // how far we are between two 60Hz game steps (0..1): drawing uses it so motion is smooth on 90/120/144Hz screens too
 let ALPHA=0,lastDraw=performance.now(),drawDt=16,SIDEW=0;
@@ -2089,6 +2089,21 @@ document.addEventListener('touchend',e=>{
 document.addEventListener('touchmove',e=>{if(e.touches&&e.touches.length>1)e.preventDefault()},{passive:false});   // pinch
 
 /* ---------- offline: save the game on the device ---------- */
+// a game left open for days keeps old code in memory: look for a newer version now and then, and reload
+// quietly while you're on the menu (never in a room or a match)
+(function(){
+  if(!/^https?:$/.test(location.protocol)||/claude\.ai|claudeusercontent/.test(location.hostname))return;
+  let newer=false,last=0;
+  const idle=()=>!inRoom&&!(G&&!G.over&&!G.paused)&&$('#ovStart')&&!$('#ovStart').hidden&&document.visibilityState!=='hidden';
+  async function check(){
+    if(Date.now()-last<60000)return;last=Date.now();
+    try{const r=await fetch('js/app.js',{cache:'no-store'});const m=/const VERSION='([^']+)'/.exec(await r.text());if(m&&m[1]!==VERSION)newer=true}catch(e){}
+    if(newer&&idle())location.reload();
+  }
+  setInterval(()=>{if(newer){if(idle())location.reload()}else check()},5*60*1000);
+  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')check()});
+  window.__ffUpdate={check,get newer(){return newer}};
+})();
 if('serviceWorker' in navigator&&(location.protocol==='https:'||location.hostname==='localhost')&&!/claude\.ai|claudeusercontent/.test(location.hostname)){
   window.addEventListener('load',()=>{navigator.serviceWorker.register('sw.js').catch(()=>{})});
 }
