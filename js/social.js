@@ -215,14 +215,14 @@ window.FFSocial=(function(){
   }
   // ---------- the studio's shared invites (public.gm_cross_invites) ----------
   // rpc('gm_send_invite') checks you're friends and builds the join link (https://foodfight.grudgematchgames.com/?room=CODE)
-  // from the code. Its own refusals ('You can only invite friends.', 'Too many invites; try again later.', 'No such room.')
-  // are shown as they are; anything else (network...) still lets the live-channel pop-up through.
+  // from the code. Its own refusals (raised in the function, code P0001: 'You can only invite friends.', 'Too many invites;
+  // try again later.', 'No such room.'...) are shown as they are; anything else (network...) still lets the pop-up through.
   const REFUSED=/only invite friends|too many invites|no such room/i;
   async function sendInvite(to,code){
     if(!user)return {error:'Sign in first.',refused:true};
     try{const {error}=await sb.rpc('gm_send_invite',{p_app:APP,p_to:to,p_code:String(code),p_from_name:String(nameOf(me)).slice(0,40)});
       if(!error)return {};
-      const m=String(error.message||'');return REFUSED.test(m)?{error:m,refused:true}:{error:'Couldn’t reach Grudge Match.'};
+      const m=String(error.message||'');return m&&(error.code==='P0001'||REFUSED.test(m))?{error:m,refused:true}:{error:'Couldn’t reach Grudge Match.'};
     }catch(e){return {error:'Couldn’t reach Grudge Match.'}}
   }
   // their answers: your own rows for this room, read back every few seconds while the Invite friends list is open

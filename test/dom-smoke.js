@@ -105,8 +105,10 @@ function fakeSupabase(){
         if(!r||!st)return{data:null,error:{message:'invite not found'}};crossLog.push(a);r.status=st;return{data:r.join_url,error:null}}
       if(fn==='gm_send_invite'){const uid=A.uid(),T=DB.gm_cross_invites||(DB.gm_cross_invites=[]);sendLog.push(Object.assign({uid},a));
         const fr=DB.friends.some(f=>f.status==='accepted'&&((f.user_id===uid&&f.friend_user_id===a.p_to)||(f.user_id===a.p_to&&f.friend_user_id===uid)));
-        if(!uid||!fr)return{data:null,error:{message:'You can only invite friends.'}};
-        if(T.filter(r=>r.from_user===uid&&Date.now()-new Date(r.created_at)<600000).length>=30)return{data:null,error:{message:'Too many invites; try again later.'}};
+        const no=message=>({data:null,error:{code:'P0001',message}});   // raise exception, as PostgREST reports it
+        if(!a.p_to||a.p_to===uid)return no('Pick a friend to invite.');
+        if(!uid||!fr)return no('You can only invite friends.');
+        if(T.filter(r=>r.from_user===uid&&Date.now()-new Date(r.created_at)<3600000).length>=30)return no('Too many invites; try again later.');
         const r={id:'cx-'+(fid++),app:a.p_app,app_name:'Food Fight',game_ref:String(a.p_code),join_url:'https://foodfight.grudgematchgames.com/?room='+encodeURIComponent(a.p_code),from_user:uid,from_name:a.p_from_name,to_user:a.p_to,status:'pending',created_at:new Date().toISOString(),expires_at:new Date(Date.now()+20*60000).toISOString()};
         T.push(r);return{data:r.id,error:null}}
       if(fn==='gm_mark_joined'){const uid=A.uid();markLog.push(Object.assign({uid},a));(DB.gm_cross_invites||[]).forEach(r=>{if(r.to_user===uid&&r.app===a.p_app&&r.game_ref===a.p_game_ref&&['pending','accepted','later'].includes(r.status))r.status='joined'});return{data:null,error:null}}
@@ -570,6 +572,8 @@ const check=(cond,msg)=>{console.log((cond?'PASS ':'FAIL ')+msg);if(!cond)proces
    check(B.$('#inviteToast').hidden||!/Dan/.test(B.$('#inviteToast').textContent),'friends: an invite from a non-friend is ignored');
    {const r=await D.w.FFSocial._sendInvite(bobId,'999');
     check(r.refused&&r.error==='You can only invite friends.'&&!(DB.gm_cross_invites||[]).some(x=>x.game_ref==='999'),'invite: a non-friend can\'t send one (the server\'s message is shown: '+r.error+')');}
+   {const annId0=DB.users_public.find(u=>u.username==='ann').id,r=await A.w.FFSocial._sendInvite(annId0,code);
+    check(r.refused&&r.error==='Pick a friend to invite.','invite: any other refusal from the function is shown as it is ('+r.error+')');}
    // the host's list shows each answer: Joining now, Joins after their game, Declined, Expired
    {const annId0=DB.users_public.find(u=>u.username==='ann').id,catId=DB.users_public.find(u=>u.username==='cat').id;
     const row=(to,status,o)=>Object.assign({id:'cx-'+(fid++),app:'foodfight',app_name:'Food Fight',game_ref:code,join_url:'https://foodfight.grudgematchgames.com/?room='+code,from_user:annId0,from_name:'Ann',to_user:to,status,created_at:new Date().toISOString(),expires_at:new Date(Date.now()+600000).toISOString()},o);
