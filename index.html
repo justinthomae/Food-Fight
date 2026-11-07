@@ -494,6 +494,28 @@ button.nextbox:active{background:var(--gold)}
 .seats li.bot .dot{background:var(--muted)}
 .check{display:flex;align-items:center;gap:10px;font-weight:600}
 .check input{width:20px;height:20px;accent-color:var(--gold)}
+/* start menu: Play + Friends pinned to the bottom of the screen, never below the fold */
+.playbar{position:sticky;bottom:0;z-index:3;display:flex;gap:8px;align-items:stretch;margin:-6px -12px 0;padding:10px 12px calc(10px + env(safe-area-inset-bottom,0px));background:linear-gradient(rgba(0,0,0,0),var(--panel) 14px);border-radius:0 0 16px 16px}
+.playbar #bOnline{flex:1 1 auto;min-width:0}
+.playbar .friendsbtn{flex:0 0 auto;padding:0 14px;min-height:52px}
+/* phones: a smaller logo and fighter tiles so the menu down to Play fits on one screen */
+@media (max-width:600px){
+  #ovStart .card{gap:11px;padding-top:6px}
+  #ovStart .logo{width:auto;max-width:min(100%,300px);max-height:clamp(96px,19svh,190px);margin:-4px auto -6px}
+  #picker{gap:5px}
+  #picker .pick{padding:3px 2px 5px;border-radius:12px;gap:2px}
+  #picker .pick img{height:clamp(40px,6.2svh,58px)}
+  #picker .pick span{font-size:11px}
+  #ovStart .field input{padding-top:10px;padding-bottom:10px}
+  #ovStart .modehow{min-height:0}
+  .overlay.sheet#ovStart{padding-bottom:0}
+  .playbar{margin:-4px max(-20px,calc(0px - env(safe-area-inset-right,0px) - 20px)) 0;padding-left:20px;padding-right:20px;border-radius:0}
+}
+@media (max-height:700px) and (max-width:600px){
+  #ovStart .logo{max-height:84px}
+  #picker .pick span{font-size:10px}
+  #picker .pick img{height:36px}
+}
 /* fighters */
 .av{width:28px;height:28px;border-radius:50%;object-fit:cover;flex:none;border:2px solid var(--outline);background:var(--gold);display:block}
 .picker{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
@@ -704,8 +726,11 @@ html.calm .fly{transition:none}html.calm .movepad.reversed{animation:none}html.c
     <div class="lab">Game mode</div>
     <div class="variants" id="variants" role="radiogroup" aria-label="Game mode"></div>
     <p class="modehow" id="modeHow"></p>
+    <!-- Play and Friends stay on screen: the bar sticks to the bottom while the rest of the menu scrolls -->
+    <div class="playbar" id="playbar">
     <button class="btn primary big" id="bOnline">Play<small id="onlineNote" hidden></small><span class="livetag" id="roomsLive" hidden></span></button>
     <button class="btn friendsbtn" id="bFriends" type="button" hidden><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.6-3.6 3.2-5.5 6.5-5.5s5.9 1.9 6.5 5.5"/><circle cx="17" cy="9" r="2.6"/><path d="M16 14.6c2.8.1 4.9 1.8 5.5 5.4"/></svg><span id="friendsLab">Friends</span><span class="fbadge" hidden></span></button>
+    </div>
     <div class="lab">Practice vs bots</div>
     <div class="seg three" id="mode">
       <button aria-pressed="true" data-m="duel" data-size="2">Duel<small>1 vs 1</small></button>
