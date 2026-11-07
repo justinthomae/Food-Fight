@@ -628,7 +628,9 @@ button.nextbox:active{background:var(--gold)}
   .opps.deskgrid .foe .who{flex-direction:row;flex-wrap:wrap;gap:4px 8px;align-items:center;justify-content:center;width:100%}
   .opps.deskgrid .foe canvas{width:var(--mw,60px);height:calc(var(--mw,60px)*2)}
 }
-@media (prefers-reduced-motion:reduce){.fly{transition:none}.movepad.reversed{animation:none}.slot.new{animation:none}}
+html.calm .fly{transition:none}html.calm .movepad.reversed{animation:none}html.calm .slot.new{animation:none}
+#connBanner{position:fixed;left:50%;top:calc(env(safe-area-inset-top,0px) + 8px);transform:translateX(-50%);z-index:9999;max-width:calc(100% - 24px);padding:8px 16px;border-radius:999px;background:rgba(20,22,34,.94);color:#EEF0FA;font-family:inherit;font-size:14px;font-weight:700;line-height:1.3;white-space:nowrap;box-shadow:0 4px 16px rgba(0,0,0,.35);pointer-events:none;text-align:center}
+#connBanner[hidden]{display:none}
 </style>
 </head>
 <body>
@@ -804,6 +806,17 @@ button.nextbox:active{background:var(--gold)}
       <button data-t="night">Night</button>
       <button data-t="day">Day</button>
       <button data-t="auto">Device</button>
+    </div>
+    <div class="lab">Motion</div>
+    <div class="seg three" id="motion">
+      <button data-m="full">Full<small>Shakes on big hits</small></button>
+      <button data-m="reduced">Reduced<small>No shaking</small></button>
+      <button data-m="auto">Device<small>Phone setting</small></button>
+    </div>
+    <div class="lab buzzRow" hidden>Vibration</div>
+    <div class="seg buzzRow" id="buzz" hidden>
+      <button data-b="on">On<small>Feel matches, attacks and knockouts</small></button>
+      <button data-b="off">Off</button>
     </div>
     <p>Every food and every symbol has its own outline, so you can play by shape in any color set. In Food art the colors tint the plate behind each food, whatever the cuisine. Your cuisine only changes what you see: opponents see their own. Saved on this device.</p>
   </div>

@@ -8,7 +8,8 @@ window.FFNet=(function(){
 
   function init(){
     if(!client)client=window.supabase.createClient(cfg.supabaseUrl,cfg.supabaseAnonKey,{
-      auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}   // signed-in Grudge Match accounts stay signed in,realtime:{params:{eventsPerSecond:30}}
+      auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true},   // signed-in Grudge Match accounts stay signed in
+      realtime:{params:{eventsPerSecond:30}}
     });
   }
   function makeCode(){return String(100+Math.floor(Math.random()*900))}  // 3 digits, quick to read out and type
@@ -27,23 +28,46 @@ window.FFNet=(function(){
     return list;
   }
   function present(id){if(!ch)return false;const st=ch.presenceState();for(const k in st){const p=st[k]&&st[k][0];if(p&&p.id===id)return true}return false}
+  // ---- connection health: a room channel can drop after joining (Wi-Fi to cellular, tunnel, server blip).
+  // Report it ('lost' / 'back') so the game can say so, let supabase-js try to rejoin by itself, and if it hasn't
+  // come back within REJOIN_MS, open a fresh channel for the same room (same joinedAt, so host order is kept).
+  const REJOIN_MS=8000,RETRY_MS=5000;
+  let gen=0,lostAt=0,retryT=null;
+  function connEvent(s){if(handlers.conn)try{handlers.conn(s)}catch(e){}}
+  function open(){
+    const my=++gen,c=client.channel('ff:'+code,{config:{broadcast:{self:false,ack:false},presence:{key:me.id}}});
+    ch=c;
+    c.on('broadcast',{event:'m'},({payload})=>{if(payload&&handlers.message)handlers.message(payload)});
+    c.on('presence',{event:'sync'},()=>{members=readMembers();if(handlers.members)handlers.members(members)});
+    c.on('presence',{event:'leave'},({leftPresences})=>{(leftPresences||[]).forEach(p=>{if(p&&p.id&&handlers.left)handlers.left(p.id)})});
+    return new Promise((resolve,reject)=>{
+      let first=true;
+      const to=setTimeout(()=>{if(first){first=false;reject(new Error('TIMED_OUT'))}},10000);
+      c.subscribe(async status=>{
+        if(my!==gen)return;   // an older channel (left, or replaced by a rejoin)
+        if(status==='SUBSCRIBED'){
+          if(first){first=false;clearTimeout(to);await track();resolve();return}
+          if(lostAt){lostAt=0;clearTimeout(retryT);try{await track()}catch(e){}connEvent('back')}   // supabase-js rejoined on its own
+        }else if(status==='CHANNEL_ERROR'||status==='TIMED_OUT'||status==='CLOSED'){
+          if(first){first=false;clearTimeout(to);reject(new Error(status));return}
+          if(!lostAt){lostAt=Date.now();connEvent('lost');clearTimeout(retryT);retryT=setTimeout(rejoin,REJOIN_MS)}
+        }
+      });
+    });
+  }
+  async function rejoin(){
+    if(!code||!lostAt)return;
+    const old=ch;gen++;   // ignore anything the old channel says from here on
+    if(old)try{await client.removeChannel(old)}catch(e){}
+    if(!code||!lostAt)return;   // left the room meanwhile
+    try{await open();lostAt=0;connEvent('back')}
+    catch(e){if(code&&lostAt){clearTimeout(retryT);retryT=setTimeout(rejoin,RETRY_MS)}}
+  }
   async function join(roomCode,profile){
     if(!enabled)throw new Error('offline');
     init();await leave();
     code=String(roomCode).toUpperCase();me=profile;joinedAt=Date.now();state='lobby';seen=new Map();
-    ch=client.channel('ff:'+code,{config:{broadcast:{self:false,ack:false},presence:{key:profile.id}}});
-    ch.on('broadcast',{event:'m'},({payload})=>{if(payload&&handlers.message)handlers.message(payload)});
-    ch.on('presence',{event:'sync'},()=>{members=readMembers();if(handlers.members)handlers.members(members)});
-    ch.on('presence',{event:'leave'},({leftPresences})=>{(leftPresences||[]).forEach(p=>{if(p&&p.id&&handlers.left)handlers.left(p.id)})});
-    await new Promise((resolve,reject)=>{
-      let done=false;
-      const to=setTimeout(()=>{if(!done){done=true;reject(new Error('TIMED_OUT'))}},10000);
-      ch.subscribe(async status=>{
-        if(done)return;
-        if(status==='SUBSCRIBED'){done=true;clearTimeout(to);await track();resolve()}
-        else if(status==='CHANNEL_ERROR'||status==='TIMED_OUT'||status==='CLOSED'){done=true;clearTimeout(to);reject(new Error(status))}
-      });
-    });
+    await open();
     return code;
   }
   function track(){if(ch&&me)return ch.track({id:me.id,name:me.name,av:me.av||'',mode:me.mode||'classic',joinedAt,state})}
@@ -77,12 +101,13 @@ window.FFNet=(function(){
   function unlistRoom(){if(!dirInfo)return;dirInfo=null;if(dir&&dirReady)dir.untrack().catch(()=>{})}
   async function leave(){
     const c=ch;ch=null;members=[];code=null;seen=new Map();clearTimeout(graceT);
+    gen++;lostAt=0;clearTimeout(retryT);   // our own leave is not a lost connection
     if(c){try{await c.untrack()}catch(e){}try{await client.removeChannel(c)}catch(e){}}
   }
   return {
     enabled,makeCode,join,leave,send,setState,setProfile,present,watchRooms,listRoom,unlistRoom,rooms:readRooms,
     client(){init();return client},
     on(h){Object.assign(handlers,h)},
-    get members(){return members},get code(){return code},get me(){return me}
+    get members(){return members},get code(){return code},get me(){return me},get lost(){return lostAt>0}
   };
 })();

@@ -24,7 +24,7 @@ function drawRise(B,extra){
   const rush=B.remote?B.ms&&B.ms.h:B.rushT>0;
   if(rush){const hg=S*.45,pulse=.35+.25*Math.sin(f*.4);ctx.fillStyle=`rgba(229,104,42,${pulse})`;
     for(let i=0;i<GW*2;i++){const x=i*cs/2;ctx.beginPath();ctx.moveTo(x,H);ctx.quadraticCurveTo(x+cs*.1,H-hg*(.6+.4*Math.sin(f*.5+i)),x+cs/4,H-hg);ctx.quadraticCurveTo(x+cs*.4,H-hg*.5,x+cs/2,H);ctx.fill()}}
-  const sh=B.shake?Math.sin(B.shake*2)*cs*.05:0;
+  const sh=(B.shake&&!window.FF_CALM)?Math.sin(B.shake*2)*cs*.05:0;
   for(let r=0;r<GH;r++)for(let c=0;c<GW;c++){const t=g[r][c];if(!t)continue;
     const yo=t.yo<0?Math.min(0,t.yo+.42*F.ALPHA):(t.yo||0);
     const wob=danger&&!B.dead&&r<3?Math.sin(f*.8+c*1.7)*cs*.03:0;
