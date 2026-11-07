@@ -119,3 +119,43 @@ let k=0;for(const m of ['slurp','buffet','mold','pancake','merge','conveyor','pe
 ok((await asAnon(`select * from ff_leaderboard('merge-brawl',1,'all',null,50)`)).rows.length===1,'new mode has its own board');
 r=await submit2('device-v5zz','Hack','blocks-duel',1,100,'guac');ok(r.ok===false&&r.reason==='mode','the secret mode still has no board');
 console.log('v5 done');
+
+// ---- v6: tighter limits, and suspicious scores are held back (only their sender sees them)
+const v6=fs.readFileSync(new URL('../supabase/migrations/20261107000008_ff_leaderboard_v6.sql',import.meta.url),'utf8');
+const n5=(await db.query('select count(*)::int n from ff_scores')).rows[0].n;
+await db.exec(v6);await db.exec(v6);
+ok((await db.query('select count(*)::int n from ff_scores')).rows[0].n===n5,'v6 applies twice and keeps existing scores');
+ok((await db.query('select count(*)::int n from ff_scores where held')).rows[0].n===0,'existing scores stay published');
+const sub6=(dev,mode,score,dur,name='Cook')=>asAnon(`select ff_submit_score($1,$2,$3,1,$4,2,0,true,1,$5,'0.5.0','bun') r`,[dev,name,mode,score,dur]).then(x=>x.rows[0].r);
+const board=(mode,dev=null)=>asAnon(`select * from ff_leaderboard($1,1,'all',$2,50)`,[mode,dev]).then(x=>x.rows);
+const heldOf=dev=>db.query(`select held,held_reason from ff_scores where device_id=$1 order by id desc limit 1`,[dev]).then(x=>x.rows[0]);
+r=await sub6('device-v6long','order-duel',5000,1300);ok(r.ok===false&&r.reason==='duration','matches over 20 minutes are rejected');
+r=await sub6('device-v6fast','order-duel',130000,1000);ok(r.ok===false&&r.reason==='implausible','over 120 points a second is rejected');
+// a family with 10 real scores: best rate 30/s, longest match 300 s
+for(let i=0;i<10;i++){r=await sub6('device-v6r'+String(i).padStart(2,'0'),'order-duel',[3000,4000,6000,9000,4500,3500,5000,2500,7000,8000][i],300);if(!r.ok)console.log(r)}
+ok((await board('order-duel')).length>=10,'ten normal scores published');
+r=await sub6('device-v6good','order-duel',13000,300);let h=await heldOf('device-v6good');
+ok(r.ok&&!h.held,'a strong but believable score (43/s vs best 30/s) is published');
+r=await sub6('device-v6rate','order-duel',30000,400);h=await heldOf('device-v6rate');
+ok(r.ok&&h.held&&h.held_reason==='rate','a score far above the best rate is held');
+ok(r.rank_all===1,'the sender is told their rank as usual');
+let b=await board('order-duel');ok(!b.some(x=>x.score===30000),'held score is hidden from everyone else');
+b=await board('order-duel','device-v6rate');ok(b.some(x=>x.score===30000&&x.mine&&x.rank===1n||x.score===30000&&x.mine&&Number(x.rank)===1),'held score still shows for its sender, at #1');
+r=await sub6('device-v6dur','order-duel',9000,700);h=await heldOf('device-v6dur');
+ok(r.ok&&h.held&&h.held_reason==='duration','a match more than twice the longest is held');
+// a young board: holds a score more than 3x the current #1
+for(let i=0;i<3;i++)await sub6('device-v6y'+i,'pest-duel',[1000,1500,2000][i],120);
+r=await sub6('device-v6jump','pest-duel',6500,120);h=await heldOf('device-v6jump');
+ok(r.ok&&h.held&&h.held_reason==='jump','beating #1 by more than 3x on a young board is held');
+r=await sub6('device-v6ok','pest-duel',5800,120);h=await heldOf('device-v6ok');
+ok(r.ok&&!h.held,'beating #1 by less than 3x is published');
+r=await sub6('device-v6new','mold-duel',9000,100);h=await heldOf('device-v6new');
+ok(r.ok&&h.held&&h.held_reason==='rate','on a family with few scores, over 80 points a second is held');
+// reviewing
+let denied6=false;try{await asAnon('select * from ff_held_scores')}catch(e){denied6=true}
+ok(denied6,'players cannot read the held list');
+const held=(await db.query('select * from ff_held_scores')).rows;
+ok(held.length===4&&held.every(x=>x.held_reason),'owner sees every held score with its reason');
+await db.query(`update ff_scores set held=false where device_id='device-v6rate'`);
+ok((await board('order-duel')).some(x=>x.score===30000),'releasing a held score publishes it');
+console.log('v6 done');
