@@ -248,7 +248,7 @@ window.FFSound=(function(){
     'bossenraged','snackattack','doublehelping','trash','splatattack','cooking'];
   // recorded effects that replace the synthesized ones: gain, and random pitch spread so repeats don't sound robotic
   const SAMPLE_FX={throw:{g:.55,vary:.08},junk:{g:.7,vary:.06},ko:{g:.8,vary:.04},sauce:{g:.6},freeze:{g:.6},blender:{g:.55},
-    cream:{g:.6},pin:{g:.7},fight:{g:.6},win:{g:.7},lose:{g:.7},break:{g:.55,vary:.1},feast:{g:.7}};
+    cream:{g:.6},pin:{g:.7},fight:{g:.6},win:{g:.7},lose:{g:.7},break:{g:.85,vary:.1},feast:{g:.7}};
   const clips={};let clipsLoading=false;
   function loadClips(){
     if(clipsLoading||!AC||typeof fetch!=='function')return;clipsLoading=true;
