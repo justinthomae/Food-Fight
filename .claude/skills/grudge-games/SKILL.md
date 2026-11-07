@@ -41,6 +41,8 @@ If the table is out of date, trust the project files and say so.
 - Save/progress/cloud sync → `save-systems`; maps/levels → `level-design`, `procedural-gen`
 - Shaders/visual effects → `shader-programming`; physics feel → `physics-tuning`
 - Story/tutorial text, characters' lines → `dialogue-systems`
+- Online play, rooms, lobby, reconnects, lag, cheating, rewards, invites, shared account → `grudge-netcode`
+- Packaging as an iPhone/Android app, store review, purchases, ads, push, OTA → `grudge-store-release`
 
 ## 3. Grudge Match house rules (apply on every game)
 
@@ -65,7 +67,8 @@ Run through only the items relevant to the change and report what was checked:
 
 ## Source
 
-Discipline, genre, engine and workflow skills in this folder are a curated copy of
+`grudge-games`, `grudge-netcode` and `grudge-store-release` are Grudge Match's own skills,
+written from the studio's existing games. The other discipline, genre, engine and workflow skills in this folder are a curated copy of
 gamedev-skills/awesome-gamedev-agent-skills (Apache-2.0), pinned at commit 19d93f9 and
 audited 2026-11-07. Re-audit the diff before updating the copy. See
 `.claude/THIRD_PARTY_awesome-gamedev-agent-skills/` for the licence.
