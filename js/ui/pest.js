@@ -127,7 +127,7 @@ function bitesOf(B){if(!B.remote)return B.bites;const s=B.ms&&B.ms.b;return s?s.
   render(){
     const F=U(),c=F.ctx,S=F.S,G=F.G,B=F.spec||G.player,mine=B===G.player,W=S*F.COLS,H=S*F.ROWS,f=G.frame,K=PT();if(!K)return;
     blanket(c,W,H,S);
-    const sh=B.shake?Math.sin(B.shake*2)*S*.05:0;c.save();c.translate(sh,0);
+    const sh=(B.shake&&!window.FF_CALM)?Math.sin(B.shake*2)*S*.05:0;c.save();c.translate(sh,0);
     const bites=bitesOf(B),ps=pestsOf(B),PY=K.PLATE_Y;
     // plates under threat pulse red: something is within two cells of them
     const near=new Array(6).fill(false);ps.forEach(p=>{if(p.k<3)for(let i=0;i<6;i++)if(Math.hypot(p.x-(i+.5),p.y-PY)<2)near[i]=true});

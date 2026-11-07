@@ -24,7 +24,7 @@ const CZ=window.FFCuisines||{CUISINES:{},CUISINE_ORDER:['market']};
 let czOverride=null;   // lets the cuisine picker draw a preview of a kitchen you haven't picked yet
 const cuisine=()=>czOverride||(CZ.CUISINES[prefs.cuisine]?prefs.cuisine:'market');
 const names=()=>prefs.art==='shapes'?SHAPE_NAMES:cuisine()==='market'?FOOD_NAMES:CZ.CUISINES[cuisine()].foods;
-let prefs={palette:'classic',theme:'night',muted:false,name:'',art:'food',av:'bun',variant:'classic',cuisine:'market',stackCtl:'buttons'};
+let prefs={palette:'classic',theme:'night',muted:false,name:'',art:'food',av:'bun',variant:'classic',cuisine:'market',stackCtl:'buttons',motion:'auto',buzz:true};
 const VARIANT_INFO={
   classic:{name:'Classic',tag:'Swap and splat',sizes:['Duel','Brawl','Big Brawl']},
   order:{name:'Order Up!',tag:'Ticket race',sizes:['Duel','Race of 4','Race of 8']},
@@ -92,9 +92,25 @@ function applyLook(){
   $$('#theme button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.t===prefs.theme)));
   $$('#art button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.a===prefs.art)));
   $$('#stackCtl button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.s===(prefs.stackCtl||'buttons'))));
+  window.FF_CALM=calmMotion();document.documentElement.classList.toggle('calm',window.FF_CALM);   // board modes skip their shake when set
+  $$('#motion button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.m===(prefs.motion||'auto'))));
+  $$('#buzz button').forEach(b=>b.setAttribute('aria-pressed',String((b.dataset.b==='on')===(prefs.buzz!==false))));
   render();minis.forEach(renderMini);
 }
 matchMedia('(prefers-color-scheme: light)').addEventListener('change',()=>{if(prefs.theme==='auto')applyLook()});
+// ---- motion: Full, Reduced, or follow the device's "reduce motion" setting ----
+const RM_Q=matchMedia('(prefers-reduced-motion: reduce)');
+function calmMotion(){const m=prefs.motion||'auto';return m==='reduced'||(m==='auto'&&RM_Q.matches)}
+try{RM_Q.addEventListener('change',()=>{if((prefs.motion||'auto')==='auto')applyLook()})}catch(e){}
+// ---- vibration (Android browsers; iPhone browsers don't support it, so the setting is hidden there) ----
+const CAN_BUZZ=typeof navigator!=='undefined'&&typeof navigator.vibrate==='function';
+const BUZZ={match:10,chain:[12,40,18],junk:28,incoming:22,blender:18,break:18,slam:24,feast:[16,40,16],ko:[30,40,50],kod:[60,40,60],knocked:80,lose:90,stolen:30,freeze:20};
+let lastBuzz=0;
+function buzz(n){
+  if(!CAN_BUZZ||prefs.buzz===false||!BUZZ[n]||(G&&G.demo))return;
+  const t=performance.now();if(t-lastBuzz<90)return;lastBuzz=t;
+  try{navigator.vibrate(BUZZ[n])}catch(e){}
+}
 
 /* ---------- saved bests ---------- */
 let best={score:0,chain:1,wins:0};
@@ -104,7 +120,7 @@ function showBest(){$('#best').textContent=(best.wins||best.score?`Your best: ${
 
 /* ---------- audio (js/sfx.js does the synthesis) ---------- */
 const SND=window.FFSound;
-const sfx=(n,a)=>SND&&SND.play(n,a);
+const sfx=(n,a)=>{buzz(n);return SND&&SND.play(n,a)};
 function wakeAudio(){if(SND)SND.wake()}
 function showMute(){$('#wave').style.opacity=prefs.muted?0:1;$('#bSound').setAttribute('aria-label',prefs.muted?'Sound off':'Sound on');if(SND)SND.setMuted(prefs.muted)}
 
@@ -299,7 +315,7 @@ function render(){
     for(let i=0;i<COLS*2;i++){const x=i*S/2;ctx.beginPath();ctx.moveTo(x,H);ctx.quadraticCurveTo(x+S*.1,H-hgt*(.6+.4*Math.sin(f*.5+i)),x+S/4,H-hgt);ctx.quadraticCurveTo(x+S*.4,H-hgt*.5,x+S/2,H);ctx.fill()}
     ctx.restore();
   }
-  const shakeY=B.shake?Math.sin(B.shake*2)*S*.04:0,live=!G.paused&&!B.dead;
+  const shakeY=(B.shake&&!window.FF_CALM)?Math.sin(B.shake*2)*S*.04:0,live=!G.paused&&!B.dead;
   for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){
     const t=B.g[r][c];if(!t)continue;
     const sx=danger[c]&&live?Math.sin(f*.8+c*1.7)*S*(B.grace<GRACE?.05:.025):0;
@@ -951,7 +967,7 @@ MODE_UI.blocks={
     // faint grid
     ctx.strokeStyle='rgba(255,255,255,.045)';ctx.lineWidth=1;ctx.beginPath();
     for(let c=1;c<10;c++){ctx.moveTo(c*cs+.5,0);ctx.lineTo(c*cs+.5,Hp)}for(let r=1;r<20;r++){ctx.moveTo(0,r*cs+.5);ctx.lineTo(Wp,r*cs+.5)}ctx.stroke();
-    const sh=B.shake?Math.sin(B.shake*2)*cs*.1:0,dim=B.dead?.45:1;
+    const sh=(B.shake&&!window.FF_CALM)?Math.sin(B.shake*2)*cs*.1:0,dim=B.dead?.45:1;
     if(B.remote){const v=blocksView(B);for(let r=0;r<20;r++)for(let c=0;c<10;c++)drawBlock(ctx,v[r][c],c*cs,r*cs+sh,cs,dim)}
     else{
       // Darkness: your own stack goes black (just a faint outline) while it lasts
@@ -1055,7 +1071,7 @@ MODE_UI.stack={
     // the drop column: if it fills to the top you're out
     ctx.strokeStyle='rgba(204,121,167,.55)';ctx.lineWidth=Math.max(2,S*.06);const xc=2*S+S/2,yc=S/2,k=S*.18;
     ctx.beginPath();ctx.moveTo(xc-k,yc-k);ctx.lineTo(xc+k,yc+k);ctx.moveTo(xc+k,yc-k);ctx.lineTo(xc-k,yc+k);ctx.stroke();
-    const sh=B.shake?Math.sin(B.shake*2)*S*.04:0;
+    const sh=(B.shake&&!window.FF_CALM)?Math.sin(B.shake*2)*S*.04:0;
     for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){const t=B.g[r][c];if(t)drawTile(ctx,t,c*S,(r+(t.yo<0?Math.min(0,t.yo+.34*ALPHA):(t.yo||0)))*S+sh,S,B.dead?.45:1,f)}
     const p=B.piece;
     if(p&&B.cells){
@@ -1144,7 +1160,7 @@ MODE_UI.shot={
     const Q=SHOTGEO();if(!Q)return;
     const B=spec||G.player,W=S*COLS,H=S*ROWS,f=G.frame,mine=B===G.player,u=S,sz=Q.D*u;
     checker(0);
-    const sh=B.shake?Math.sin(B.shake*2)*S*.05:0;
+    const sh=(B.shake&&!window.FF_CALM)?Math.sin(B.shake*2)*S*.05:0;
     // ceiling: turns orange and says how much junk is on its way (there's no tray in this mode)
     const incoming=(B.inc||[]).reduce((a,i)=>a+i.cells,0);
     ctx.fillStyle=incoming?'#E5682A':'#7B6B8F';ctx.fillRect(0,0,W,Math.max(4,S*.1));
@@ -1319,6 +1335,9 @@ $('#bLook2').addEventListener('click',()=>openSub('#ovLook'));
 $$('#theme button').forEach(b=>b.addEventListener('click',()=>{prefs.theme=b.dataset.t;savePrefs();applyLook()}));
 $$('#art button').forEach(b=>b.addEventListener('click',()=>{prefs.art=b.dataset.a;savePrefs();applyLook()}));
 $$('#stackCtl button').forEach(b=>b.addEventListener('click',()=>{prefs.stackCtl=b.dataset.s;savePrefs();applyLook();if(G&&G.variant==='stack')setControls()}));
+$$('#motion button').forEach(b=>b.addEventListener('click',()=>{prefs.motion=b.dataset.m;savePrefs();applyLook()}));
+$$('#buzz button').forEach(b=>b.addEventListener('click',()=>{prefs.buzz=b.dataset.b==='on';savePrefs();applyLook();if(prefs.buzz){lastBuzz=0;buzz('match')}}));
+$$('.buzzRow').forEach(el=>el.hidden=!CAN_BUZZ);
 
 /* ---------- game hooks ---------- */
 // every board sound also gets a quick "yes!" or "uh-oh" so good and bad moments are obvious by ear
@@ -1571,12 +1590,36 @@ $('#bLobby').addEventListener('click',backToLobby);
 $('#bMenu').addEventListener('click',()=>{if(G&&G.online)leaveRoom();else toMenu()});
 $('#bSound').addEventListener('click',()=>{prefs.muted=!prefs.muted;savePrefs();wakeAudio();showMute()});
 let hiddenAt=0;
+const AWAY_KO_MS=7000;   // the others knock out a board they haven't heard from for this long
+function sitOut(text){
+  if(!G||!G.online||G.over)return;
+  const mine=G.local().filter(b=>!b.dead);
+  if(mine.length){mine.forEach(b=>{b.lastAttacker=null;b.die()});G.player.pops.push({text,x:3,y:5,col:'#EEF0FA',size:.7,life:160})}
+}
+// ---- dropped connection: say so, keep the room, and match what the others see if it lasts too long ----
+let connLostAt=0,connSlowT=null,connKoT=null;
+function connBanner(text){
+  let el=$('#connBanner');
+  if(!el){el=document.createElement('div');el.id='connBanner';el.setAttribute('role','status');el.setAttribute('aria-live','polite');document.body.appendChild(el)}
+  el.textContent=text||'';el.hidden=!text;
+}
+function connClear(){connLostAt=0;clearTimeout(connSlowT);clearTimeout(connKoT);connBanner('')}
+if(NET)NET.on({conn(s){
+  if(s==='lost'){
+    if(!inRoom)return;
+    connLostAt=Date.now();connBanner('Connection lost · reconnecting…');
+    clearTimeout(connSlowT);connSlowT=setTimeout(()=>{if(connLostAt)connBanner('Still reconnecting… check your Wi-Fi or data')},15000);
+    clearTimeout(connKoT);connKoT=setTimeout(()=>{if(connLostAt&&G&&!G.waiting)sitOut('Your connection dropped, so you sat this round out')},AWAY_KO_MS);
+  }else{
+    connClear();
+    if(inRoom&&!$('#ovLobby').hidden)renderLobby();
+  }
+}});
 document.addEventListener('visibilitychange',()=>{
   if(document.hidden)hiddenAt=Date.now();
-  else if(hiddenAt&&G&&G.online&&!G.over&&!G.waiting&&Date.now()-hiddenAt>7000){
+  else if(hiddenAt&&G&&G.online&&!G.over&&!G.waiting&&Date.now()-hiddenAt>AWAY_KO_MS){
     // the others stopped hearing from this phone and knocked its boards out; match that here
-    const mine=G.local().filter(b=>!b.dead);
-    if(mine.length){mine.forEach(b=>{b.lastAttacker=null;b.die()});G.player.pops.push({text:'You were away, so you sat this round out',x:3,y:5,col:'#EEF0FA',size:.7,life:160})}
+    sitOut('You were away, so you sat this round out');
   }
   if(document.hidden&&G&&!G.over&&!G.online&&!G.paused&&!anyOverlay()&&!G.playerOut)openPause();   // nothing to pause for once you're out: the bots keep cooking
   if(!document.hidden&&!anyOverlay())restoreOut();
@@ -1746,7 +1789,7 @@ function tryJoin(){const c=codeIn.value;if(!/^\d{3,5}$/.test(c)){onlineMsg('Room
 $('#bJoin').addEventListener('click',tryJoin);
 codeIn.addEventListener('keydown',e=>{if(e.key==='Enter')tryJoin()});
 async function leaveRoom(){
-  inRoom=false;clearInterval(vsTimer);cancelGrudge();if(NET)NET.unlistRoom();renderRooms();
+  inRoom=false;connClear();clearInterval(vsTimer);cancelGrudge();if(NET)NET.unlistRoom();renderRooms();
   if(NET)await NET.leave();
   try{history.replaceState(null,'',location.pathname)}catch(e){}
   toMenu();

@@ -63,7 +63,7 @@ function drawFood(c,t,x,y,d,a,f){
     ctx.fillStyle='#4A4466';F.rr(ctx,-u*.2,Q.LANES[0]*u-u*.6,u*.55,u*1.2,u*.15);ctx.fill();
     const end=Q.at(Q.L);drawCan(ctx,(end[0]+.62)*u,end[1]*u,u*1.15,danger,f);
     // the line
-    const sh=B.shake?Math.sin(B.shake*2)*u*.05:0,d=Q.BR*2*u,dim=B.dead?.45:1;
+    const sh=(B.shake&&!window.FF_CALM)?Math.sin(B.shake*2)*u*.05:0,d=Q.BR*2*u,dim=B.dead?.45:1;
     for(let i=line.length-1;i>=0;i--){const b=line[i];if(b.s<-.6)continue;const [x,y]=Q.at(b.s),k=b.ins?1+b.ins*.03:1;drawFood(ctx,b.t,x*u,y*u+sh,d*k,dim,f)}
     if(!B.remote)(B.popping||[]).forEach(p=>{const k=p.life/16;drawFood(ctx,p.t,p.x*u,p.y*u,d*(1+(1-k)*.5),k,f)});
     // aim guide in the colour of the food you're throwing, to where it joins the line

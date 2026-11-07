@@ -53,7 +53,7 @@ const MU={
   render(){
     const F=U(),ctx=F.ctx,S=F.S,G=F.G,B=F.spec||G.player,mine=B===G.player,W=S*6,H=S*12,f=G.frame,Mb=K();if(!Mb)return;
     ctx.fillStyle=F.TOK.well;ctx.fillRect(0,0,W,H);
-    const m=gridOf(B),best=bestOf(B),sh=B.shake?Math.sin(B.shake*2)*S*.05:0;
+    const m=gridOf(B),best=bestOf(B),sh=(B.shake&&!window.FF_CALM)?Math.sin(B.shake*2)*S*.05:0;
     // ---- the recipe ladder: every dish in order, the ones you've made lit up, the next goal ringed in gold ----
     const ls=S*.98,lgap=(W-ls*5)/6;
     ctx.textAlign='center';ctx.textBaseline='middle';

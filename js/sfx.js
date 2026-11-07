@@ -288,6 +288,7 @@ window.FFSound=(function(){
     muted=!!m;
     if(master)master.gain.setTargetAtTime(muted?0:.8,AC.currentTime,.05);
     if(muted&&amb){amb.stop();amb=null}else if(!muted&&ambWanted)startAmbience();
+    if(muted&&window.speechSynthesis)try{speechSynthesis.cancel()}catch(e){}   // stop a callout that's mid-sentence
   }
   return {wake,play,ambience,setMuted,say:t=>speak(t),get names(){return Object.keys(FX)}};
 })();

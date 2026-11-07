@@ -42,7 +42,7 @@ const tileY=t=>t.yo<0?Math.min(0,t.yo+.34*U().ALPHA):(t.yo||0);
     // the spawn column: if it fills to the top you're out
     ctx.strokeStyle='rgba(204,121,167,.55)';ctx.lineWidth=Math.max(2,S*.06);const xc=2*S+S/2,yc=S/2,k=S*.18;
     ctx.beginPath();ctx.moveTo(xc-k,yc-k);ctx.lineTo(xc+k,yc+k);ctx.moveTo(xc+k,yc-k);ctx.lineTo(xc-k,yc+k);ctx.stroke();
-    const sh=B.shake?Math.sin(B.shake*2)*S*.04:0,dim=B.dead?.45:1;
+    const sh=(B.shake&&!window.FF_CALM)?Math.sin(B.shake*2)*S*.04:0,dim=B.dead?.45:1;
     for(let r=0;r<F.ROWS;r++)for(let c=0;c<F.COLS;c++){const t=B.g[r][c];if(t)F.drawTile(ctx,t,c*S,(r+tileY(t))*S+sh,S,dim,f)}
     const p=!B.remote&&B.piece;
     if(p){
