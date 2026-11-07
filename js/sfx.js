@@ -1,7 +1,9 @@
-// Food Fight sound: every effect is synthesized live with Web Audio (no files to download).
+// Food Fight sound: most effects are synthesized live with Web Audio. The big moments use recorded clips
+// (assets/audio/: v-*.mp3 announcer callouts and s-*.mp3 sound effects, made with ElevenLabs); each clip is
+// optional, and anything missing falls back to the synthesized sound or the device's speech voice.
 // FFSound.play(name, arg) for effects, FFSound.ambience(true/false) for the cafeteria bed in the lobby.
 window.FFSound=(function(){
-  let AC=null,master=null,echo=null,noiseBuf=null,muted=false,amb=null,ambWanted=false;
+  let AC=null,master=null,sfxBus=null,voiceBus=null,echo=null,noiseBuf=null,muted=false,amb=null,ambWanted=false;
   const lastAt={};
 
   function wake(){
@@ -11,6 +13,9 @@ window.FFSound=(function(){
       comp.threshold.value=-16;comp.knee.value=12;comp.ratio.value=5;comp.attack.value=.003;comp.release.value=.2;
       master=AC.createGain();master.gain.value=muted?0:.8;
       master.connect(comp);comp.connect(AC.destination);
+      // effects run through their own bus so the announcer can duck them a little while speaking
+      sfxBus=AC.createGain();sfxBus.gain.value=1;sfxBus.connect(master);
+      voiceBus=AC.createGain();voiceBus.gain.value=1.15;voiceBus.connect(master);
       // short slap-back echo bus: makes pops and fanfares feel bigger
       echo=AC.createDelay(.5);echo.delayTime.value=.13;
       const fb=AC.createGain();fb.gain.value=.28;
@@ -22,12 +27,13 @@ window.FFSound=(function(){
     }
     if(AC.state==='suspended')AC.resume();
     if(ambWanted&&!amb)startAmbience();
+    loadClips();
   }
   const ok=()=>AC&&!muted&&AC.state!=='closed';
   const T=()=>AC.currentTime;
 
   function env(g,s,a,d,peak){g.gain.setValueAtTime(.0001,s);g.gain.exponentialRampToValueAtTime(Math.max(.0002,peak),s+a);g.gain.exponentialRampToValueAtTime(.0001,s+a+d)}
-  function out(node,wet){node.connect(master);if(wet){const w=AC.createGain();w.gain.value=wet;node.connect(w);w.connect(echo)}}
+  function out(node,wet){node.connect(sfxBus||master);if(wet){const w=AC.createGain();w.gain.value=wet;node.connect(w);w.connect(echo)}}
   function tone(o){
     const s=T()+(o.t||0),a=o.a||.004,d=o.d||.15;
     const osc=AC.createOscillator(),g=AC.createGain();
@@ -221,7 +227,9 @@ window.FFSound=(function(){
   function pickVoice(){try{const vs=speechSynthesis.getVoices();voice=vs.find(v=>/en[-_]US/i.test(v.lang)&&/Samantha|Google US|Aaron|Alex|Jenny|Aria|Guy/i.test(v.name))||vs.find(v=>/^en/i.test(v.lang))||null}catch(e){}}
   try{if(window.speechSynthesis){pickVoice();speechSynthesis.onvoiceschanged=pickVoice}}catch(e){}
   function speak(text,hype){
-    if(muted||!window.speechSynthesis||!window.SpeechSynthesisUtterance)return;
+    if(muted)return;
+    const k=voiceKey(text);if(k&&clips['v-'+k]){sayClip(k);return}
+    if(!window.speechSynthesis||!window.SpeechSynthesisUtterance)return;
     // hype: a quicker, higher, more excited read
     try{const u=new SpeechSynthesisUtterance(text);if(voice)u.voice=voice;u.lang='en-US';u.rate=hype?1.22:1.08;u.pitch=hype?1.6:1.15;u.volume=1;speechSynthesis.cancel();speechSynthesis.speak(u)}catch(e){}
   }
@@ -229,8 +237,84 @@ window.FFSound=(function(){
     if(!ok()||!FX[name])return;
     // never stack the same sound in the same frame (8 junk tiles landing = one splat)
     const now=performance.now();if(lastAt[name]&&now-lastAt[name]<40)return;lastAt[name]=now;
+    if(SAMPLE_FX[name]&&clips['s-'+name]){playClip('s-'+name,SAMPLE_FX[name]);if(name==='win')setTimeout(()=>sayClip('win'),350);return}
     try{FX[name](arg)}catch(e){}
+    if(name==='knocked')sayClip('knockedout');
   }
+
+  // ---- recorded clips (ElevenLabs) ----
+  const VOICE=['hotdog','b2bhotdog','ko','chain2','chain3','chain4','chain5','megachain','feast','fight','win','knockedout','perfect',
+    'orderup','rush','slurp','allyoucaneat','bigplate','spotless','kaboom','closing','notthecat','pestfrenzy','overtime','bossangry',
+    'bossenraged','snackattack','doublehelping','trash','splatattack','cooking'];
+  // recorded effects that replace the synthesized ones: gain, and random pitch spread so repeats don't sound robotic
+  const SAMPLE_FX={throw:{g:.55,vary:.08},junk:{g:.7,vary:.06},ko:{g:.8,vary:.04},sauce:{g:.6},freeze:{g:.6},blender:{g:.55},
+    cream:{g:.6},pin:{g:.7},fight:{g:.6},win:{g:.7},lose:{g:.7},break:{g:.55,vary:.1},feast:{g:.7}};
+  const clips={};let clipsLoading=false;
+  function loadClips(){
+    if(clipsLoading||!AC||typeof fetch!=='function')return;clipsLoading=true;
+    const names=VOICE.map(k=>'v-'+k).concat(Object.keys(SAMPLE_FX).map(k=>'s-'+k));
+    let i=0;
+    const next=()=>{   // a few at a time, so the first match never waits on 2 MB of audio
+      const n=names[i++];if(!n)return;
+      fetch('assets/audio/'+n+'.mp3').then(r=>r.ok?r.arrayBuffer():Promise.reject(r.status))
+        .then(b=>new Promise((res,rej)=>AC.decodeAudioData(b,res,rej))).then(buf=>{clips[n]=buf}).catch(()=>{}).then(next);
+    };
+    for(let k=0;k<4;k++)next();
+  }
+  function playClip(n,o){
+    if(!ok()||!clips[n])return null;o=o||{};
+    const src=AC.createBufferSource();src.buffer=clips[n];
+    if(o.vary)src.playbackRate.value=1+(Math.random()*2-1)*o.vary;
+    const g=AC.createGain();g.gain.value=o.g==null?1:o.g;src.connect(g);g.connect(o.voice?voiceBus:sfxBus);
+    src.start();return src;
+  }
+  // the announcer: one line at a time; a bigger moment can cut in, a smaller one waits its turn or is skipped
+  let saying=null,sayingPri=0,sayingUntil=0;
+  const PRI={megachain:9,b2bhotdog:9,hotdog:8,perfect:8,chain5:8,feast:7,allyoucaneat:7,kaboom:7,chain4:7,win:9,knockedout:9,ko:8,
+    spotless:7,bossenraged:7,fight:9,splatattack:6,slurp:6,chain3:6,orderup:5,rush:5,bigplate:4,snackattack:5,overtime:6,bossangry:6,
+    pestfrenzy:5,notthecat:6,closing:6,trash:5,cooking:4,doublehelping:3,chain2:3};
+  function sayClip(k){
+    if(!ok()||!clips['v-'+k])return false;
+    const now=AC.currentTime,pri=PRI[k]||4;
+    if(now<sayingUntil){if(pri<=sayingPri)return false;try{saying.stop()}catch(e){}}
+    const src=playClip('v-'+k,{voice:true,g:1});if(!src)return false;
+    saying=src;sayingPri=pri;sayingUntil=now+clips['v-'+k].duration;
+    // duck effects ~5 dB under the line, then bring them back
+    if(sfxBus){const g=sfxBus.gain;g.cancelScheduledValues(now);g.setTargetAtTime(.55,now,.03);g.setTargetAtTime(1,sayingUntil,.15)}
+    return true;
+  }
+  // what the player's board just showed -> which line to say
+  function voiceKey(t){
+    t=String(t||'');let m;
+    if(/^back.to.back hot dog/i.test(t))return 'b2bhotdog';
+    if(/^hot dog!?$/i.test(t))return 'hotdog';
+    if(/perfect clear/i.test(t))return 'perfect';
+    if((m=/^(\d+) chain!/i.exec(t))){const n=+m[1];return n>=6?'megachain':n>=2?'chain'+n:null}
+    if(/^feast!?$/i.test(t))return 'feast';
+    if(/^double helping/i.test(t))return 'doublehelping';
+    if(/^snack attack/i.test(t))return 'snackattack';
+    if(/^order up!/i.test(t))return 'orderup';
+    if(/^rush order #/i.test(t))return 'rush';
+    if(/^SLUU+RP/.test(t))return 'slurp';
+    if(/^ALL YOU CAN EAT/.test(t))return 'allyoucaneat';
+    if(/^big plate!/i.test(t))return 'bigplate';
+    if(/^spotless!?$/i.test(t))return 'spotless';
+    if(/^KABOOM/.test(t))return 'kaboom';
+    if(/kitchen'?s closing/i.test(t))return 'closing';
+    if(/not the cat/i.test(t))return 'notthecat';
+    if(/^streak! \d+ pest/i.test(t))return 'pestfrenzy';
+    if(/^overtime/i.test(t))return 'overtime';
+    if(/is ENRAGED/.test(t))return 'bossenraged';
+    if(/gets angry/i.test(t))return 'bossangry';
+    if((m=/^pop \d+ \+ drop (\d+)/i.exec(t))&&+m[1]>=4)return 'splatattack';
+    if((m=/^(\d+) in a row!/i.exec(t))&&+m[1]>=5)return 'cooking';
+    if(/^KO! /.test(t)||/^K\.O\.!?$/.test(t))return 'ko';
+    if(/^ready.*fight/i.test(t))return 'fight';
+    if(/^take out the trash/i.test(t))return 'trash';
+    return null;
+  }
+  // called for every new pop-up on the player's own board
+  function callout(text){if(muted)return;const k=voiceKey(text);if(k)sayClip(k)}
 
   // ---- cafeteria ambience: babbling crowd + cutlery clinks + the odd tray clatter ----
   function startAmbience(){
@@ -290,5 +374,5 @@ window.FFSound=(function(){
     if(muted&&amb){amb.stop();amb=null}else if(!muted&&ambWanted)startAmbience();
     if(muted&&window.speechSynthesis)try{speechSynthesis.cancel()}catch(e){}   // stop a callout that's mid-sentence
   }
-  return {wake,play,ambience,setMuted,say:t=>speak(t),get names(){return Object.keys(FX)}};
+  return {wake,play,ambience,setMuted,say:t=>speak(t),callout,voiceKey,clips:()=>Object.keys(clips),get names(){return Object.keys(FX)}};
 })();

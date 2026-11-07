@@ -1,6 +1,6 @@
 // Food Fight UI: drawing, input, settings, practice mode and the online lobby.
 (function(){
-const VERSION='1.22.1';
+const VERSION='1.23.0';
 let spec=null; // board being spectated after you're knocked out
 // how far we are between two 60Hz game steps (0..1): drawing uses it so motion is smooth on 90/120/144Hz screens too
 let ALPHA=0,lastDraw=performance.now(),drawDt=16,SIDEW=0;
@@ -682,7 +682,7 @@ function fly(src,tgt,it,slot){
   d.style.transform=`translate(${x}px,${y}px)`;
   requestAnimationFrame(()=>requestAnimationFrame(()=>{d.style.transform=`translate(${tx}px,${ty}px) scale(.8)`}));
   setTimeout(()=>d.remove(),600);
-  if(src===G.player)sfx('throw');
+  if(src===G.player){sfx('throw');if(it.k==='tower'||(JUNK_KINDS.includes(it.k)&&it.cells>=12))SND&&SND.callout&&SND.callout('Take out the trash!')}
   if(src&&src.boss&&tgt===G.player)sfx('incoming');
 }
 
@@ -1567,7 +1567,7 @@ function showMatchup(seconds,go){
   $('#countNum').textContent=seconds>1?n:'';show('#ovVs');sfx('slam');
   vsTimer=setInterval(()=>{
     n--;
-    if(n>0){$('#countNum').textContent=n;sfx('count')}
+    if(n>0){$('#countNum').textContent=n;sfx('count');if(n===2&&SND&&SND.callout)SND.callout('Ready... Fight!')}
     else if(n===0){$('#countNum').textContent='Fight!';sfx('fight')}
     else{clearInterval(vsTimer);hideAll();go()}
   },seconds>1?1000:900);
@@ -2196,6 +2196,8 @@ function loop(now){
 function frameBody(now){
   acc+=Math.min(100,now-last);last=now;
   while(acc>=1000/60){if(G)G.step();acc-=1000/60}
+  // the announcer reads the big pop-ups on your own board (recorded lines; quiet when there's no clip)
+  if(G&&!G.demo&&!G.ffMode&&G.player&&G.player.pops&&SND&&SND.callout)G.player.pops.forEach(p=>{if(!p._said){p._said=1;SND.callout(p.text)}});
   if(G&&G.ffMode&&!G.over&&G.local().some(b=>b.isBot&&!b.dead)){
     for(let i=0;i<60&&!G.over;i++)G.step();
     if(!G.over&&G.frame-G.ffStart>60*600)G.resolveByHeight();
