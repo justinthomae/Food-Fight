@@ -85,7 +85,14 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
 .kolosers.many img:first-child{margin-left:0}
 @keyframes kodizzy{from{transform:translateX(30px) rotate(18deg);opacity:0}to{transform:none;opacity:1}}
 .opps{display:flex;gap:8px;flex:none}
-.foe{flex:1;min-width:0;display:flex;flex-direction:column;align-items:stretch;gap:5px;background:var(--panel);border:2px solid transparent;border-radius:14px;padding:6px 8px;text-align:left;transition:background .15s,border-color .15s,opacity .3s}
+.follow{display:flex;align-items:center;gap:10px;justify-content:center;font-size:14px;color:var(--ink);margin:8px 0 2px;min-height:44px;cursor:pointer;flex-wrap:wrap}
+.follow input{width:22px;height:22px;accent-color:#F7C548}
+.follow small{color:var(--muted);font-size:12px}
+.foe{position:relative;flex:1;min-width:0;display:flex;flex-direction:column;align-items:stretch;gap:5px;background:var(--panel);border:2px solid transparent;border-radius:14px;padding:6px 8px;text-align:left;transition:background .15s,border-color .15s,opacity .3s}
+.foe .bubble{position:absolute;left:4px;right:4px;bottom:4px;z-index:5;background:#FFF8E6;color:#2A1A12;font:700 13px/1.25 var(--body,system-ui);padding:6px 9px;border-radius:12px;box-shadow:0 4px 12px rgba(0,0,0,.35);pointer-events:none;animation:bubIn .18s ease-out;transition:opacity .35s}
+.foe .bubble.out{opacity:0}
+@keyframes bubIn{from{opacity:0;transform:scale(.9)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.foe .bubble{animation:none}}
 .foe canvas{width:32px;height:64px;border-radius:4px;flex:none;background:var(--well);display:block}
 /* name gets the full card width on top; the avatar sits on the corner of the mini board */
 .foe .nm{font-family:var(--display);font-size:16px;line-height:1.1;color:var(--ink);white-space:nowrap;min-width:0;letter-spacing:.01em;display:flex;align-items:center;gap:5px}
@@ -895,6 +902,7 @@ html.calm .fly{transition:none}html.calm .movepad.reversed{animation:none}html.c
     <div class="variants" id="lobbyVariants" role="radiogroup" aria-label="Game mode"></div>
     <p class="modehow" id="lobbyHow"></p>
     <div class="varnote" id="lobbyVarNote" hidden></div>
+    <label class="follow" id="followLobby" hidden><input type="checkbox" checked> Follow the host <small>(go wherever they go)</small></label>
     <div class="lab" id="meLab">You</div>
     <div class="merow">
       <button class="meav" id="meAv" type="button" aria-label="Change fighter" aria-expanded="false"><img id="meAvImg" src="" alt="" width="64" height="64"></button>
@@ -967,6 +975,7 @@ html.calm .fly{transition:none}html.calm .movepad.reversed{animation:none}html.c
       <ul class="gmlist" id="gmList"></ul>
       <div class="msg" id="gmMsg"></div>
     </div>
+    <label class="follow" id="followEnd" hidden><input type="checkbox" checked> Follow the host <small>(rematches and mode changes happen for you)</small></label>
     <div class="row"><button class="btn" id="bLobby" hidden>Lobby</button><button class="btn" id="bMenu">Change mode</button><button class="btn" id="bBoardEnd">Leaderboard</button></div>
   </div>
 </div>

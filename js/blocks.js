@@ -28,9 +28,12 @@ const PTS_N=[0,100,300,500,800],PTS_TS=[400,800,1200,1600],PTS_MINI=[100,200,400
 // bots: how long they think, how fast they move, how sloppy they are
 // Items, Tetris Friends Arena style: some pieces carry a flashing "?" block; clear the line it's in to rack a random item (3 max).
 // V (or tap) throws the oldest at your target. The last three only work on yourself.
-const ITEMS=['swap','scramble','twist','quake','speed','dark','shotgun','blast','hide','shield','avalanche','push'];
-const ITEM_NAME={swap:'Plate swap',scramble:'Mystery meat',twist:'Pancake flip',quake:'Shake n bake',speed:'Espresso shot',dark:'Burnt toast',shotgun:'Popcorn',blast:'Leftovers',hide:'Foil wrap',shield:'Oven mitt',avalanche:'Crumb drop',push:'Dishwasher'};
-const SELF=['shield','avalanche','push'],RACK_N=3,SP=16;   // a locked cell value with the 16 bit set is a "?" block
+const ITEMS=['swap','scramble','twist','quake','speed','dark','shotgun','blast','hide','shield','avalanche','push','compact'];
+// how often each one turns up: Plate swap (trading whole plates) is rare; the Compactor took most of its share
+const ITEM_W={swap:.35,compact:1.3},ITEM_WT=ITEMS.reduce((a,k)=>a+(ITEM_W[k]==null?1:ITEM_W[k]),0);
+function pickItem(rng){let x=rng()*ITEM_WT;for(const k of ITEMS){x-=ITEM_W[k]==null?1:ITEM_W[k];if(x<0)return k}return ITEMS[ITEMS.length-1]}
+const ITEM_NAME={swap:'Plate swap',scramble:'Mystery meat',twist:'Pancake flip',quake:'Shake n bake',speed:'Espresso shot',dark:'Burnt toast',shotgun:'Popcorn',blast:'Leftovers',hide:'Foil wrap',shield:'Oven mitt',avalanche:'Crumb drop',push:'Dishwasher',compact:'Compactor'};
+const SELF=['shield','avalanche','push','compact'],RACK_N=3,SP=16;   // a locked cell value with the 16 bit set is a "?" block
 const FX_T={speed:360,dark:480,hide:600,shield:600};
 const BOT={think:[70,26,12],move:[12,4,2],noise:[1.5,.35,.06],drop:[0,1,1]};
 
@@ -166,7 +169,7 @@ class BlocksBoard{
       let pts=(ts==='full'?PTS_TS[n]:ts==='mini'?PTS_MINI[n]:PTS_N[n])*this.level();if(b2b)pts=Math.round(pts*1.5);pts+=50*Math.max(0,this.combo)*this.level();
       this.score+=pts;this.lines+=n;this.b2b=diff;
       this.maxChain=Math.max(this.maxChain,this.combo+1);this.maxCombo=Math.max(this.maxCombo,n);
-      const label=(ts==='full'?'T-spin ':ts==='mini'?'T-spin mini ':'')+(ts?['','single','double','triple'][n]:['','Single','Double','Triple','Hot dog!'][n]);
+      const label=(ts==='full'?'Grill spin ':ts==='mini'?'Grill spin mini ':'')+(ts?['','single','double','triple'][n]:['','Single','Double','Triple','Hot dog!'][n]);
       const y=(full[0]-HID)/VH*ROWS;
       if(ts||n>=2)this.pop(label,3,y,n===4||ts?'#F7C548':'#EEF0FA',n===4||ts?1.15:.9);
       if(b2b)this.pop(n===4&&!ts?'Back-to-back hot dog!':'Back-to-back',3,y+.9,'#56B4E9',n===4?1:.8);
@@ -176,13 +179,14 @@ class BlocksBoard{
       if(this.combo>=1)this.sfx('harp',this.combo);
       // ? blocks in the cleared lines become items
       let got=0;full.forEach(r=>this.m[r].forEach(v=>{if(v&SP)got++}));
-      for(let i=0;i<got;i++)this.earn({k:ITEMS[Math.floor(this.rng()*ITEMS.length)]},3,y-1-i*.8);
+      for(let i=0;i<got;i++)this.earn({k:pickItem(this.rng)},3,y-1-i*.8);
+      if(atk>=6)this.pop('Fully loaded!',3,y+2.6,'#E5682A',1);
       if(atk>0)this.sendLines(atk);
       this.clearRows=full;this.clearT=CLEAR_T;this.state='clear';
       if(this.m.every(row=>row.every(v=>!v)))this.pop('Perfect clear!',3,6,'#F7C548',1.2);
       return;
     }
-    if(ts){this.score+=(ts==='full'?400:100)*this.level();this.pop(ts==='full'?'T-spin':'T-spin mini',3,6,'#CC79A7',.85)}
+    if(ts){this.score+=(ts==='full'?400:100)*this.level();this.pop(ts==='full'?'Grill spin':'Grill spin mini',3,6,'#CC79A7',.85)}
     this.combo=-1;
     this.dropGarbage();
     if(this.dead)return;
@@ -291,6 +295,14 @@ class BlocksBoard{
       // the bottom 4 rows are pushed out of the well
       for(let i=0;i<4;i++){this.m.pop();this.m.unshift(new Array(W).fill(0))}
       say('Dishwasher! 4 rows gone','#56B4E9');this.sfx('feast');
+    }else if(k==='compact'){
+      // every row slides hard to one side, closing the gaps; it picks the side that leaves fewer covered holes
+      const squish=dir=>this.m.map(row=>{const f=row.filter(Boolean),e=new Array(W-f.length).fill(0);return dir<0?f.concat(e):e.concat(f)});
+      const holes=m=>{let h=0;for(let c=0;c<W;c++){let roof=false;for(let r=0;r<H;r++){if(m[r][c])roof=true;else if(roof)h++}}return h};
+      const L=squish(-1),R=squish(1),dir=holes(R)<holes(L)?1:-1;
+      this.m=dir<0?L:R;
+      const p=this.piece;if(p)while(!this.fits(p)&&p.r>0)p.r--;
+      say(dir<0?'Compactor! ⇐ squished left':'Compactor! squished right ⇒','#56B4E9');this.shake=10;this.sfx('compact');
     }
   }
   clearFull(){const keep=this.m.filter(row=>!row.every(Boolean)),n=H-keep.length;while(keep.length<H)keep.unshift(new Array(W).fill(0));this.m=keep;this.lines+=n;return n}
@@ -339,7 +351,7 @@ class BlocksBoard{
     const d=this.game.d|0;
     if(this.rack.length&&--this.fireT<=0){
       this.fireT=[1000,360,220][d]+rnd(240);const h=this.rows();
-      const sh=this.rack.findIndex(x=>x.k==='shield'),av=this.rack.findIndex(x=>x.k==='avalanche'||x.k==='push'),atk=this.rack.findIndex(x=>!SELF.includes(x.k));
+      const sh=this.rack.findIndex(x=>x.k==='shield'),av=this.rack.findIndex(x=>x.k==='avalanche'||x.k==='push'||x.k==='compact'),atk=this.rack.findIndex(x=>!SELF.includes(x.k));
       if(sh>=0&&this.incoming()>0)this.fire(sh);else if(av>=0&&h>=11)this.fire(av);else if(atk>=0)this.fire(atk);
     }
     if(!this.plan){
@@ -362,7 +374,7 @@ class BlocksBoard{
   }
 }
 BlocksBoard.GEO={W,VH,HID};
-BlocksBoard.NAMES=NAMES;BlocksBoard.ITEMS=ITEMS;BlocksBoard.SELF=SELF;BlocksBoard.ITEM_NAME=ITEM_NAME;BlocksBoard.SP=SP;BlocksBoard.SHAPES=SHAPES;BlocksBoard.BOX=BOX;
+BlocksBoard.NAMES=NAMES;BlocksBoard.ITEMS=ITEMS;BlocksBoard.SELF=SELF;BlocksBoard.ITEM_NAME=ITEM_NAME;BlocksBoard.pickItem=pickItem;BlocksBoard.ITEM_W=ITEM_W;BlocksBoard.SP=SP;BlocksBoard.SHAPES=SHAPES;BlocksBoard.BOX=BOX;
 E.BOARD_TYPES.blocks=BlocksBoard;
 if(typeof module!=='undefined')module.exports=BlocksBoard;
 })();

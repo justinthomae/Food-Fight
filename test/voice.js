@@ -10,7 +10,7 @@ class AC{constructor(){this.state='running';this.sampleRate=8000;this.destinatio
   createBuffer(c,n){return {getChannelData:()=>new Float32Array(n)}}
   createBufferSource(){const n=Node();n.start=()=>played.push(n.buffer.name);n.stop=()=>played.push('stop:'+n.buffer.name);return n}
   decodeAudioData(b,res){res({name:b.name,duration:1.2})}resume(){}}
-const have=new Set(['v-hotdog','v-b2bhotdog','v-chain2','v-chain3','v-megachain','v-feast','v-ko','v-orderup','v-slurp','s-throw','s-win','v-win']);
+const have=new Set(['v-hotdog','v-b2bhotdog','v-chain2','v-chain3','v-megachain','v-feast','v-ko','v-orderup','v-slurp','s-throw','s-win','v-win','f-hotdog','f-double','f-base','f-sizzlin','f-topdog']);
 const fetch=async u=>{const n=path.basename(u,'.mp3');return have.has(n)?{ok:true,arrayBuffer:async()=>({name:n})}:{ok:false,status:404}};
 const spoken=[];
 const ctx={window:{AudioContext:AC,speechSynthesis:{getVoices:()=>[],cancel(){},speak:u=>spoken.push(u.text)},SpeechSynthesisUtterance:function(t){this.text=t}},fetch,performance:{now:()=>now*1000},setTimeout:(f)=>f(),setInterval(){},clearInterval(){},clearTimeout(){},Math,Promise,console};
@@ -35,5 +35,13 @@ const S=ctx.window.FFSound;
   played.length=0;now=20;S.play('throw');check(played.includes('s-throw'),'recorded effect replaces the synthesized one');
   played.length=0;S.play('junk');check(!played.some(n=>/^s-/.test(n)),'missing effect: synthesized sound still plays (no clip)');
   played.length=0;now=30;S.setMuted(true);S.callout('Hot dog!');S.play('throw');check(played.length===0,'mute silences callouts and clips');
+  // Packed Lunch: her voice for her lines, his for the rest
+  check(K('Double')==='double'&&K('Triple')==='triple'&&K('Grill spin double')==='grillmaster'&&K('Fully loaded!')==='loaded','Packed Lunch: Double, Triple, Grill spin, Fully loaded');
+  check(K('3 combo')==='sizzlin'&&K('5 combo')==='roll'&&K('7 combo')==='diggity'&&K('4 combo')===null,'combos 3, 5 and 7 get praise, others stay quiet');
+  S.setMuted(false);S.setVoice('blocks');played.length=0;now=40;S.callout('Hot dog!');check(played.includes('f-hotdog')&&!played.includes('v-hotdog'),'Packed Lunch: hot dog in her voice');
+  now=45;S.callout('Perfect clear!');check(played.includes('f-base'),'Packed Lunch: a perfect clear is "Base!"');
+  now=50;played.length=0;S.callout('9 chain!');check(played.includes('v-megachain'),'a line she doesn\'t have falls back to his');
+  S.setVoice('classic');now=55;played.length=0;S.callout('Hot dog!');check(played.includes('v-hotdog'),'other modes keep his voice');
+  now=60;played.length=0;S.callout('Double');check(played.length===0,'other modes: no "Double" callout');
   console.log(fails?`${fails} FAILED`:'all voice checks passed');process.exit(fails?1:0);
 })();

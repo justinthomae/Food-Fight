@@ -206,12 +206,22 @@ window.FFSound=(function(){
   }
   // C major scale up from C5: each back-to-back clear plays the next note up
   const HARP=[523.25,587.33,659.25,698.46,783.99,880,987.77,1046.5,1174.66,1318.51,1396.91,1567.98,1760,1975.53,2093];
-  FX.harp=n=>{const i=Math.max(0,Math.min(HARP.length-1,(n|0)-1));
-    // a quick glissando into the note, the way a harp is swept
-    if(i>0)pluck(HARP[i-1],0,.22);pluck(HARP[i],.045,.5);pluck(HARP[i]/2,.045,.18)};
+  // consecutive clears: a fuller harp each time. The sweep gets longer as the combo grows, and it lands on a
+  // three-note chord (root, third, fifth) with a low octave and a shimmer on top
+  FX.harp=n=>{
+    const i=Math.max(0,Math.min(HARP.length-1,(n|0)-1)),sweep=Math.min(i,2+Math.floor(i/2)),v=Math.min(.55,.4+i*.015);
+    for(let k=sweep;k>=1;k--)pluck(HARP[i-k],(sweep-k)*.032,.16+.02*(sweep-k));
+    const t=sweep*.032+.02;
+    pluck(HARP[i],t,v);pluck(HARP[i]/2,t,.2);
+    if(HARP[i+2])pluck(HARP[i+2],t+.05,v*.55);if(HARP[i+4])pluck(HARP[i+4],t+.1,v*.45);
+    tone({type:'sine',f:HARP[i]*2,d:.7,v:.035+i*.003,t:t+.08,wet:.7});
+    if(i>=4)noise({type:'highpass',f:7000,d:.35,v:.025,t:t+.05});
+  };
   FX.tetris=()=>{[523.25,659.25,783.99,1046.5,1318.51].forEach((f,i)=>pluck(f,i*.045,.4));
     tone({type:'triangle',f:1046.5,d:.5,v:.08,t:.22,wet:.4});tone({type:'triangle',f:1568,d:.6,v:.06,t:.26,wet:.4});if(!FX._b2b)speak('Hot dog!',true)};
   FX.b2btetris=()=>{FX._b2b=true;FX.tetris();FX._b2b=false;[1046.5,1318.51,1567.98,2093].forEach((f,i)=>pluck(f,.3+i*.05,.35));speak('Back to back hot dog!',true)};
+  // compactor: a hydraulic hiss, a sliding wall and a heavy thunk
+  FX.compact=()=>{noise({type:'bandpass',f:2500,d:.25,v:.12});tone({type:'sawtooth',f:90,to:140,d:.3,v:.1,lp:600,t:.08});tone({type:'sine',f:120,to:50,d:.22,v:.35,t:.36})};
   // ---- affirmations: a quick musical "yes!" or "uh-oh" layered on top of the effect itself ----
   const MAJ=[523.25,659.25,783.99,1046.5,1318.51,1567.98,2093];
   FX.yay=()=>{pluck(783.99,0,.32);pluck(1046.5,.07,.38);tone({type:'sine',f:2093,d:.18,v:.05,t:.12,wet:.5})};
@@ -228,7 +238,7 @@ window.FFSound=(function(){
   try{if(window.speechSynthesis){pickVoice();speechSynthesis.onvoiceschanged=pickVoice}}catch(e){}
   function speak(text,hype){
     if(muted)return;
-    const k=voiceKey(text);if(k&&clips['v-'+k]){sayClip(k);return}
+    const k=voiceKey(text);if(k&&clipFor(k)){sayClip(k);return}
     if(!window.speechSynthesis||!window.SpeechSynthesisUtterance)return;
     // hype: a quicker, higher, more excited read
     try{const u=new SpeechSynthesisUtterance(text);if(voice)u.voice=voice;u.lang='en-US';u.rate=hype?1.22:1.08;u.pitch=hype?1.6:1.15;u.volume=1;speechSynthesis.cancel();speechSynthesis.speak(u)}catch(e){}
@@ -248,11 +258,15 @@ window.FFSound=(function(){
     'bossenraged','snackattack','doublehelping','trash','splatattack','cooking'];
   // recorded effects that replace the synthesized ones: gain, and random pitch spread so repeats don't sound robotic
   const SAMPLE_FX={throw:{g:.55,vary:.08},junk:{g:.7,vary:.06},ko:{g:.8,vary:.04},sauce:{g:.6},freeze:{g:.6},blender:{g:.55},
-    cream:{g:.6},pin:{g:.7},fight:{g:.6},win:{g:.7},lose:{g:.7},break:{g:.85,vary:.1},feast:{g:.7}};
+    cream:{g:.6},pin:{g:.7},compact:{g:.75},fight:{g:.6},win:{g:.7},lose:{g:.7},break:{g:.85,vary:.1},feast:{g:.7}};
+  // Packed Lunch has its own announcer (a super-excited woman, "f-" clips); a line she doesn't have falls back to his
+  const FVOICE={double:'double',triple:'triple',hotdog:'hotdog',b2bhotdog:'b2bhotdog',perfect:'base',ko:'topdog',win:'relish',
+    sizzlin:'sizzlin',roll:'roll',diggity:'diggity',grillmaster:'grillmaster',loaded:'loaded'};
+  let voiceSet='';
   const clips={};let clipsLoading=false;
   function loadClips(){
     if(clipsLoading||!AC||typeof fetch!=='function')return;clipsLoading=true;
-    const names=VOICE.map(k=>'v-'+k).concat(Object.keys(SAMPLE_FX).map(k=>'s-'+k));
+    const names=VOICE.map(k=>'v-'+k).concat([...new Set(Object.values(FVOICE))].map(k=>'f-'+k),Object.keys(SAMPLE_FX).map(k=>'s-'+k));
     let i=0;
     const next=()=>{   // a few at a time, so the first match never waits on 2 MB of audio
       const n=names[i++];if(!n)return;
@@ -272,13 +286,14 @@ window.FFSound=(function(){
   let saying=null,sayingPri=0,sayingUntil=0;
   const PRI={megachain:9,b2bhotdog:9,hotdog:8,perfect:8,chain5:8,feast:7,allyoucaneat:7,kaboom:7,chain4:7,win:9,knockedout:9,ko:8,
     spotless:7,bossenraged:7,fight:9,splatattack:6,slurp:6,chain3:6,orderup:5,rush:5,bigplate:4,snackattack:5,overtime:6,bossangry:6,
-    pestfrenzy:5,notthecat:6,closing:6,trash:5,cooking:4,doublehelping:3,chain2:3};
+    pestfrenzy:5,notthecat:6,closing:6,trash:5,cooking:4,doublehelping:3,chain2:3,double:4,triple:5,sizzlin:5,roll:6,diggity:7,grillmaster:7,loaded:6};
+  function clipFor(k){const f=voiceSet==='blocks'&&FVOICE[k]?'f-'+FVOICE[k]:null;return f&&clips[f]?f:clips['v-'+k]?'v-'+k:null}
   function sayClip(k){
-    if(!ok()||!clips['v-'+k])return false;
+    const name=ok()&&clipFor(k);if(!name)return false;
     const now=AC.currentTime,pri=PRI[k]||4;
     if(now<sayingUntil){if(pri<=sayingPri)return false;try{saying.stop()}catch(e){}}
-    const src=playClip('v-'+k,{voice:true,g:1});if(!src)return false;
-    saying=src;sayingPri=pri;sayingUntil=now+clips['v-'+k].duration;
+    const src=playClip(name,{voice:true,g:1});if(!src)return false;
+    saying=src;sayingPri=pri;sayingUntil=now+clips[name].duration;
     // duck effects ~5 dB under the line, then bring them back
     if(sfxBus){const g=sfxBus.gain;g.cancelScheduledValues(now);g.setTargetAtTime(.55,now,.03);g.setTargetAtTime(1,sayingUntil,.15)}
     return true;
@@ -288,6 +303,11 @@ window.FFSound=(function(){
     t=String(t||'');let m;
     if(/^back.to.back hot dog/i.test(t))return 'b2bhotdog';
     if(/^hot dog!?$/i.test(t))return 'hotdog';
+    if(/^double$/i.test(t))return 'double';
+    if(/^triple$/i.test(t))return 'triple';
+    if(/^grill spin/i.test(t))return 'grillmaster';
+    if(/^fully loaded/i.test(t))return 'loaded';
+    if((m=/^(\d+) combo$/i.exec(t))){const n=+m[1];return n===3?'sizzlin':n===5?'roll':n>=7&&(n-7)%3===0?'diggity':null}
     if(/perfect clear/i.test(t))return 'perfect';
     if((m=/^(\d+) chain!/i.exec(t))){const n=+m[1];return n>=6?'megachain':n>=2?'chain'+n:null}
     if(/^feast!?$/i.test(t))return 'feast';
@@ -374,5 +394,5 @@ window.FFSound=(function(){
     if(muted&&amb){amb.stop();amb=null}else if(!muted&&ambWanted)startAmbience();
     if(muted&&window.speechSynthesis)try{speechSynthesis.cancel()}catch(e){}   // stop a callout that's mid-sentence
   }
-  return {wake,play,ambience,setMuted,say:t=>speak(t),callout,voiceKey,clips:()=>Object.keys(clips),get names(){return Object.keys(FX)}};
+  return {wake,play,ambience,setMuted,say:t=>speak(t),callout,voiceKey,setVoice:v=>{voiceSet=v||''},clips:()=>Object.keys(clips),get names(){return Object.keys(FX)}};
 })();

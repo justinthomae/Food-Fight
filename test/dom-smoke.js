@@ -354,8 +354,10 @@ const check=(cond,msg)=>{console.log((cond?'PASS ':'FAIL ')+msg);if(!cond)proces
   M1.boards.filter(b=>b.isBot).forEach(b=>b.die());await sleep(1600);
   check(M1.over&&M1g.over&&vis(h2,'#ovEnd')&&vis(g2,'#ovEnd'),'match over on both phones');
   check(/Grudge Match/.test(h2.$('#bAgain').textContent)&&/Grudge Match/.test(g2.$('#bAgain').textContent),'both see a Grudge Match button');
+  check(!g2.$('#followEnd').hidden&&h2.$('#followEnd').hidden,'party: guests get a "Follow the host" switch, the host does not');
+  g2.$('#followEnd input').click();await sleep(50);   // this round the guest decides for themselves
   h2.$('#bAgain').click();await sleep(400);
-  check(!h2.$('#gmPanel').hidden&&/at least one more/.test(h2.$('#gmMsg').textContent),'one cook in: waiting for another');
+  check(!h2.$('#gmPanel').hidden&&/at least one more/.test(h2.$('#gmMsg').textContent),'one cook in: waiting for another (guest not following)');
   g2.$('#bAgain').click();await sleep(800);
   check(/Grudge match in/.test(g2.$('#gmMsg').textContent),'two in: countdown shown to the other player');
   await sleep(2000);
@@ -364,6 +366,19 @@ const check=(cond,msg)=>{console.log((cond?'PASS ':'FAIL ')+msg);if(!cond)proces
   check(M2.boards.length===4&&M2.boards.filter(b=>b.isBot).length===2,'rematch keeps the same number of bots (2)');
   check(M2g.champId===M1.player.id&&M2.champId===M1.player.id,'last winner carries the Champ tag');
   check(vis(g2,'#ovVs')&&/Champ/.test(g2.$('#vsStage').textContent),'VS screen shows the Champ tag');
+  // ---- party: with "Follow the host" on, the guest goes wherever the host goes ----
+  await sleep(2500);
+  g2.$('#followEnd input').click();check(g2.w.eval('JSON.parse(localStorage.getItem("ff-prefs")).follow')===true,'party: the switch is remembered');
+  M2g.player.die();await sleep(300);M2.boards.filter(b=>b.isBot).forEach(b=>b.die());await sleep(1600);
+  check(M2.over&&M2g.over,'second match over');
+  h2.$('#bAgain').click();await sleep(700);
+  check(!g2.$('#gmPanel').hidden&&/Following Champ/.test(g2.$('#bAgain').textContent),'party: host taps Grudge Match, the guest is in without tapping');
+  await sleep(3500);
+  const M3=h2.w.__ff.game,M3g=g2.w.__ff.game;
+  check(M3!==M2&&M3g.mid===M3.mid&&M3.mid!==M2.mid,'party: the rematch starts for both');
+  await sleep(2500);M3g.player.die();await sleep(300);M3.boards.filter(b=>b.isBot).forEach(b=>b.die());await sleep(1600);
+  h2.$('#bLobby').click();await sleep(700);
+  check(vis(g2,'#ovLobby')&&/Following Champ/.test(g2.$('#lobbyMsg').textContent),'party: host goes back to the room to change mode, the guest goes too');
   h2.errors.concat(g2.errors).slice(0,3).forEach(e=>console.log('  ',e));
   check(h2.errors.length===0&&g2.errors.length===0,'no script errors in the grudge match');
   // ---- Switcheroo across two phones ----

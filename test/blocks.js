@@ -48,7 +48,7 @@ const run=(g,n)=>{for(let i=0;i<n;i++)g.step()};
 {const g=new E.Game('brawl',1,{},true,{variant:'blocks',size:4});let f=0;while(!g.over&&f<60*900){g.step();f++}
  check(g.over&&g.boards.some(b=>b.lines>20),'bots battle to a finish ('+(f/60|0)+'s)');}
 // ---------- items ----------
-{const BBI=BB.ITEMS;check(BBI.length===12,'12 items');
+{const BBI=BB.ITEMS;check(BBI.length===13,'13 items (Compactor added)');
  // a ? block in a cleared line racks an item
  const {g,P,B}=mk();run(g,40);
  for(let r=18;r<22;r++)for(let c=0;c<9;c++)P.m[r][c]=8;P.m[21][0]=8|BB.SP;
@@ -76,3 +76,24 @@ const fx=(k,setup)=>{const {g,P,B}=mk();run(g,40);run(g,1);for(let r=14;r<22;r++
  quad();check(heard.includes('tetris')&&P.pops.some(p=>p.text==='Hot dog!'),'4 lines is a "Hot dog!" with its own fanfare');
  quad();check(heard.includes('b2btetris')&&P.pops.some(p=>p.text==='Back-to-back hot dog!'),'a second one in a row plays the back-to-back hot dog callout');
  check(heard.filter(h=>h.startsWith('harp:')).length>=1,'back-to-back clears play the harp ('+heard.filter(h=>h.startsWith('harp')).join(',')+')');}
+
+// ---- Compactor and item odds ----
+{
+  const {g,P}=mk();const W=P.m[0].length,H=P.m.length;
+  for(let r=0;r<H;r++)P.m[r].fill(0);
+  // two rows with gaps: [x . x . . .] and [. x . . x .]
+  P.m[H-1][0]=1;P.m[H-1][2]=2;P.m[H-2][1]=3;P.m[H-2][4]=4;
+  const before=P.m.map(r=>r.filter(Boolean).length);
+  P.effect('compact',P);
+  const after=P.m.map(r=>r.filter(Boolean).length);
+  check(before.every((n,i)=>n===after[i]),'Compactor: every row keeps its pieces');
+  const packed=row=>{const f=row.map(Boolean),first=f.indexOf(true);if(first<0)return true;const last=f.lastIndexOf(true);return f.slice(first,last+1).every(Boolean)&&(first===0||last===W-1)};
+  check(P.m.every(packed),'Compactor: every row is slid flush against one wall, no gaps');
+  check(P.pops.some(p=>/Compactor/.test(p.text)),'Compactor: says what happened');
+  check(BB.SELF.includes('compact')&&BB.ITEM_NAME.compact==='Compactor','Compactor: used on your own stack');
+  // odds: Plate swap is rare, the Compactor common
+  let n=0,sw=0,cp=0;const rng=(()=>{let x=12345;return()=>((x=(x*1103515245+12345)%2147483648)/2147483648)})();
+  for(;n<20000;n++){const k=BB.pickItem(rng);if(k==='swap')sw++;if(k==='compact')cp++}
+  check(sw/n<.04&&sw>0,`Plate swap is rare (${(sw/n*100).toFixed(1)}%)`);
+  check(cp>sw*3,`Compactor turns up far more often than Plate swap (${(cp/n*100).toFixed(1)}%)`);
+}

@@ -1,6 +1,6 @@
 // Food Fight UI: drawing, input, settings, practice mode and the online lobby.
 (function(){
-const VERSION='1.23.1';
+const VERSION='1.24.0';
 let spec=null; // board being spectated after you're knocked out
 // how far we are between two 60Hz game steps (0..1): drawing uses it so motion is smooth on 90/120/144Hz screens too
 let ALPHA=0,lastDraw=performance.now(),drawDt=16,SIDEW=0;
@@ -24,7 +24,7 @@ const CZ=window.FFCuisines||{CUISINES:{},CUISINE_ORDER:['market']};
 let czOverride=null;   // lets the cuisine picker draw a preview of a kitchen you haven't picked yet
 const cuisine=()=>czOverride||(CZ.CUISINES[prefs.cuisine]?prefs.cuisine:'market');
 const names=()=>prefs.art==='shapes'?SHAPE_NAMES:cuisine()==='market'?FOOD_NAMES:CZ.CUISINES[cuisine()].foods;
-let prefs={palette:'classic',theme:'night',muted:false,name:'',art:'food',av:'bun',variant:'classic',cuisine:'market',stackCtl:'buttons',motion:'auto',buzz:true};
+let prefs={follow:true,palette:'classic',theme:'night',muted:false,name:'',art:'food',av:'bun',variant:'classic',cuisine:'market',stackCtl:'buttons',motion:'auto',buzz:true};
 const VARIANT_INFO={
   classic:{name:'Classic',tag:'Swap and splat',sizes:['Duel','Brawl','Big Brawl']},
   order:{name:'Order Up!',tag:'Ticket race',sizes:['Duel','Race of 4','Race of 8']},
@@ -515,9 +515,10 @@ ICONS.blast='<svg viewBox="0 0 24 24"><rect x="3" y="12" width="18" height="4" r
 ICONS.hide='<svg viewBox="0 0 24 24" fill="none" stroke="#9AA3BC" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/><path d="M4 20L20 4" stroke="#E5484D"/></svg>';
 ICONS.shield='<svg viewBox="0 0 24 24"><path d="M12 2l8 3v6c0 5-3.5 9-8 11-4.5-2-8-6-8-11V5z" fill="#56B4E9" stroke="#2A1A12" stroke-width="1.3" stroke-linejoin="round"/><path d="M12 5v14" stroke="#FFFFFF" stroke-width="1.5" opacity=".6"/></svg>';
 ICONS.avalanche='<svg viewBox="0 0 24 24"><rect x="4" y="3" width="5" height="5" rx="1" fill="#F7C548" stroke="#2A1A12" stroke-width="1.1"/><rect x="12" y="6" width="5" height="5" rx="1" fill="#5CC45C" stroke="#2A1A12" stroke-width="1.1"/><rect x="3" y="16" width="18" height="5" rx="1" fill="#6B7080" stroke="#2A1A12" stroke-width="1.1"/><path d="M6.5 10v4M14.5 13v1.5" stroke="#56B4E9" stroke-width="2" stroke-linecap="round"/></svg>';
+ICONS.compact='<svg viewBox="0 0 24 24"><rect x="2" y="4" width="3" height="16" rx="1" fill="#9AA3BC" stroke="#2A1A12" stroke-width="1.1"/><rect x="7" y="13" width="4" height="7" rx="1" fill="#F7C548" stroke="#2A1A12" stroke-width="1.1"/><rect x="11" y="9" width="4" height="11" rx="1" fill="#5CC45C" stroke="#2A1A12" stroke-width="1.1"/><path d="M22 12h-4m0 0l2-2m-2 2l2 2" stroke="#56B4E9" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 ICONS.push='<svg viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="4" rx="1" fill="#6B7080" stroke="#2A1A12" stroke-width="1.1"/><rect x="4" y="8" width="16" height="4" rx="1" fill="#6B7080" stroke="#2A1A12" stroke-width="1.1"/><path d="M12 14v7M8.5 17.5L12 21l3.5-3.5" stroke="#56B4E9" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-const LABEL={pie:'Trash',tower:'Heap',sauce:'Sauce',cream:'Cream',freeze:'Freeze',blender:'Blender',pin:'Pin',plate:'Plate',swap:'Swap',steam:'Steam',grease:'Grease',rainbow:'Rainbow',bomb:'Bomb',lights:'Lights',reverse:'Flip',scramble:'Mystery',twist:'Pancake',quake:'Shake',speed:'Espresso',dark:'Burnt',shotgun:'Popcorn',blast:'Leftovers',hide:'Foil',shield:'Mitt',avalanche:'Crumbs',push:'Dishes'};
-const VALUE={sauce:'3s',cream:'5s',freeze:'2.5s',blender:'Mix',pin:'Self',plate:'Pick',swap:'Board',steam:'6s',grease:'6s',rainbow:'Self',bomb:'Self',lights:'All',reverse:'7s',scramble:'Pieces',twist:'Flip',quake:'Shake',speed:'6s',dark:'8s',shotgun:'Junk',blast:'+4',hide:'10s',shield:'10s',avalanche:'Self',push:'Self'};
+const LABEL={pie:'Trash',tower:'Heap',sauce:'Sauce',cream:'Cream',freeze:'Freeze',blender:'Blender',pin:'Pin',plate:'Plate',swap:'Swap',steam:'Steam',grease:'Grease',rainbow:'Rainbow',bomb:'Bomb',lights:'Lights',reverse:'Flip',scramble:'Mystery',twist:'Pancake',quake:'Shake',speed:'Espresso',dark:'Burnt',shotgun:'Popcorn',blast:'Leftovers',hide:'Foil',shield:'Mitt',avalanche:'Crumbs',push:'Dishes',compact:'Squish'};
+const VALUE={sauce:'3s',cream:'5s',freeze:'2.5s',blender:'Mix',pin:'Self',plate:'Pick',swap:'Board',steam:'6s',grease:'6s',rainbow:'Self',bomb:'Self',lights:'All',reverse:'7s',scramble:'Pieces',twist:'Flip',quake:'Shake',speed:'6s',dark:'8s',shotgun:'Junk',blast:'+4',hide:'10s',shield:'10s',avalanche:'Self',push:'Self',compact:'Self'};
 let rackIds='';
 function renderRack(){
   const box=$('#slots'),B=G&&G.player;
@@ -575,6 +576,27 @@ function placeOpps(){
   R.className=L.className;
   minis.forEach((m,i)=>{const to=desk&&i>=cut?R:L;if(m.el.parentNode!==to)to.appendChild(m.el)});
   R.hidden=!desk||!R.children.length;
+}
+// ---- trash talk: AI cooks taunt you (speech bubbles on their card); praise lines cheer you on ----
+const TAUNTS=['You just got relished.','Cut the mustard or get out of the bun.','That play was weaker than a gas station wiener.',
+  'You’re toast. Not even a good bun.','Frank-ly, that was embarrassing.','Ketchup, slowpoke.','You got grilled.',
+  'Wiener, wiener… NOT a chicken dinner.','Go back to the cooler.','Your skills are 90% filler.','Don’t be such a sausage.',
+  'Bun voyage, loser.','All bark, no bite. Hot dog pun intended.','Mild sauce energy.','Sit, stay, lose.'];
+const PRAISE=['Top dog!','You cut the mustard!','Relish the victory!','Frank-tastic!','That was bun-believable!','Hot diggity dog!',
+  'Grill master!','Footlong legend!','Sizzlin’!','You’re on a roll!','Wiener wiener!','Absolutely ketchup-ing up to greatness!',
+  'Dog-gone amazing!','Fully loaded!','Chili-cheese champion!'];
+const pickLine=(list,last)=>{let t;do{t=list[Math.floor(Math.random()*list.length)]}while(list.length>1&&t===last);return t};
+let lastTaunt='';
+// a bot says something to you: force for the big moments (it knocked you out), otherwise sometimes and not too often
+function taunt(b,force){
+  if(!G||!b||!b.isBot||b.boss||G.ffMode)return null;
+  const now=performance.now();if(!force&&((b._tauntAt&&now-b._tauntAt<12000)||Math.random()>.35))return null;
+  b._tauntAt=now;const t=lastTaunt=pickLine(TAUNTS,lastTaunt);
+  const m=minis.find(x=>x.board===b);
+  if(m){const old=m.el.querySelector('.bubble');if(old)old.remove();
+    const el=document.createElement('div');el.className='bubble';el.textContent=t;el.setAttribute('role','status');m.el.appendChild(el);
+    setTimeout(()=>el.classList.add('out'),2600);setTimeout(()=>el.remove(),3000)}
+  return t;
 }
 function buildOpps(){
   // both columns start empty: the right one (desktop) holds half of the last match's boards
@@ -684,6 +706,7 @@ function fly(src,tgt,it,slot){
   setTimeout(()=>d.remove(),600);
   if(src===G.player){sfx('throw');if(it.k==='tower'||(JUNK_KINDS.includes(it.k)&&it.cells>=12))SND&&SND.callout&&SND.callout('Take out the trash!')}
   if(src&&src.boss&&tgt===G.player)sfx('incoming');
+  if(src&&src.isBot&&tgt===G.player&&(!JUNK_KINDS.includes(it.k)||(it.cells|0)>=4))taunt(src);
 }
 
 /* ---------- tray + hud ---------- */
@@ -1363,7 +1386,7 @@ const baseHooks={
   swapped(){drag=null;kb.on=false;if(plating!=null)cancelPlate()},
   bossPhase(ph){if(G&&G.player){G.player.pops.push({text:ph>=3?`${G.boss.name} is ENRAGED!`:`${G.boss.name} gets angry!`,x:3,y:4,col:'#CC79A7',size:1,life:90});sfx('overtime')}},
   pickFood(item){plating=item.id;renderRack();updatePlateHint();sfx('tap');return true},
-  out(){spec=null;$('#bOutLeave').textContent=G.online?'Lobby':'Menu';setOut(true);$('#outToast').hidden=false;sfx('ko');setTimeout(()=>sfx('knocked'),250)},
+  out(){if(G.player&&G.player.killedBy)G.player.koTaunt=taunt(G.player.killedBy,true);spec=null;$('#bOutLeave').textContent=G.online?'Lobby':'Menu';setOut(true);$('#outToast').hidden=false;sfx('ko');setTimeout(()=>sfx('knocked'),250)},
   shift(){if(drag&&drag.r!=null)drag.r--;kb.r=Math.max(0,kb.r-1)},
   ko(b,k){
     if(b!==G.player){sfx('ko');if(k===G.player){G.player.pops.push({text:'KO! Power up',x:3,y:5,col:'#F7C548',size:1.1,life:80});if(!G.ffMode)setTimeout(()=>sfx('kod'),200)}}
@@ -1404,10 +1427,12 @@ const baseHooks={
       $('#bMenu').textContent='Leave room';$('#bLobby').hidden=false;$('#bLobby').textContent='Back to room';$('#gmPanel').hidden=true;
       // you're still in the room: show as free so the next match (any mode) includes you without rejoining
       if(NET&&inRoom)NET.setState('lobby');
+      renderFollow();setTimeout(followCheck,600);
     }else{
       $('#eSub').textContent=modeLine?modeLine+` (${D})`:won
         ?(n>2?`Last kitchen standing on ${D}.`:`${G.boards[1].name}'s stack overflowed on ${D}.`)
         :(B.killedBy?`${B.killedBy.name} knocked you out on ${D}.`:`Your stack hit the top on ${D}.`);
+      if(!modeLine)$('#eSub').textContent=(won?pickLine(PRAISE)+' ':'')+$('#eSub').textContent+(!won&&B.killedBy&&B.killedBy.isBot&&B.koTaunt?` “${B.koTaunt}”`:'');
       setAgain('Grudge Match','Same cooks, run it back',false);
       $('#bMenu').textContent='Change mode';$('#bLobby').hidden=true;$('#gmPanel').hidden=true;
     }
@@ -1585,8 +1610,27 @@ function closePause(){if(G&&!G.online&&!G.waiting)G.paused=false;hideAll()}
 $('#bPause').addEventListener('click',()=>{if(!$('#ovPause').hidden)closePause();else if(!anyOverlay())openPause()});
 $('#bResume').addEventListener('click',closePause);
 $('#bQuit').addEventListener('click',()=>{if(G&&G.online){leaveRoom()}else{if(G)G.over=true;toMenu()}});
-$('#bAgain').addEventListener('click',()=>{if(G&&G.online){if(lastMatch)joinGrudge(gmState(lastMatch.mid,lastMatch.bots,lastMatch.diff,lastMatch.variant))}else startPractice(lastDiff,lastMode,lastSize)});
-$('#bLobby').addEventListener('click',backToLobby);
+$('#bAgain').addEventListener('click',()=>{if(G&&G.online){if(lastMatch){const st=gmState(lastMatch.mid,lastMatch.bots,lastMatch.diff,lastMatch.variant);joinGrudge(st);leadParty('gm',st)}}else startPractice(lastDiff,lastMode,lastSize)});
+$('#bLobby').addEventListener('click',()=>{const lead=isHost()&&!$('#ovEnd').hidden;backToLobby();if(lead)leadParty('lobby')});
+/* ---------- party: everyone in the room follows the host ----------
+   The host taps Grudge Match -> every guest is opted in too; the host goes back to the room (to change mode) -> guests go
+   back with them; the host's Start already brings the whole room along. A guest can switch "Follow the host" off to sit out. */
+function leadParty(go,state){if(inRoom&&NET&&isHost())NET.send({t:'follow',go,state:state||'',host:ME.id})}
+const following=()=>inRoom&&NET&&prefs.follow!==false&&!isHost();
+const onEndScreen=()=>!$('#ovEnd').hidden&&(!G||G.over);
+function followHost(go,state,hostId){
+  const h=lobbyMembers[0];if(!following()||!h||h.id!==hostId)return;
+  if(go==='gm'&&state&&!gmMid&&onEndScreen()&&gmKey(state)===('gm:'+(lastMatch&&lastMatch.mid))){joinGrudge(state);followNote(`Following ${h.name} into the grudge match`)}
+  else if(go==='lobby'&&onEndScreen()&&!gmMid)backToLobby();
+}
+// presence backs up the message: if the host is already in a grudge match when your match ends, you join it too
+function followCheck(){const h=lobbyMembers[0];if(h&&h.state&&h.state.startsWith('gm:'))followHost('gm',h.state,h.id)}
+function followNote(t){const el=$('#againSub');if(el)el.textContent=t}
+function renderFollow(){
+  const show=inRoom&&!!NET&&!isHost()&&lobbyMembers.length>1;
+  ['#followEnd','#followLobby'].forEach(sel=>{const el=$(sel);if(!el)return;el.hidden=!show;const cb=el.querySelector('input');if(cb)cb.checked=prefs.follow!==false});
+}
+document.querySelectorAll('.follow input').forEach(cb=>cb.addEventListener('change',e=>{prefs.follow=e.target.checked;savePrefs();renderFollow();sfx('tap');if(prefs.follow)followCheck()}));
 $('#bMenu').addEventListener('click',()=>{if(G&&G.online)leaveRoom();else toMenu()});
 $('#bSound').addEventListener('click',()=>{prefs.muted=!prefs.muted;savePrefs();wakeAudio();showMute()});
 let hiddenAt=0;
@@ -1894,7 +1938,7 @@ function renderLobby(){
   const vn=$('#lobbyVarNote');vn.hidden=true;vn.innerHTML=`<b>${VARIANT_INFO[hostMode].name}</b> · ${VARIANT_INFO[hostMode].tag}. ${esc(host?host.name:'The host')} picks the mode.`;
   if(me>=MAX_PLAYERS)lobbyMsg('This room is full. You can wait here for an open seat.');
   else if(playing.length)lobbyMsg(playing.some(m=>m.id===ME.id)?'':'A match is in progress. You will be in the next one.');
-  else if(!hostView&&host)lobbyMsg(`Waiting for ${host.name} to start.`);
+  else if(!hostView&&host)lobbyMsg(`${prefs.follow!==false?`Following ${host.name}. `:''}Waiting for ${host.name} to start.`);
   else if(hostView&&seated.length+nb<2)lobbyMsg('Share the code, or add a bot to play now.');
   else lobbyMsg('');
   $('#bStart').disabled=!!playing.length||seated.length+nb<2;
@@ -2022,6 +2066,7 @@ if(NET){
   NET.on({
     message(m){
       if(m.t==='start'){onStart(m);return}
+      if(m.t==='follow'){followHost(m.go,m.state,m.host);return}
       if(m.t==='gmsoon'){if(gmMid&&m.gm===gmMid){gmDeadline=m.ms>0?Date.now()+m.ms:0;renderGm()}return}
       if(!G||!G.online||m.mid!==G.mid)return;
       if(m.t==='snaps')G.netSnaps(m.list);
@@ -2039,7 +2084,7 @@ if(NET){
       else if(m.t==='give')G.netGive(m);
     },
     members(list){
-      lobbyMembers=list;renderLobby();gmCheck();
+      lobbyMembers=list;renderLobby();gmCheck();renderFollow();followCheck();
       if(G&&G.online&&!G.over)G.boards.forEach(b=>{if(b.remote&&!b.dead&&!list.some(x=>x.id===b.owner))maybeGone(b.owner)});
     },
     // Supabase also reports a 'leave' when someone merely updates their status (lobby -> playing),
@@ -2203,7 +2248,7 @@ function frameBody(now){
     if(!G.over&&G.frame-G.ffStart>60*600)G.resolveByHeight();
   }
   ALPHA=G&&!G.paused&&!G.over&&!G.ffMode?Math.max(0,Math.min(1,acc/(1000/60))):0;drawDt=Math.min(50,now-lastDraw);lastDraw=now;
-  if(G!==lastG){lastG=G;lastMargin=1}
+  if(G!==lastG){lastG=G;lastMargin=1;if(SND&&SND.setVoice)SND.setVoice(G&&G.variant)}
   if(G&&!G.over&&!G.paused&&!G.player.dead){const m=G.margin();if(m>lastMargin){lastMargin=m;G.player.pops.push({text:`Overtime · throws ×${m.toFixed(1)}`,x:3,y:4,col:'#F7C548',size:.85,life:90});sfx('overtime')}}
   if(G&&!G.over&&!G.paused&&!G.player.dead&&hf%48===0&&(G.player.g[0].some(Boolean)||G.player.g[1].some(Boolean)))sfx('heart');
   render();
