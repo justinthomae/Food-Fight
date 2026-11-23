@@ -1,6 +1,6 @@
 // Food Fight UI: drawing, input, settings, practice mode and the online lobby.
 (function(){
-const VERSION='1.24.0';
+const VERSION='1.25.0';
 let spec=null; // board being spectated after you're knocked out
 // how far we are between two 60Hz game steps (0..1): drawing uses it so motion is smooth on 90/120/144Hz screens too
 let ALPHA=0,lastDraw=performance.now(),drawDt=16,SIDEW=0;
@@ -8,6 +8,7 @@ const $=s=>document.querySelector(s);
 const $$=s=>[...document.querySelectorAll(s)];
 const cv=$('#board'),ctx=cv.getContext('2d');
 const NET=typeof window.FFNet!=='undefined'&&window.FFNet.enabled?window.FFNet:null;
+const PROG=window.FFProgress||null;   // cook level, unlocks and the daily challenge (js/progress.js)
 let S=40,DPR=1,G=null,drag=null,lastDiff=1,lastMode='duel',minis=[];
 
 /* ---------- settings ---------- */
@@ -95,6 +96,7 @@ function applyLook(){
   window.FF_CALM=calmMotion();document.documentElement.classList.toggle('calm',window.FF_CALM);   // board modes skip their shake when set
   $$('#motion button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.m===(prefs.motion||'auto'))));
   $$('#buzz button').forEach(b=>b.setAttribute('aria-pressed',String((b.dataset.b==='on')===(prefs.buzz!==false))));
+  $$('#musicSet button').forEach(b=>b.setAttribute('aria-pressed',String((b.dataset.mu==='on')===(prefs.music!==false))));if(SND&&SND.setMusic)SND.setMusic(prefs.music!==false);
   render();minis.forEach(renderMini);
 }
 matchMedia('(prefers-color-scheme: light)').addEventListener('change',()=>{if(prefs.theme==='auto')applyLook()});
@@ -458,9 +460,12 @@ function renderCuisines(){
       const b=document.createElement('button');b.className='pal cz';b.type='button';b.dataset.c=key;
       b.innerHTML=`<canvas width="250" height="50" aria-hidden="true"></canvas><b>${info.name}</b><span>${info.note}</span>`;
       box.appendChild(b);
-      b.addEventListener('click',()=>{prefs.cuisine=key;if(prefs.art!=='food')prefs.art='food';savePrefs();applyLook();sfx('tap')});
+      b.addEventListener('click',()=>{if(PROG&&!PROG.unlocked('kitchen',key)){lockedMsg(`${info.name} opens at cook level ${PROG.lockLevel('kitchen',key)}.`);return}prefs.cuisine=key;if(prefs.art!=='food')prefs.art='food';savePrefs();applyLook();sfx('tap')});
     });
   }
+  {const n=$('#czNote');if(n)n.textContent=PROG&&!PROG.veteran?'More kitchens open as you level up':'All free during early access'}
+  $$('#cuisines .cz').forEach(b=>{const lv=PROG?PROG.lockLevel('kitchen',b.dataset.c):0,lk=!!lv&&PROG.level()<lv;b.classList.toggle('locked',lk);
+    let bd=b.querySelector('.lockbadge');if(lk&&!bd){bd=document.createElement('span');bd.className='lockbadge';b.appendChild(bd)}if(bd){bd.hidden=!lk;bd.textContent=`Lv ${lv}`}});
   // previews follow the current colour set
   $$('#cuisines .cz').forEach(b=>{
     const key=b.dataset.c,k=b.dataset.k||'';if(k!==prefs.palette){b.dataset.k=prefs.palette;
@@ -592,14 +597,48 @@ function taunt(b,force){
   if(!G||!b||!b.isBot||b.boss||G.ffMode)return null;
   const now=performance.now();if(!force&&((b._tauntAt&&now-b._tauntAt<12000)||Math.random()>.35))return null;
   b._tauntAt=now;const t=lastTaunt=pickLine(TAUNTS,lastTaunt);
-  const m=minis.find(x=>x.board===b);
-  if(m){const old=m.el.querySelector('.bubble');if(old)old.remove();
-    const el=document.createElement('div');el.className='bubble';el.textContent=t;el.setAttribute('role','status');m.el.appendChild(el);
-    setTimeout(()=>el.classList.add('out'),2600);setTimeout(()=>el.remove(),3000)}
+  bubble(b,t);
   return t;
 }
+// a speech bubble on a rival's card (AI trash talk, or an emote from a real cook)
+function bubble(b,t,cls){
+  const m=minis.find(x=>x.board===b);if(!m)return;
+  const old=m.el.querySelector('.bubble');if(old)old.remove();
+  const el=document.createElement('div');el.className='bubble'+(cls?' '+cls:'');el.textContent=t;el.setAttribute('role','status');m.el.appendChild(el);
+  setTimeout(()=>el.classList.add('out'),2600);setTimeout(()=>el.remove(),3000);
+}
+/* ---- emotes: quick lines between real cooks in an online match. Only the line's number goes over the wire;
+   each phone checks it, and a cook can send one every 3 seconds. Higher cook levels unlock more lines. ---- */
+const EMO=PROG?PROG.EMOTES:[{t:'GG!',lv:1},{t:'Ketchup!',lv:1},{t:'Sizzlin’!',lv:1},{t:'Top dog!',lv:1}];
+let emoteAt=0;const emoteIn={};
+function emoteOk(){return !!(G&&G.online&&!G.over&&!G.ffMode&&G.boards.some(b=>b.remote&&!b.isBot))}
+function renderEmotes(){
+  const box=$('#emoteList');box.innerHTML='';
+  EMO.forEach((e,i)=>{const open=!PROG||PROG.unlocked('emote',i);const b=document.createElement('button');b.type='button';b.className='emo'+(open?'':' locked');
+    b.innerHTML=esc(e.t)+(open?'':`<small>Lv ${e.lv}</small>`);if(!open)b.setAttribute('aria-label',`${e.t} unlocks at cook level ${e.lv}`);
+    b.addEventListener('click',()=>{if(!open){sfx('uhoh');return}sendEmote(i)});box.appendChild(b)});
+  $('#emoteMute').setAttribute('aria-pressed',String(!!prefs.noEmotes));$('#emoteMute').textContent=prefs.noEmotes?'Show emotes from others':'Hide emotes from others';
+}
+function sendEmote(i){
+  const now=Date.now();if(!emoteOk()||now-emoteAt<3000){sfx('uhoh');return}
+  emoteAt=now;NET.send({t:'emote',mid:G.mid,id:G.player.id,e:i});closeEmotes();sfx('tap');
+  const b=$('#bEmote');b.classList.add('sent');b.setAttribute('aria-label','Sent: '+EMO[i].t);setTimeout(()=>{b.classList.remove('sent');b.setAttribute('aria-label','Send an emote')},1500);
+}
+function onEmote(m){
+  if(prefs.noEmotes||!G)return;
+  const i=m.e,b=G.byId(m.id),now=Date.now();
+  if(!Number.isInteger(i)||i<0||i>=EMO.length||!b||!b.remote||b.isBot||b===G.player)return;
+  if(emoteIn[b.owner]&&now-emoteIn[b.owner]<2500)return;emoteIn[b.owner]=now;
+  bubble(b,EMO[i].t,'emote');
+}
+function openEmotes(){if(!emoteOk())return;renderEmotes();$('#emoteMenu').hidden=false;$('#bEmote').setAttribute('aria-expanded','true')}
+function closeEmotes(){$('#emoteMenu').hidden=true;$('#bEmote').setAttribute('aria-expanded','false')}
+$('#bEmote').addEventListener('click',e=>{e.stopPropagation();$('#emoteMenu').hidden?openEmotes():closeEmotes()});
+$('#emoteMute').addEventListener('click',()=>{prefs.noEmotes=!prefs.noEmotes;savePrefs();renderEmotes()});
+document.addEventListener('pointerdown',e=>{if(!$('#emoteMenu').hidden&&!e.target.closest('#emoteMenu,#bEmote'))closeEmotes()});
 function buildOpps(){
   // both columns start empty: the right one (desktop) holds half of the last match's boards
+  closeEmotes();$('#bEmote').hidden=!emoteOk();
   const box=$('#opps'),R=$('#oppsR');box.innerHTML='';if(R)R.innerHTML='';box.classList.toggle('duel',!multi());box.classList.toggle('many',G.boards.length>4);
   minis=G.boards.filter(b=>b!==G.player).map(b=>{
     const el=document.createElement('div');el.className='foe';el.title=b.name;
@@ -1357,6 +1396,7 @@ $('#bLook').addEventListener('click',()=>openSub('#ovLook'));
 $('#bLook2').addEventListener('click',()=>openSub('#ovLook'));
 $$('#theme button').forEach(b=>b.addEventListener('click',()=>{prefs.theme=b.dataset.t;savePrefs();applyLook()}));
 $$('#art button').forEach(b=>b.addEventListener('click',()=>{prefs.art=b.dataset.a;savePrefs();applyLook()}));
+$$('#musicSet button').forEach(b=>b.addEventListener('click',()=>{prefs.music=b.dataset.mu==='on';savePrefs();wakeAudio();applyLook()}));
 $$('#stackCtl button').forEach(b=>b.addEventListener('click',()=>{prefs.stackCtl=b.dataset.s;savePrefs();applyLook();if(G&&G.variant==='stack')setControls()}));
 $$('#motion button').forEach(b=>b.addEventListener('click',()=>{prefs.motion=b.dataset.m;savePrefs();applyLook()}));
 $$('#buzz button').forEach(b=>b.addEventListener('click',()=>{prefs.buzz=b.dataset.b==='on';savePrefs();applyLook();if(prefs.buzz){lastBuzz=0;buzz('match')}}));
@@ -1437,6 +1477,8 @@ const baseHooks={
       $('#bMenu').textContent='Change mode';$('#bLobby').hidden=true;$('#gmPanel').hidden=true;
     }
     recordScore(res);
+    if(G.online&&!res.coop)reportRanked();
+    closeEmotes();$('#bEmote').hidden=true;
     $('#eTime').textContent=fmt(G.frame);$('#eChain').textContent=B.maxChain;$('#eScore').textContent=B.score;
     $('#eSent').textContent=B.sent;$('#eBlock').textContent=B.blocked;$('#eKO').textContent=B.kos;
     stopWatching();
@@ -1498,7 +1540,10 @@ function saveLocal(key,row){
 }
 let lastBoard={mode:'duel',d:1};
 function recordScore(res){
-  const B=G.player,base=G.online?'online':(G.mode==='brawl'&&G.boards.length>4?'brawl8':G.mode),mode=(G.variant&&G.variant!=='classic'?G.variant+'-':'')+base,d=G.online?1:G.d,key=boardKey(mode,d);
+  const B=G.player,base=G.online?'online':(G.mode==='brawl'&&G.boards.length>4?'brawl8':G.mode),daily=G.dailyKey||'',
+    mode=daily?'daily':(G.variant&&G.variant!=='classic'?G.variant+'-':'')+base,d=G.online||daily?1:G.d,key=boardKey(daily?'daily-'+daily:mode,d);
+  $('#eXp').hidden=true;$('#eLevelUp').hidden=true;
+  if(daily&&PROG){PROG.recordDaily(daily,B.score);renderDaily()}
   lastBoard={mode,d};
   const prevBest=(localScores[key]||[])[0];
   const row={name:ME.name,av:prefs.av,score:B.score,chain:B.maxChain,won:!!res.won,place:res.place||1,at:Date.now()};
@@ -1508,29 +1553,34 @@ function recordScore(res){
   const localLine=pb&&B.score>0?'New personal best!':`Your best here: ${list[0].score}`;
   el.textContent=localLine;
   const duration=Math.round(G.frame/60);
-  if(!SCORES||B.score<=0||duration<10||(VARIANT_INFO[G.variant]||{}).hidden)return;   // hidden mode: kept on this device only
-  const entry={deviceId,name:ME.name,avatar:prefs.av,mode,difficulty:d,score:B.score,maxChain:B.maxChain,kos:B.kos,won:!!res.won,place:res.place||1,duration,version:VERSION};
+  if(!SCORES||B.score<=0||duration<10||(!daily&&(VARIANT_INFO[G.variant]||{}).hidden))return;   // hidden mode: kept on this device only
+  const entry={deviceId,name:ME.name,avatar:prefs.av,mode,difficulty:d,score:B.score,maxChain:B.maxChain,kos:B.kos,won:!!res.won,place:res.place||1,duration,version:VERSION,daily};
+  const prevPct=PROG?PROG.bar().pct:0;
   if(navigator.onLine===false){queueScore(entry);el.textContent=localLine+' · Offline: it goes on the leaderboard when you reconnect';return}
   el.textContent='Saving your score…';
   SCORES.submit(entry)
     .then(r=>{
       if(!r||!r.ok){const net=!r||r.reason==='network'||r.reason==='offline';if(net)queueScore(entry);el.textContent=localLine+(r&&r.reason==='too_fast'?'':net?' · Saved, will post when the connection is back':' · Leaderboard unavailable right now');return}
-      el.textContent=`#${r.rank_day} today · #${r.rank_all} all time`+(r.personal_best?' · New personal best!':'');
+      el.textContent=daily?`#${r.rank_day} in today's daily challenge`+(r.personal_best?' · Your best today!':''):`#${r.rank_day} today · #${r.rank_all} all time`+(r.personal_best?' · New personal best!':'');
+      if(PROG&&r.xp_total!=null)showXp(PROG.apply(r,progNames()),prevPct);
     });
 }
-const lb={variant:'classic',mode:'duel',d:1,period:'day',req:0};
+const lb={kind:'modes',variant:'classic',mode:'duel',d:1,period:'day',req:0};
 const lbKey=()=>(lb.variant!=='classic'?lb.variant+'-':'')+lb.mode;
 function setSeg(id,v){$$(id+' button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.v===String(v))))}
 function openBoard(mode,d){
+  lb.kind=mode==='daily'?'daily':'modes';if(mode==='daily')mode=null;
   if(mode){const m=/^(order|stack|shot|boss)-(.+)$/.exec(mode);lb.variant=m?m[1]:'classic';lb.mode=m?m[2]:mode;lb.d=d}
   else lb.variant=prefs.variant;
   openSub('#ovBoard');loadBoard();
 }
 const dateFmt=t=>{const d=new Date(t),now=Date.now(),h=(now-d)/36e5;return h<1?'just now':h<24?Math.floor(h)+'h ago':d.toLocaleDateString(undefined,{month:'short',day:'numeric'})};
 async function loadBoard(){
-  setSeg('#lbVar',lb.variant);setSeg('#lbMode',lb.mode);setSeg('#lbDiff',lb.d);setSeg('#lbPeriod',lb.period);
-  $('#lbDiff').hidden=lb.mode==='online';$('#lbPeriod').hidden=!SCORES;
+  setSeg('#lbKind',lb.kind);setSeg('#lbVar',lb.variant);setSeg('#lbMode',lb.mode);setSeg('#lbDiff',lb.d);setSeg('#lbPeriod',lb.period);
+  const modes=lb.kind==='modes';$('#lbVar').hidden=$('#lbMode').hidden=!modes;
+  $('#lbDiff').hidden=!modes||lb.mode==='online';$('#lbPeriod').hidden=!SCORES||!modes;
   const list=$('#lbList'),req=++lb.req;
+  if(!modes)return loadSpecialBoard(list,req);
   const meta=r=>`${lb.variant==='boss'?(r.won?'Boss beaten':'Boss won'):(r.max_chain||r.chain||1)+'-chain · '+(r.won?'Won':placeName(r.place||2))}`;
   const row=(rank,name,score,sub,mine,av)=>`<li${mine?' class="mine"':''}><span class="rk">${rank}</span><div class="who">${av?avImg(av):''}<div><b>${esc(name)}</b><span>${sub}</span></div></div><span class="sc">${score}</span></li>`;
   if(!SCORES||navigator.onLine===false){
@@ -1552,22 +1602,74 @@ async function loadBoard(){
     list.innerHTML='<li class="lbempty">Couldn\'t load the leaderboard. Check your connection and try again.</li>';
   }
 }
-['#lbVar','#lbMode','#lbDiff','#lbPeriod'].forEach(id=>$$(id+' button').forEach(b=>b.addEventListener('click',()=>{
-  const v=b.dataset.v;if(id==='#lbVar')lb.variant=v;else if(id==='#lbMode')lb.mode=v;else if(id==='#lbDiff')lb.d=+v;else lb.period=v;loadBoard();
+// the daily challenge (today's board) and the weekly ranked table (signed-in online players)
+async function loadSpecialBoard(list,req){
+  const row=(rank,name,score,sub,mine,av)=>`<li${mine?' class="mine"':''}><span class="rk">${rank}</span><div class="who">${av?avImg(av):''}<div><b>${esc(name)}</b><span>${sub}</span></div></div><span class="sc">${score}</span></li>`;
+  if(!SCORES||navigator.onLine===false){list.innerHTML='<li class="lbempty">Connect to the internet to see this board.</li>';$('#lbSrc').textContent='';$('#lbNote').textContent='';return}
+  list.innerHTML='<li class="lbempty">Loading…</li>';
+  try{
+    if(lb.kind==='daily'){
+      const dc=PROG?PROG.daily():null;
+      $('#lbSrc').textContent=`Today's daily challenge${dc&&VARIANT_INFO[dc.variant]?' · '+VARIANT_INFO[dc.variant].name:''}`;$('#lbNote').textContent='Resets at midnight UTC';
+      const rows=await SCORES.board('daily',1,'today',deviceId,50);if(req!==lb.req)return;
+      let html='',prev=0;rows.forEach(r=>{if(r.rank>prev+1&&prev)html+='<li class="gap">⋯</li>';prev=r.rank;html+=row(r.rank,r.name,r.score,(r.won?'Won':'Played')+' · '+dateFmt(r.created_at),r.mine,r.avatar)});
+      list.innerHTML=html||'<li class="lbempty">Nobody has played today\'s challenge yet. Be the first!</li>';
+    }else{
+      $('#lbSrc').textContent='Grudge Rating · this week';$('#lbNote').textContent='Online matches with signed-in cooks · resets Monday';
+      const {data,error}=await window.FFNet.client().rpc('ff_rank_board',{p_limit:50});if(req!==lb.req)return;if(error)throw error;
+      list.innerHTML=(data||[]).map(r=>row(r.rank,r.name,r.rating,`${r.games} game${r.games===1?'':'s'} · ${r.wins} win${r.wins===1?'':'s'}`,r.mine,'')).join('')||'<li class="lbempty">No ranked matches yet this week. Sign in and play online with friends.</li>';
+    }
+  }catch(e){if(req!==lb.req)return;list.innerHTML='<li class="lbempty">Couldn\'t load this board. Check your connection and try again.</li>'}
+}
+['#lbKind','#lbVar','#lbMode','#lbDiff','#lbPeriod'].forEach(id=>$$(id+' button').forEach(b=>b.addEventListener('click',()=>{
+  const v=b.dataset.v;if(id==='#lbKind')lb.kind=v;else if(id==='#lbVar')lb.variant=v;else if(id==='#lbMode')lb.mode=v;else if(id==='#lbDiff')lb.d=+v;else lb.period=v;loadBoard();
 })));
 $('#bBoard').addEventListener('click',()=>openBoard());
 $('#bBoardEnd').addEventListener('click',()=>openBoard(lastBoard.mode,lastBoard.d));
 
 /* ---------- practice ---------- */
 function startPractice(d,mode,size){
-  wakeAudio();
+  wakeAudio();lastDaily=null;
   lastDiff=d;lastMode=mode;lastSize=size;
   G=new Game(mode,d,baseHooks,false,{av:prefs.av,name:ME.name,size,variant:prefs.variant});
   G.paused=true;G.waiting=true;
   rackIds='~';trayKey='~';plating=null;
   buildOpps();renderRack();resize();
-  showMatchup(1,()=>{if(G){G.paused=false;G.waiting=false}});
+  const coach=coachWanted(prefs.variant);if(coach)G.holdBots=true;
+  showMatchup(1,()=>{if(G){G.paused=false;G.waiting=false;if(coach)startCoach(G)}});
 }
+/* ---------- guided first match: the first practice of each mode holds the rivals while tips walk you in ----------
+   Offered once per mode, never online or in the daily challenge, and not for modes you've already played. */
+const COACHED_KEY='ff-coached';
+const coached=()=>{try{return JSON.parse(localStorage.getItem(COACHED_KEY)||'{}')||{}}catch(e){return{}}};
+function playedMode(v){return Object.keys(localScores).some(k=>(localScores[k]||[]).length&&(v==='classic'?/^(duel|brawl|brawl8|online)-/.test(k):k.startsWith(v+'-')))}
+function coachWanted(v){return !!HOW[v]||!!(VARIANT_INFO[v]&&VARIANT_INFO[v].how)?!coached()[v]&&!playedMode(v):false}
+let coachT=null;
+function stopCoach(g,msg){
+  clearInterval(coachT);coachT=null;if(g)g.holdBots=false;
+  const el=$('#coach');if(!msg){el.hidden=true;return}
+  $('#coachHead').textContent='Rivals are cooking!';$('#coachText').textContent=msg;$('#bCoachSkip').hidden=true;
+  clearTimeout(stopCoach.t);stopCoach.t=setTimeout(()=>{el.hidden=true},4200);
+}
+function startCoach(g){
+  const v=g.variant||'classic',c=coached();c[v]=1;try{localStorage.setItem(COACHED_KEY,JSON.stringify(c))}catch(e){}
+  const raw=(HOW[v]||VARIANT_INFO[v].how||'').match(/[^.!?]+[.!?]+/g)||[];
+  const tips=raw.map(t=>t.trim()).filter(Boolean),attack=tips.find(t=>/trash|rival|win|first|boss/i.test(t))||'Keep it up!';
+  const steps=tips.filter(t=>t!==attack);if(!steps.length)steps.push(tips[0]||'Have a go!');
+  const el=$('#coach');let i=0,started=g.frame;
+  const showStep=()=>{$('#coachHead').textContent=`${VARIANT_INFO[v].name} · tip ${Math.min(i+1,steps.length)} of ${steps.length}`;$('#coachText').textContent=steps[Math.min(i,steps.length-1)]+(i===0?' Your rivals wait until you score.':'');$('#bCoachSkip').hidden=false};
+  el.hidden=false;showStep();
+  clearInterval(coachT);
+  coachT=setInterval(()=>{
+    if(G!==g||g.over){stopCoach(null);return}
+    if(g.paused)return;
+    const secs=(g.frame-started)/60;
+    if(i<steps.length-1&&secs>(i+1)*6){i++;showStep()}
+    // go once you've scored (or after 40 seconds either way)
+    if((g.player&&g.player.score>0&&secs>2)||secs>40)stopCoach(g,attack);
+  },250);
+}
+$('#bCoachSkip').addEventListener('click',()=>{stopCoach(G);sfx('tap')});
 let pickMode='duel',pickSize=2,lastSize=2;
 $$('#mode button').forEach(b=>b.addEventListener('click',()=>{
   pickMode=b.dataset.m;pickSize=+b.dataset.size;$$('#mode button').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));
@@ -1610,7 +1712,7 @@ function closePause(){if(G&&!G.online&&!G.waiting)G.paused=false;hideAll()}
 $('#bPause').addEventListener('click',()=>{if(!$('#ovPause').hidden)closePause();else if(!anyOverlay())openPause()});
 $('#bResume').addEventListener('click',closePause);
 $('#bQuit').addEventListener('click',()=>{if(G&&G.online){leaveRoom()}else{if(G)G.over=true;toMenu()}});
-$('#bAgain').addEventListener('click',()=>{if(G&&G.online){if(lastMatch){const st=gmState(lastMatch.mid,lastMatch.bots,lastMatch.diff,lastMatch.variant);joinGrudge(st);leadParty('gm',st)}}else startPractice(lastDiff,lastMode,lastSize)});
+$('#bAgain').addEventListener('click',()=>{if(G&&G.online){if(lastMatch){const st=gmState(lastMatch.mid,lastMatch.bots,lastMatch.diff,lastMatch.variant);joinGrudge(st);leadParty('gm',st)}}else if(lastDaily&&G&&G.dailyKey)startDaily();else startPractice(lastDiff,lastMode,lastSize)});
 $('#bLobby').addEventListener('click',()=>{const lead=isHost()&&!$('#ovEnd').hidden;backToLobby();if(lead)leadParty('lobby')});
 /* ---------- party: everyone in the room follows the host ----------
    The host taps Grudge Match -> every guest is opted in too; the host goes back to the room (to change mode) -> guests go
@@ -1668,7 +1770,89 @@ document.addEventListener('visibilitychange',()=>{
   if(document.hidden&&G&&!G.over&&!G.online&&!G.paused&&!anyOverlay()&&!G.playerOut)openPause();   // nothing to pause for once you're out: the bots keep cooking
   if(!document.hidden&&!anyOverlay())restoreOut();
 });
-function toMenu(){showBest();demo();show('#ovStart')}
+function toMenu(){showBest();demo();show('#ovStart');renderLevel();renderDaily()}
+/* ---------- cook level (XP comes from the server with each saved score) and the daily challenge ---------- */
+const progNames=()=>({mode:Object.fromEntries(VARIANT_KEYS.map(v=>[v,VARIANT_INFO[v].name])),fighter:Object.fromEntries(FIGHTERS.map(f=>[f,FIGHTER_INFO[f].name])),
+  kitchen:Object.fromEntries(CZ.CUISINE_ORDER.map(k=>[k,k==='market'?'Farmers Market':(CZ.CUISINES[k]||{}).name||k]))});
+function lockedMsg(t){const el=$('#modeHow');if(el&&!$('#ovStart').hidden){el.textContent=t;el.classList.add('lockmsg');clearTimeout(lockedMsg.t);lockedMsg.t=setTimeout(()=>{el.classList.remove('lockmsg');labelSizes()},3200)}else if($('#lookMsg'))$('#lookMsg').textContent=t;sfx('uhoh')}
+function renderLevel(){
+  if(!PROG)return;const b=PROG.bar();
+  $('#lvNum').textContent='Lv '+b.level;$('#lvTitle').textContent=PROG.title();$('#lvFill').style.width=Math.round(b.pct*100)+'%';
+  const nx=PROG.nextReward(progNames());
+  $('#lvXp').textContent=`${b.into}/${b.need} XP`;
+  $('#lvChip').title=nx?`Next at level ${nx.level}: ${nx.rewards.map(r=>r.text).join(', ')}`:'';
+}
+$('#lvChip').addEventListener('click',()=>{if(!PROG)return;const nx=PROG.nextReward(progNames());lockedMsg(nx?`Cook level ${nx.level} brings: ${nx.rewards.map(r=>r.text.replace(/^New /,'')).join(' · ')}`:'You have everything. Keep cooking!')});
+function refreshLocks(){const v=$('#variants');if(v){const pk=pickers.find(p=>p.box===v);buildVariants(v,prefs.variant,pk?pk.onPick:()=>{})}renderPicker();renderCuisines();renderLevel()}
+if(PROG){
+  PROG.onChange(ev=>{if(ev&&ev.levelUp)refreshLocks();else renderLevel()});
+  // offline or the online library didn't load: keep the level we saved last time
+  setTimeout(()=>{let sb=null;try{sb=window.FFNet&&window.FFNet.client?window.FFNet.client():null}catch(e){}if(sb&&navigator.onLine!==false)PROG.refresh(sb,deviceId,progNames())},1200);
+}
+let lastDaily=null;
+function renderDaily(){
+  const btn=$('#bDaily');if(!btn)return;
+  if(!PROG){btn.hidden=true;return}
+  const dc=PROG.daily(),ds=PROG.dailyState(),name=VARIANT_INFO[dc.variant]?VARIANT_INFO[dc.variant].name:'Food Fight';
+  const left=PROG.msToNextDay(),h=Math.floor(left/36e5),m=Math.floor(left%36e5/6e4);
+  $('#dailySub').textContent=ds.played?`${name} · your best ${ds.best} · new one in ${h}h ${m}m`:`${name} · 4 cooks · same match for everyone today`;
+  const sk=$('#dailyStreak');sk.hidden=ds.streak<2;sk.textContent=`${ds.streak}-day streak`;
+  btn.classList.toggle('done',ds.played);btn.querySelector('.dgo').textContent=ds.played?'Again':'Play';
+}
+function startDaily(){
+  if(!PROG)return;wakeAudio();
+  const dc=PROG.daily();lastDaily=dc;
+  G=new Game('brawl',dc.d,baseHooks,false,{av:prefs.av,name:ME.name,size:dc.size,variant:dc.variant,seed:dc.seed});
+  G.dailyKey=dc.key;G.paused=true;G.waiting=true;
+  rackIds='~';trayKey='~';plating=null;buildOpps();renderRack();resize();
+  showMatchup(1,()=>{if(G){G.paused=false;G.waiting=false}});
+}
+$('#bDaily').addEventListener('click',()=>{sfx('tap');startDaily()});
+setInterval(()=>{if(!$('#ovStart').hidden)renderDaily()},30000);
+// after a game: what you earned, and anything a new level opened up
+/* ---------- weekly Grudge Rating: online matches between signed-in cooks ----------
+   Every signed-in cook reports the finishing order of the signed-in humans; the server applies it once two
+   of them agree (ff_report_match), so the rating never comes from one phone alone. */
+function myUid(){return SOC&&SOC.user&&SOC.user.id||''}
+let myRating=null;   // {rating,games} before this match, to show the change
+async function fetchRating(){
+  if(!myUid()||!window.FFNet)return null;
+  try{const {data,error}=await window.FFNet.client().rpc('ff_my_rating');if(error||!data)return null;myRating={rating:data.rating|0,games:data.games|0};return myRating}catch(e){return null}
+}
+function rankedFinish(){
+  if(!G||!lastMatch||lastMatch.mid!==G.mid)return null;
+  const ok=/^[0-9a-f-]{36}$/i,seen=new Set();
+  const rows=lastMatch.roster.filter(r=>!r.bot&&ok.test(r.uid||'')&&!seen.has(r.uid)&&seen.add(r.uid)).map(r=>({uid:r.uid,b:G.byId(r.id)})).filter(x=>x.b);
+  // a remote winner can finish with place 0 on this phone: still standing means first
+  rows.forEach(x=>{x.p=x.b.dead?x.b.place:(x.b.place||1)});if(rows.some(x=>!x.p)||rows.filter(x=>x.p===1).length!==1)return null;
+  if(rows.length<2||!rows.some(x=>x.uid===myUid()))return null;
+  return rows.sort((a,b)=>a.p-b.p).map(x=>x.uid);
+}
+async function reportRanked(){
+  const el=$('#eRating');el.hidden=true;
+  const fin=rankedFinish();if(!fin||!window.FFNet)return;
+  const before=myRating||await fetchRating(),mid=G.mid;
+  const show=(r,pending)=>{if(!G||G.mid!==mid)return;el.hidden=false;
+    if(pending){el.innerHTML='<b>Grudge Rating</b> · waiting for the other cooks to confirm the result';return}
+    const d=before&&r.games>before.games?r.rating-before.rating:null;
+    el.innerHTML=`<b>Grudge Rating ${r.rating}</b>`+(d==null?'':` <span class="${d>=0?'up':'down'}">${d>=0?'▲ +'+d:'▼ '+(-d)}</span>`)+' · this week';
+    myRating={rating:r.rating,games:r.games}};
+  try{
+    const {data,error}=await window.FFNet.client().rpc('ff_report_match',{p_mid:mid,p_finish:fin});
+    if(error||!data||!data.ok)return;
+    if(data.applied&&data.rating!=null){show(data,false);return}
+    show(null,true);
+    for(const wait of [2500,5000]){await new Promise(r=>setTimeout(r,wait));const r=await fetchRating();if(r&&before&&r.games>before.games){show(r,false);return}}
+  }catch(e){}
+}
+function showXp(ev,prevPct){
+  const box=$('#eXp'),lu=$('#eLevelUp');if(!ev||!PROG){box.hidden=true;lu.hidden=true;return}
+  const b=PROG.bar();box.hidden=false;
+  $('#eXpGain').textContent=ev.gained>0?`+${ev.gained} XP`:'No XP this game';
+  $('#eXpLv').textContent=`Lv ${b.level} · ${b.into}/${b.need}`;
+  const f=$('#eXpFill');f.style.width=Math.round((ev.levelUp?0:prevPct)*100)+'%';requestAnimationFrame(()=>requestAnimationFrame(()=>{f.style.width=Math.round(b.pct*100)+'%'}));
+  if(ev.levelUp){lu.hidden=false;lu.innerHTML=`<b>Cook level ${ev.levelUp}!</b>${esc(PROG.title(ev.levelUp))}${ev.rewards.length?' · '+ev.rewards.map(r=>esc(r.text)).join(' · '):''}`;sfx('great')}else lu.hidden=true;
+}
 function demo(){G=new Game('duel',1,baseHooks,false,{av:prefs.av,name:ME.name});G.paused=true;G.demo=true;rackIds='~';trayKey='~';plating=null;buildOpps();renderRack()}
 
 /* ---------- profile ---------- */
@@ -1698,6 +1882,8 @@ $('#bMeEdit').addEventListener('click',()=>{toggleLobbyPicker();sfx('tap')});
 $('#lobbyPicker').addEventListener('click',e=>{if(e.target.closest('.pick'))setTimeout(()=>toggleLobbyPicker(false),250)});
 function renderPicker(){
   ['#picker','#lobbyPicker'].forEach(sel=>{const box=$(sel);if(box)fillPicker(box)});
+  $$('.pick').forEach(b=>{const lv=PROG?PROG.lockLevel('fighter',b.dataset.av):0,lk=!!lv&&PROG.level()<lv;b.classList.toggle('locked',lk);
+    let bd=b.querySelector('.lockbadge');if(lk&&!bd){bd=document.createElement('span');bd.className='lockbadge';b.appendChild(bd)}if(bd){bd.hidden=!lk;bd.textContent=`Lv ${lv}`}});
   $$('.pick').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.av===prefs.av)));
   const mi=$('#meAvImg');if(mi){mi.src=body(prefs.av);mi.alt=FIGHTER_INFO[prefs.av]?FIGHTER_INFO[prefs.av].name:''}
 }
@@ -1706,7 +1892,8 @@ function fillPicker(box){
     const b=document.createElement('button');b.type='button';b.className='pick';b.dataset.av=av;
     b.innerHTML=`<img src="${body(av)}" alt="" width="120" height="120"><span>${FIGHTER_INFO[av].name}</span>`;
     b.setAttribute('aria-label',`${FIGHTER_INFO[av].name}, ${FIGHTER_INFO[av].tag}`);
-    b.addEventListener('click',()=>{prefs.av=av;savePrefs();renderPicker();wakeAudio();sfx('tap');if(window.FFSocial&&window.FFSocial.fighterChanged)window.FFSocial.fighterChanged(av);if(NET&&inRoom){NET.setProfile({av});renderLobby()}if(G&&G.paused&&!G.online&&G.player)G.player.av=av});
+    b.addEventListener('click',()=>{
+      if(PROG&&!PROG.unlocked('fighter',av)){lockedMsg(`${FIGHTER_INFO[av].name} joins at cook level ${PROG.lockLevel('fighter',av)}.`);return}prefs.av=av;savePrefs();renderPicker();wakeAudio();sfx('tap');if(window.FFSocial&&window.FFSocial.fighterChanged)window.FFSocial.fighterChanged(av);if(NET&&inRoom){NET.setProfile({av});renderLobby()}if(G&&G.paused&&!G.online&&G.player)G.player.av=av});
     box.appendChild(b);
   });
 }
@@ -1731,7 +1918,10 @@ function buildVariants(box,current,onPick){
     const b=document.createElement('button');b.type='button';b.className='vcard';b.dataset.v=v;b.setAttribute('role','radio');
     b.appendChild(variantIcon(v));
     b.insertAdjacentHTML('beforeend',`<b>${VARIANT_INFO[v].name}</b><span>${VARIANT_INFO[v].tag}</span>${v==='classic'?'':VARIANT_INFO[v].hidden?'<span class="new admin">ADMIN</span>':'<span class="new">NEW</span>'}`);
-    b.addEventListener('click',()=>{onPick(v);sfx('tap')});
+    // new cooks start with a few modes; the rest open up with their cook level (start menu only, rooms stay open)
+    const lockLv=box.id==='variants'&&PROG?PROG.lockLevel('mode',v):0;
+    if(lockLv&&PROG.level()<lockLv){b.classList.add('locked');b.dataset.lock=lockLv;b.insertAdjacentHTML('beforeend',`<span class="lockbadge">Lv ${lockLv}</span>`);b.setAttribute('aria-label',`${VARIANT_INFO[v].name}, unlocks at cook level ${lockLv}`)}
+    b.addEventListener('click',()=>{if(b.classList.contains('locked')){lockedMsg(`${VARIANT_INFO[v].name} unlocks at cook level ${b.dataset.lock}. Play any mode to earn XP.`);return}onPick(v);sfx('tap')});
     box.appendChild(b);
   });
   markVariants(box,current);
@@ -1804,7 +1994,7 @@ async function enterRoom(code,invite,retry){
   onlineMsg(invite?`Joining room ${code}…`:'Connecting…');$('#bCreate').disabled=$('#bJoin').disabled=true;
   try{
     roomMode=prefs.variant;markVariants($('#lobbyVariants'),roomMode);
-    await NET.join(code,{id:ME.id,name:ME.name,av:prefs.av,mode:roomMode});
+    await NET.join(code,{id:ME.id,name:ME.name,av:prefs.av,mode:roomMode,uid:myUid()});
     inRoom=true;
     try{history.replaceState(null,'','?room='+code)}catch(e){}
     $('#roomCode').textContent=code;lobbyMsg('');
@@ -1952,7 +2142,7 @@ $('#gmJoin').addEventListener('click',e=>{const st=e.currentTarget.dataset.state
 $('#bStart').addEventListener('click',()=>{
   if(!isHost())return;
   const humans=lobbyMembers.filter(m=>m.state!=='playing').slice(0,MAX_PLAYERS);
-  const roster=humans.map(h=>({id:h.id,name:h.name,av:h.id===ME.id?prefs.av:h.av}));
+  const roster=humans.map(h=>({id:h.id,name:h.name,av:h.id===ME.id?prefs.av:h.av,uid:h.id===ME.id?myUid():h.uid||''}));
   const nb=Math.min(botCount,MAX_PLAYERS-roster.length);
   if(nb>0)pickBots(nb,null,[]).forEach((bt,i)=>roster.push({id:`bot:${ME.id}:${i}`,name:bt.name,av:bt.av,bot:true,owner:ME.id}));
   if(roster.length<2){lobbyMsg('Need at least one more cook. Share the code or turn on bots.');return}
@@ -1975,11 +2165,12 @@ function onStart(m){
   if(!m.roster.some(r=>r.id===ME.id)){if(!$('#ovLobby').hidden)lobbyMsg('A match just started. You will be in the next one.');return}
   wakeAudio();cancelGrudge();NET.setState('playing');spec=null;watchers={};
   const variant=VARIANT_INFO[m.variant]?m.variant:'classic';
+  if(myUid())fetchRating();
   lastMatch={mid:m.mid,roster:m.roster,bots:m.roster.filter(r=>r.bot).length,diff:Math.max(0,Math.min(2,m.diff|0)),champ:null,variant};
   // build the match now so everyone sees boards during the countdown
   G=new Game('online',Math.max(0,Math.min(2,m.diff|0)),Object.assign({},baseHooks,{
     send:x=>{x.mid=m.mid;NET.send(x)}
-  }),false,{roster:m.roster.map(r=>({id:String(r.id),name:String(r.name||'Cook').slice(0,14),av:String(r.av||''),bot:!!r.bot,owner:r.owner?String(r.owner):undefined})),myId:ME.id,seed:m.seed>>>0,variant,hostId:m.host?String(m.host):null,boss:m.boss&&FIGHTERS.includes(m.boss.av)?{av:m.boss.av}:null});
+  }),false,{roster:m.roster.map(r=>({id:String(r.id),name:String(r.name||'Cook').slice(0,14),av:String(r.av||''),bot:!!r.bot,uid:!r.bot&&/^[0-9a-f-]{36}$/i.test(r.uid||'')?r.uid:'',owner:r.owner?String(r.owner):undefined})),myId:ME.id,seed:m.seed>>>0,variant,hostId:m.host?String(m.host):null,boss:m.boss&&FIGHTERS.includes(m.boss.av)?{av:m.boss.av}:null});
   G.mid=m.mid;G.champId=m.champ||null;G.paused=true;G.waiting=true;
   rackIds='~';trayKey='~';plating=null;buildOpps();renderRack();resize();
   showMatchup(Math.max(1,Math.round((m.delay||3000)/1000)),()=>{if(G&&G.mid===m.mid){G.paused=false;G.waiting=false}});
@@ -2042,7 +2233,7 @@ function startGrudge(){
   const [,,b,d,gv]=((ins[0]&&ins[0].state)||myGm).split(':');
   if(ins.length<(soloOk(+b||0)?1:2)||!gmMid||ins[0].id!==ME.id){gmDeadline=0;renderGm();return}
   const humans=ins.slice(0,MAX_PLAYERS);
-  const roster=humans.map(h=>({id:h.id,name:h.name,av:h.id===ME.id?prefs.av:h.av}));
+  const roster=humans.map(h=>({id:h.id,name:h.name,av:h.id===ME.id?prefs.av:h.av,uid:h.id===ME.id?myUid():h.uid||''}));
   const used=new Set(roster.map(r=>r.av));
   const want=Math.min(+b||0,MAX_PLAYERS-roster.length);
   BOTS.filter(x=>!used.has(x.av)).concat(BOTS.filter(x=>used.has(x.av))).slice(0,want)
@@ -2074,6 +2265,7 @@ if(NET){
       else if(m.t==='ko')G.netKO(m.id,m.by);
       else if(m.t==='steal')G.netSteal(m);
       else if(m.t==='ff')startFF();
+      else if(m.t==='emote')onEmote(m);
       else if(m.t==='watch')onWatch(m);
       else if(m.t==='owin')G.finishOrders(G.byId(m.id));
       else if(m.t==='odone')G.netOrderDone(m.id);
@@ -2144,7 +2336,10 @@ if(SOC){
     sfx:n=>sfx(n),
     shareLink:()=>shareRoomLink(),
     // first sign-in on this device: play under your account name unless you've picked one
-    signedIn(name){if(!prefs.name&&name){setMyName(name);nameIn.value=prefs.name}},
+    deviceId:()=>deviceId,
+    // account deletion: this device forgets its Food Fight progress and scores too
+    dataDeleted(){['ff-progress','ff-scores','ff-daily','ff-coached'].forEach(k=>{try{localStorage.removeItem(k)}catch(e){}});localScores={};if(PROG)PROG._reset({xp:0,veteran:false});refreshLocks();renderLevel();renderDaily()},
+    signedIn(name){if(!prefs.name&&name){setMyName(name);nameIn.value=prefs.name}if(NET&&inRoom)Promise.resolve(NET.setProfile({uid:myUid()})).catch(()=>{});setTimeout(fetchRating,500);if(PROG&&window.FFNet){try{PROG.link(window.FFNet.client(),deviceId,progNames())}catch(e){}}},
   });
 }
 function afterLoad(){
@@ -2194,7 +2389,7 @@ document.addEventListener('touchmove',e=>{if(e.touches&&e.touches.length>1)e.pre
   document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')check()});
   window.__ffUpdate={check,get newer(){return newer}};
 })();
-if('serviceWorker' in navigator&&(location.protocol==='https:'||location.hostname==='localhost')&&!/claude\.ai|claudeusercontent/.test(location.hostname)){
+if('serviceWorker' in navigator&&!window.Capacitor&&(location.protocol==='https:'||location.hostname==='localhost')&&!/claude\.ai|claudeusercontent/.test(location.hostname)){
   window.addEventListener('load',()=>{navigator.serviceWorker.register('sw.js').catch(()=>{})});
 }
 
@@ -2238,6 +2433,14 @@ function loop(now){
   requestAnimationFrame(loop);   // asked for first, so an error below can never freeze the screen
   try{frameBody(now)}catch(e){if(!loop.err){loop.err=1;try{console.error('frame failed',e)}catch(_){}}}
 }
+// background music follows the match: calm groove while you play, the tense loop when the stack nears the top,
+// in overtime, a boss's last stand, or when it's down to the final two
+function musicMood(){
+  if(!G||G.demo||G.over||G.paused||G.waiting||G.ffMode||!G.player||G.player.dead)return 'off';
+  const B=G.player,high=B.g&&B.g[1]&&(B.g[0].some(Boolean)||B.g[1].some(Boolean)||B.g[2]&&B.g[2].some(Boolean));
+  const final2=G.boards.length>2&&G.alive().length===2;
+  return high||G.margin()>1||final2||(G.boss&&G.boss.phase>=3)?'intense':'calm';
+}
 function frameBody(now){
   acc+=Math.min(100,now-last);last=now;
   while(acc>=1000/60){if(G)G.step();acc-=1000/60}
@@ -2251,6 +2454,7 @@ function frameBody(now){
   if(G!==lastG){lastG=G;lastMargin=1;if(SND&&SND.setVoice)SND.setVoice(G&&G.variant)}
   if(G&&!G.over&&!G.paused&&!G.player.dead){const m=G.margin();if(m>lastMargin){lastMargin=m;G.player.pops.push({text:`Overtime · throws ×${m.toFixed(1)}`,x:3,y:4,col:'#F7C548',size:.85,life:90});sfx('overtime')}}
   if(G&&!G.over&&!G.paused&&!G.player.dead&&hf%48===0&&(G.player.g[0].some(Boolean)||G.player.g[1].some(Boolean)))sfx('heart');
+  if(hf%15===0&&SND&&SND.music)SND.music(musicMood());
   render();
   if(++hf%3===0&&G){updateOpps();renderTray();hud();updateAim();if(G.variant==='order')renderRail();if(G.boss)renderBoss()}
   if(hf%15===0&&G&&!$('#outToast').hidden){

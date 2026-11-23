@@ -7,6 +7,7 @@ window.FFScores=(function(){
     try{
       const args={p_device_id:e.deviceId,p_name:e.name,p_mode:e.mode,p_difficulty:e.difficulty,p_score:e.score,
         p_max_chain:e.maxChain,p_kos:e.kos,p_won:e.won,p_place:e.place,p_duration_s:e.duration,p_version:e.version,p_avatar:e.avatar||''};
+      if(e.daily)args.p_daily=e.daily;   // the daily challenge: which day's (the server only takes today's)
       let {data,error}=await withTimeout(window.FFNet.client().rpc('ff_submit_score',args),8000);
       // database without the avatar migration yet: retry the original call shape
       if(error&&/p_avatar|function|schema cache/i.test(error.message||'')){delete args.p_avatar;({data,error}=await withTimeout(window.FFNet.client().rpc('ff_submit_score',args),8000))}

@@ -159,3 +159,50 @@ ok(held.length===4&&held.every(x=>x.held_reason),'owner sees every held score wi
 await db.query(`update ff_scores set held=false where device_id='device-v6rate'`);
 ok((await board('order-duel')).some(x=>x.score===30000),'releasing a held score publishes it');
 console.log('v6 done');
+
+// ---- v7: cook XP, the daily challenge, the weekly Grudge Rating and in-app data deletion ----
+// stand-ins for Supabase's auth schema and the shared Grudge Match tables
+await db.exec(`create schema if not exists auth; create table if not exists auth.users(id uuid primary key);
+  create or replace function auth.uid() returns uuid language sql stable as $f$ select nullif(current_setting('test.uid',true),'')::uuid $f$;
+  grant usage on schema auth to anon, authenticated; grant execute on function auth.uid() to anon, authenticated;
+  create table if not exists public.users_public(id uuid primary key, username text, display_name text);
+  create table if not exists public.gm_app_profiles(user_id uuid, app text, display_name text, avatar text, stats jsonb, primary key(user_id,app));`);
+const v7=fs.readFileSync(new URL('../supabase/migrations/20261123000009_ff_progress_daily_ranked.sql',import.meta.url),'utf8');
+await db.exec(v7);await db.exec(v7);ok(true,'v7 applies twice');
+const U=['11111111-1111-4111-8111-111111111111','22222222-2222-4222-8222-222222222222','33333333-3333-4333-8333-333333333333'];
+for(const [i,u] of U.entries()){await db.query(`insert into auth.users values($1) on conflict do nothing`,[u]);await db.query(`insert into users_public values($1,$2,$2) on conflict do nothing`,[u,['ann','bob','cat'][i]])}
+const as=async(role,uid,sql,params)=>{await db.query(`select set_config('test.uid',$1,false)`,[uid||'']);await db.exec('set role '+role);try{return (await db.query(sql,params)).rows[0]}finally{await db.exec('reset role')}};
+const today=(await db.query(`select to_char(now() at time zone 'utc','YYYYMMDD') d`)).rows[0].d;
+const sub7=(dev,mode,score,o={})=>as('anon','',`select ff_submit_score($1,'Cook',$2,1,$3,2,$4,$5,1,$6,'1.25.0','',$7) r`,[dev,mode,score,o.kos||0,!!o.won,o.dur||180,o.daily||'']).then(x=>x.r);
+r=await sub7('device-xp001','classic-duel'.replace('classic-',''),3000,{won:true,kos:1});
+ok(r.ok&&r.xp===15+75+25+5&&r.xp_total===r.xp&&r.level===2,'a won game grants XP (base + score + win + KO): '+r.xp);
+r=await sub7('device-xp002','daily',2000,{daily:'20200101'});ok(r.ok===false,'the daily only takes today\'s key ('+r.reason+')');
+r=await sub7('device-xp002','daily',2000,{daily:today});ok(r.ok&&r.xp===15+50+20,'daily challenge scores and grants its bonus: '+r.xp);
+let lb7=(await as('anon','',`select json_agg(t) j from ff_leaderboard('daily',1,'today','device-xp002',10) t`)).j;
+ok(lb7&&lb7.length===1&&lb7[0].mine,'today\'s daily board lists it');
+let pr=(await as('anon','',`select ff_my_progress('device-xp001') r`)).r;ok(pr.ok&&pr.xp_total===120,'progress for a device');
+// the account: linking two devices adds their XP together
+pr=(await as('authenticated',U[0],`select ff_link_device('device-xp001') r`)).r;
+pr=(await as('authenticated',U[0],`select ff_link_device('device-xp002') r`)).r;ok(pr.ok&&pr.xp_total===205,'signing in on a second device adds its XP to the account: '+pr.xp_total);
+pr=(await as('authenticated',U[1],`select ff_link_device('device-xp001') r`)).r;ok(!pr.ok||pr.xp_total!==205,'another account can\'t take a linked device');
+// ranked: Ann, Bob, Cat
+const rep=(uid,mid,fin)=>as('authenticated',uid,`select ff_report_match($1,$2::uuid[]) r`,[mid,'{'+fin.join(',')+'}']).then(x=>x.r);
+r=await rep(U[0],'match001',[U[0],U[1],U[2]]);ok(r.ok&&!r.applied,'one report alone changes nothing');
+r=await rep(U[1],'match001',[U[1],U[0],U[2]]);ok(r.ok&&!r.applied,'a report that disagrees doesn\'t apply it');
+r=await rep(U[2],'match001',[U[0],U[1],U[2]]);ok(r.ok&&r.applied,'two matching reports apply the result');
+const rt=async u=>(await as('authenticated',u,`select ff_my_rating() r`)).r;
+const [ra,rb,rc]=[await rt(U[0]),await rt(U[1]),await rt(U[2])];
+ok(ra.rating>1000&&rc.rating<1000&&ra.games===1&&rc.games===1&&ra.wins===1,`ratings move: ${ra.rating}/${rb.rating}/${rc.rating}`);
+r=await rep(U[0],'match001',[U[0],U[1],U[2]]);ok((await rt(U[0])).games===1,'reporting the same match again counts once');
+r=await rep(U[0],'match002',[U[1],U[2]]);ok(r.ok===false&&r.reason==='not_in_match','you can only report matches you were in');
+r=(await as('anon','',`select ff_report_match('match003','{${U[0]},${U[1]}}'::uuid[]) r`).catch(e=>({r:{ok:false,reason:'denied'}}))).r;ok(!r||r.ok===false,'signed-out players can\'t report');
+const bd=(await as('anon','',`select json_agg(t) j from ff_rank_board(10) t`)).j;ok(bd&&bd.length===3&&bd[0].name==='ann','the weekly board ranks them');
+// deletion
+await db.query(`insert into gm_app_profiles values($1,'foodfight','Ann','av:bun','{}'),($1,'boomtown','Ann','x','{}')`,[U[0]]);
+r=(await as('authenticated',U[0],`select ff_delete_my_data('device-xp001') r`)).r;ok(r.ok,'delete my data runs');
+const left=(await db.query(`select (select count(*) from ff_scores where device_id in ('device-xp001','device-xp002'))::int s,(select count(*) from ff_xp_log where device_id in ('device-xp001','device-xp002'))::int x,
+  (select count(*) from ff_ratings where user_id=$1)::int r,(select count(*) from gm_app_profiles where user_id=$1 and app='foodfight')::int p,(select count(*) from gm_app_profiles where user_id=$1 and app='boomtown')::int bt,(select count(*) from ff_devices where user_id=$1)::int d`,[U[0]])).rows[0];
+ok(left.s===0&&left.x===0&&left.r===0&&left.p===0&&left.d===0,'Ann\'s Food Fight scores, XP, rating, devices and profile are gone');
+ok(left.bt===1,'her profile in another Grudge Match game is kept');
+r=(await as('anon','',`select ff_delete_my_data(null) r`).catch(()=>({r:{ok:false}}))).r;ok(!r||r.ok===false,'signed out, nothing can be deleted');
+console.log('v7 done');

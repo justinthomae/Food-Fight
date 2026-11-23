@@ -8,7 +8,7 @@ const html=fs.readFileSync(path.join(root,'index.html'),'utf8').replace(/<script
 const scripts=[...fs.readFileSync(path.join(root,'index.html'),'utf8').matchAll(/<script src="(js\/[^"]+)"/g)].map(m=>m[1]).filter(f=>f!=='js/config.js').map(f=>fs.readFileSync(path.join(root,f),'utf8'));
 
 // ---- fake Supabase Realtime: one shared bus per channel name ----
-const buses={},rpcLog=[],crossLog=[],rpcRows=[{mode:'brawl',diff:1,name:'Top Chef',score:99999,device:'d-other-device'}];
+let xpTotal=80;const RAT={},deleted=[],rankLog=[],rankApplied=new Set();const buses={},rpcLog=[],crossLog=[],rpcRows=[{mode:'brawl',diff:1,name:'Top Chef',score:99999,device:'d-other-device'}];
 // ---- fake Supabase auth + tables (the shared Grudge Match account, friends, statuses), with the real RLS rules ----
 const DB={users_public:[],friends:[],user_statuses:[],users:[],gm_invites:[]},AUTH=[],pgSubs=new Set(),pgInv=new Set();let fid=1;
 // realtime for gm_invites: deliver to subscribers whose filter matches and who can see the row (RLS: either party)
@@ -66,7 +66,7 @@ function fakeAuth(){
     onAuthStateChange(cb){cbs.push(cb);return {data:{subscription:{unsubscribe(){}}}}},
     async signInWithPassword({email,password}){const u=AUTH.find(x=>x.email===email&&x.pw===password);if(!u)return {data:{},error:{message:'Invalid login credentials'}};return signIn(u)},
     async signUp({email,password,options}){if(AUTH.some(x=>x.email===email))return {data:{},error:{message:'User already registered'}};
-      const u={id:'uid-'+Math.random().toString(36).slice(2,10),email,pw:password};AUTH.push(u);
+      const u={id:require('crypto').randomUUID(),email,pw:password};AUTH.push(u);
       // what BoomTown's handle_new_user trigger does: a users row, username = email prefix
       DB.users.push({id:u.id,email,username:email.split('@')[0],full_name:(options&&options.data&&options.data.full_name)||email.split('@')[0]});
       DB.users_public.push({id:u.id,username:email.split('@')[0],display_name:null,profile_picture_url:null,avatar:null});
@@ -96,12 +96,20 @@ function fakeSupabase(){
     },
     async removeChannel(ch){ch._close()},
     async rpc(fn,a){
-      if(fn==='ff_submit_score'){rpcLog.push(a);const better=rpcRows.filter(r=>r.mode===a.p_mode&&r.score>a.p_score).length;rpcRows.push({mode:a.p_mode,diff:a.p_difficulty,name:a.p_name,score:a.p_score,device:a.p_device_id});return{data:{ok:true,rank_day:better+1,rank_all:better+1,personal_best:true},error:null}}
+      if(fn==='ff_submit_score'){rpcLog.push(a);const better=rpcRows.filter(r=>r.mode===a.p_mode&&r.score>a.p_score).length;rpcRows.push({mode:a.p_mode,diff:a.p_difficulty,name:a.p_name,score:a.p_score,device:a.p_device_id});xpTotal+=40;return{data:{ok:true,rank_day:better+1,rank_all:better+1,personal_best:true,xp:40,xp_total:xpTotal,level:1},error:null}}
       if(fn==='ff_leaderboard'){const rows=rpcRows.filter(r=>r.mode===a.p_mode).sort((x,y)=>y.score-x.score).map((r,i)=>({rank:i+1,name:r.name,score:r.score,max_chain:2,won:true,created_at:new Date().toISOString(),mine:r.device===a.p_device_id}));return{data:rows,error:null}}
       // the studio's shared cross-game invites (gm_cross_invites), as the live functions behave
       if(fn==='gm_my_invites'){const uid=A.uid(),T=DB.gm_cross_invites||[];return{data:T.filter(r=>uid&&r.to_user===uid&&['pending','later'].includes(r.status)&&new Date(r.expires_at)>new Date()).map(r=>Object.assign({},r)),error:null}}
       if(fn==='gm_respond_invite'){const uid=A.uid(),r=(DB.gm_cross_invites||[]).find(x=>x.id===a.p_invite&&x.to_user===uid),st={now:'accepted',later:'later',decline:'declined'}[a.p_choice];
         if(!r||!st)return{data:null,error:{message:'invite not found'}};crossLog.push(a);r.status=st;return{data:r.join_url,error:null}}
+      // weekly Grudge Rating, as ff_report_match behaves: applied once two cooks in the match agree on the order
+      if(fn==='ff_delete_my_data'){if(!A.uid())return{data:{ok:false},error:null};deleted.push({uid:A.uid(),dev:a.p_device_id});return{data:{ok:true},error:null}}
+      if(fn==='ff_my_rating'){const r=RAT[A.uid()]||{rating:1000,games:0};return{data:{rating:r.rating,games:r.games,wins:0},error:null}}
+      if(fn==='ff_report_match'){const uid=A.uid(),f=a.p_finish||[];if(!uid)return{data:{ok:false,reason:'signin'},error:null};if(!f.includes(uid))return{data:{ok:false,reason:'not_in_match'},error:null};
+        rankLog.push({uid,mid:a.p_mid,finish:f.join(',')});
+        const agree=rankLog.filter(x=>x.mid===a.p_mid&&x.finish===f.join(',')&&f.includes(x.uid)).length;
+        if(agree>=2&&!rankApplied.has(a.p_mid)){rankApplied.add(a.p_mid);f.forEach((u,i)=>{const r=RAT[u]||(RAT[u]={rating:1000,games:0});r.rating+=i===0?16:-Math.round(16/(f.length-1));r.games++})}
+        const r=RAT[uid]||{rating:1000,games:0};return{data:{ok:true,applied:rankApplied.has(a.p_mid),rating:r.rating,games:r.games},error:null}}
       return{data:null,error:{message:'unknown'}};
     }
   }}};
@@ -123,6 +131,9 @@ function page(url,opt){
   if(!w.crypto.subtle)Object.defineProperty(w.crypto,'subtle',{value:require('crypto').webcrypto.subtle});
   if(!w.TextEncoder)w.TextEncoder=TextEncoder;
   w.Element.prototype.getBoundingClientRect=function(){return{left:0,top:0,right:300,bottom:600,width:300,height:600}};
+  // players from before levels existed keep everything; opt.fresh is a brand-new player
+  if(!(opt&&opt.fresh)){w.localStorage.setItem('ff-progress',JSON.stringify({xp:0,veteran:true,at:0}));
+    w.localStorage.setItem('ff-coached',JSON.stringify(Object.fromEntries('classic order stack shot boss blocks buffet slurp conveyor pancake merge mold pest'.split(' ').map(k=>[k,1]))))}
   // browsers share one global scope across classic <script> tags; one eval reproduces that
   try{w.eval(scripts.join('\n;\n'))}catch(e){errors.push(String(e.stack||e))}
   return {w,$:s=>w.document.querySelector(s),errors};
@@ -194,6 +205,8 @@ const check=(cond,msg)=>{console.log((cond?'PASS ':'FAIL ')+msg);if(!cond)proces
   check(rpcLog.length===1&&rpcLog[0].p_score===4321&&rpcLog[0].p_mode==='brawl'&&rpcLog[0].p_duration_s>=40,'score submitted with mode and duration');
   check(/#2 today · #2 all time/.test(solo.$('#eRank').textContent),'end screen shows today and all-time rank');
   check(JSON.parse(solo.w.localStorage.getItem('ff-scores'))['brawl-1'][0].score===4321,'score kept on device too');
+  check(!solo.$('#eXp').hidden&&/\+40 XP/.test(solo.$('#eXpGain').textContent),'end screen shows the XP the server granted');
+  check(!solo.$('#eLevelUp').hidden&&/Cook level 2/.test(solo.$('#eLevelUp').textContent),'crossing 100 XP shows a level-up');
   solo.$('#bBoardEnd').click();await sleep(50);
   check(vis(solo,'#ovBoard'),'leaderboard opens from end screen');
   const lbRows=solo.w.document.querySelectorAll('#lbList li');
@@ -634,10 +647,41 @@ const check=(cond,msg)=>{console.log((cond?'PASS ':'FAIL ')+msg);if(!cond)proces
    const annOld=[...B.w.document.querySelectorAll('#friendsBody .frow')].find(r=>/Ann/.test(r.textContent));
    check(annOld&&/In a Food Fight room/.test(annOld.textContent)&&!!annOld.querySelector('[data-join],[data-inv]'),'friends: a friend on an older copy of Food Fight shows as in Food Fight, with Join or Invite');
    if(buses['ff:social']){buses['ff:social'].members.delete(annId);buses['ff:social'].chans.forEach(c=>c._sync())}
+   // ranked: Ann, Bob and Cat are signed in and in one room; the finishing order goes to the server from each phone
+   {{const rm=buses['ff:'+code],u=rm?[...rm.members.values()].filter(p=>/^[0-9a-f-]{36}$/i.test(p.uid||'')).length:0;check(u===3,'ranked: everyone in the room carries their account id ('+u+')');}
+    setBots(A,0);A.$('#bStart').click();await sleep(4800);
+    const [GA,GB,GC]=[A,B,C].map(pg=>pg.w.__ff.game);
+    check(GA&&GB&&GC&&GA.mid===GB.mid&&GB.mid===GC.mid&&GA.online,'ranked: the three of them are in one match');
+    // emotes between real cooks
+    check(!A.$('#bEmote').hidden,'emotes: the emote button shows in an online match');
+    A.$('#bEmote').click();await sleep(50);
+    check(!A.$('#emoteMenu').hidden&&A.w.document.querySelectorAll('#emoteList .emo').length>=4&&A.w.document.querySelectorAll('#emoteList .emo.locked').length>0,'emotes: the menu lists lines, higher ones locked');
+    A.w.document.querySelector('#emoteList .emo').click();await sleep(200);
+    const bub=[...B.w.document.querySelectorAll('.foe .bubble.emote')];
+    check(bub.length===1&&bub[0].textContent==='GG!'&&/Ann/.test(bub[0].closest('.foe').textContent),'emotes: Bob sees "GG!" on Ann\'s card');
+    A.$('#bEmote').click();A.w.document.querySelector('#emoteList .emo:nth-child(2)').click();await sleep(200);
+    check(B.$('.foe .bubble.emote').textContent==='GG!','emotes: one every 3 seconds');
+    {const before=C.w.document.querySelectorAll('.foe .bubble.emote').length;buses['ff:'+code].chans.forEach(c=>c._msg({t:'emote',mid:GA.mid,id:GA.player.id,e:99}));await sleep(100);
+     check(C.w.document.querySelectorAll('.foe .bubble.emote').length===before,'emotes: an unknown emote number is ignored');}
+    if(GA&&GB&&GC&&GA.mid===GC.mid){GC.player.die();await sleep(900);GB.player.die();await sleep(6500);
+      const ids=['ann','bob','cat'].map(n=>DB.users_public.find(u=>u.username===n).id).join(',');
+      const mine=rankLog.filter(x=>x.mid===GA.mid);console.log('  reports',JSON.stringify(mine.map(x=>x.finish.split(',').map(i=>DB.users_public.find(u=>u.id===i).username))));
+      check(mine.length===3&&mine.every(x=>x.finish===ids),'ranked: all three report Ann, Bob, Cat in that order');
+      check(rankApplied.has(GA.mid),'ranked: the result counts once two of them agree');
+      check(!A.$('#eRating').hidden&&/Grudge Rating 1016/.test(A.$('#eRating').textContent)&&/\+16/.test(A.$('#eRating').textContent),'ranked: Ann sees her new rating and the change ('+A.$('#eRating').textContent+')');
+      check(/Grudge Rating 992/.test(C.$('#eRating').textContent),'ranked: Cat sees hers drop');}
+    [A,B,C].forEach(pg=>{pg.w.__ff.game&&(pg.w.__ff.game.over=true)});
+    A.$('#bLobby')&&!A.$('#bLobby').hidden&&A.$('#bLobby').click();B.$('#bLobby')&&!B.$('#bLobby').hidden&&B.$('#bLobby').click();await sleep(600);}
    // Bob removes Ann; signing out goes back to the sign-in screen
    B.$('#bLobbyFriends').click();await sleep(300);B.w.FFSocial.open();await sleep(300);B.w.confirm=()=>true;B.$('#friendsBody [data-unf]').click();await sleep(500);
    check(!DB.friends.some(r=>[r.user_id,r.friend_user_id].includes(bobId)),'friends: removing a friend deletes the row');
    B.$('#fOut').click();await sleep(500);check(!!B.$('#fAuth'),'friends: signing out shows the sign-in screen again');
+   // in-app account deletion: Dan deletes his Food Fight data and is signed out
+   D.w.FFSocial.open();await sleep(300);D.w.confirm=()=>true;D.w.localStorage.setItem('ff-daily','{"last":"x","streak":3,"best":{}}');
+   check(!!D.$('#fDel'),'delete: a Delete my Food Fight data button when signed in');
+   D.$('#fDel').click();await sleep(600);
+   check(deleted.length===1&&deleted[0].uid===DB.users_public.find(u=>u.username==='dan').id&&!!deleted[0].dev,'delete: the server deletes this account\'s Food Fight data and this device\'s');
+   check(!!D.$('#fAuth')&&/data is deleted/.test(D.$('#friendsBody').textContent)&&!D.w.localStorage.getItem('ff-daily'),'delete: signed out, told it\'s done, and the device forgets its progress');
    [A,B,C,D].forEach(pg=>pg.errors.slice(0,2).forEach(e=>console.log('  ',e)));
    check(A.errors.length+B.errors.length+C.errors.length+D.errors.length===0,'friends: no script errors');
    [A,B,C,D].forEach(pg=>{try{pg.w.close()}catch(e){}});}
@@ -753,6 +797,32 @@ const check=(cond,msg)=>{console.log((cond?'PASS ':'FAIL ')+msg);if(!cond)proces
     check(oh.errors.length===0&&og.errors.length===0,`${v} online: no script errors`);
     [mp,oh,og].forEach(pg=>{try{pg.w.close()}catch(e){}});
   }
+  // a brand-new player: starter modes and fighters only, and the daily challenge
+  {const nw=page('https://foodfight.grudgematchgames.com/',{fresh:true});await sleep(2600);
+    const lockedM=[...nw.w.document.querySelectorAll('#variants .locked')].map(e=>e.dataset.v);
+    check(lockedM.length===8&&!lockedM.includes('classic')&&lockedM.includes('boss'),'new player: 8 modes locked, starters open');
+    check(nw.w.document.querySelectorAll('#picker .locked').length===4,'new player: 4 fighters locked');
+    check(/Lv\s*1/.test(nw.$('#lvChip').textContent)&&/Line Cook/.test(nw.$('#lvChip').textContent),'level chip shows Lv 1 Line Cook');
+    nw.$('#variants [data-v="boss"]').click();await sleep(50);
+    check(nw.$('#variants [data-v="boss"]').getAttribute('aria-checked')!=='true'&&!nw.$('#modeHow').hidden,'a locked mode cannot be picked, and says why');
+    // guided first match: Classic practice holds the rivals until you score
+    nw.$('#variants [data-v="classic"]').click();nw.$('#bPractice')&&nw.$('#bPractice').click();await sleep(100);
+    const dBtn=nw.$('.diff [data-d="1"]');dBtn&&dBtn.click();await sleep(4200);
+    {const CG=nw.w.__ff.game;
+     check(CG&&!CG.online&&CG.holdBots&&!nw.$('#coach').hidden&&/tip 1 of/.test(nw.$('#coachHead').textContent),'first Classic game: a tip shows and the rivals wait ('+nw.$('#coachText').textContent+')');
+     const f0=CG.boards[1].frame0=JSON.stringify(CG.boards[1].g);await sleep(1200);
+     check(JSON.stringify(CG.boards[1].g)===f0,'held rival does not move');
+     CG.player.score=50;await sleep(2600);
+     check(!CG.holdBots&&/Rivals are cooking/.test(nw.$('#coachHead').textContent),'scoring lets the rivals go');
+     check(JSON.parse(nw.w.localStorage.getItem('ff-coached')).classic===1,'the tips are only offered once per mode');
+     CG.player.die();await sleep(2600);}
+    nw.$('#bMenu').click();await sleep(300);
+    check(!nw.$('#bDaily').hidden,'daily challenge card shows');
+    nw.$('#bDaily').click();await sleep(4200);
+    const DG=nw.w.__ff.game,dc=nw.w.FFProgress.daily();
+    check(DG&&DG.dailyKey===dc.key&&DG.variant===dc.variant&&DG.boards.length===4,'daily challenge starts today\'s match ('+(DG&&DG.variant)+')');
+    nw.errors.slice(0,3).forEach(e=>console.log('  ',e));
+    check(nw.errors.length===0,'new player: no script errors');try{nw.w.close()}catch(e){}}
   host.errors.concat(guest.errors,solo.errors).slice(0,5).forEach(e=>console.log('  ',e));
   check(host.errors.length===0&&guest.errors.length===0&&solo.errors.length===0,'no script errors');
   process.exit();

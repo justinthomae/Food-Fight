@@ -841,7 +841,8 @@ class Game{
     if(this.over||this.paused)return;
     this.frame++;
     // one board hitting a bug must not stop the whole match (the error is logged, everything else keeps running)
-    for(const b of this.boards)if(!b.dead){try{b.step()}catch(e){if(!this._errs){this._errs=1;try{console.error('board step failed',b.name,e)}catch(_){}}}}
+    // a guided first match holds the bots (and the boss) until you've got going
+    for(const b of this.boards)if(!b.dead&&!(this.holdBots&&b.isBot)){try{b.step()}catch(e){if(!this._errs){this._errs=1;try{console.error('board step failed',b.name,e)}catch(_){}}}}
     // online: a cook whose phone has gone quiet for 9 seconds (asleep, closed, lost signal) is out, so their
     // frozen board doesn't hold everyone up
     if(this.online&&!this.ffMode&&this.frame%30===0&&this.frame>60*9){
@@ -856,7 +857,7 @@ class Game{
       if(l&&l.length)this.hooks.send({t:'snaps',list:l.map(b=>b.snap())});
     }
     if(this.flights.length)this.flights=this.flights.filter(f=>{if(--f.t>0)return true;if(f.to.boss)this.hitBoss(f.from,f.boss);else if(!f.to.dead)this.deliver(f.to,f.item,f.from);return false});
-    if(this.boss)this.bossTick();
+    if(this.boss&&!this.holdBots)this.bossTick();
     if(this.orderWait&&this.frame-this.orderWait>180&&!this.over){const w=this.local().find(b=>b.wonRace||(this.variant==="order"&&b.orders>=ORDER_GOAL));if(w)this.finishOrders(w)}
     this.checkEnd();
   }

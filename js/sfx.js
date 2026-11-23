@@ -1,9 +1,10 @@
 // Food Fight sound: most effects are synthesized live with Web Audio. The big moments use recorded clips
 // (assets/audio/: v-*.mp3 announcer callouts and s-*.mp3 sound effects, made with ElevenLabs); each clip is
 // optional, and anything missing falls back to the synthesized sound or the device's speech voice.
-// FFSound.play(name, arg) for effects, FFSound.ambience(true/false) for the cafeteria bed in the lobby.
+// FFSound.play(name, arg) for effects, FFSound.ambience(true/false) for the cafeteria bed in the lobby,
+// FFSound.music('off'|'calm'|'intense') for the background music during a match.
 window.FFSound=(function(){
-  let AC=null,master=null,sfxBus=null,voiceBus=null,echo=null,noiseBuf=null,muted=false,amb=null,ambWanted=false;
+  let AC=null,master=null,sfxBus=null,voiceBus=null,musicBus=null,echo=null,noiseBuf=null,muted=false,amb=null,ambWanted=false;
   const lastAt={};
 
   function wake(){
@@ -16,6 +17,8 @@ window.FFSound=(function(){
       // effects run through their own bus so the announcer can duck them a little while speaking
       sfxBus=AC.createGain();sfxBus.gain.value=1;sfxBus.connect(master);
       voiceBus=AC.createGain();voiceBus.gain.value=1.15;voiceBus.connect(master);
+      // background music sits well under everything else
+      musicBus=AC.createGain();musicBus.gain.value=MUSIC_LV;musicBus.connect(master);
       // short slap-back echo bus: makes pops and fanfares feel bigger
       echo=AC.createDelay(.5);echo.delayTime.value=.13;
       const fb=AC.createGain();fb.gain.value=.28;
@@ -28,6 +31,7 @@ window.FFSound=(function(){
     if(AC.state==='suspended')AC.resume();
     if(ambWanted&&!amb)startAmbience();
     loadClips();
+    if(musicWant!=='off')loadMusic();
   }
   const ok=()=>AC&&!muted&&AC.state!=='closed';
   const T=()=>AC.currentTime;
@@ -296,6 +300,7 @@ window.FFSound=(function(){
     saying=src;sayingPri=pri;sayingUntil=now+clips[name].duration;
     // duck effects ~5 dB under the line, then bring them back
     if(sfxBus){const g=sfxBus.gain;g.cancelScheduledValues(now);g.setTargetAtTime(.55,now,.03);g.setTargetAtTime(1,sayingUntil,.15)}
+    if(musicBus){const g=musicBus.gain;g.cancelScheduledValues(now);g.setTargetAtTime(MUSIC_LV*.4,now,.05);g.setTargetAtTime(MUSIC_LV,sayingUntil,.3)}
     return true;
   }
   // what the player's board just showed -> which line to say
@@ -335,6 +340,41 @@ window.FFSound=(function(){
   }
   // called for every new pop-up on the player's own board
   function callout(text){if(muted)return;const k=voiceKey(text);if(k)sayClip(k)}
+
+  // ---- adaptive music: a steady kitchen groove, crossfading to a tense loop when the match gets tight ----
+  // assets/audio/m-main.mp3 and m-intense.mp3 (ElevenLabs Music); loaded only when music is on, and optional
+  const MUSIC_LV=.32;
+  const mus={main:null,intense:null},musLoad={};let musicWant='off',musicOn=true,musPlay=null;
+  function loadMusic(){
+    if(!AC||typeof fetch!=='function')return;
+    ['main','intense'].forEach(k=>{if(musLoad[k])return;musLoad[k]=1;
+      fetch('assets/audio/m-'+k+'.mp3').then(r=>r.ok?r.arrayBuffer():Promise.reject(r.status))
+        .then(b=>new Promise((res,rej)=>AC.decodeAudioData(b,res,rej))).then(buf=>{mus[k]=buf;applyMusic()}).catch(()=>{})});
+  }
+  function startLayers(){
+    if(musPlay||!mus.main)return;
+    const t=AC.currentTime+.05,layer=k=>{const buf=mus[k];if(!buf)return null;const src=AC.createBufferSource();src.buffer=buf;src.loop=true;
+      const g=AC.createGain();g.gain.value=.0001;src.connect(g);g.connect(musicBus);src.start(t);return {src,g}};
+    musPlay={main:layer('main'),intense:layer('intense'),state:''};
+  }
+  function stopLayers(){
+    if(!musPlay)return;const p=musPlay,t=AC.currentTime;musPlay=null;
+    [p.main,p.intense].forEach(l=>{if(!l)return;l.g.gain.cancelScheduledValues(t);l.g.gain.setTargetAtTime(.0001,t,.25);setTimeout(()=>{try{l.src.stop()}catch(e){}l.g.disconnect()},1500)});
+  }
+  function applyMusic(){
+    if(!AC)return;
+    const want=muted||!musicOn?'off':musicWant;
+    if(want==='off'){stopLayers();return}
+    if(!mus.main){loadMusic();return}
+    startLayers();if(!musPlay||musPlay.state===want)return;
+    musPlay.state=want;const t=AC.currentTime,hot=want==='intense'&&musPlay.intense;
+    // a short crossfade (about a second) so the switch feels like the band leaning in, not a cut
+    if(musPlay.main)musPlay.main.g.gain.setTargetAtTime(hot?.0001:1,t,.35);
+    if(musPlay.intense)musPlay.intense.g.gain.setTargetAtTime(hot?1:.0001,t,.35);
+  }
+  // 'off' | 'calm' | 'intense'
+  function music(state){state=state||'off';if(state===musicWant)return;musicWant=state;if(state!=='off'&&AC)loadMusic();applyMusic()}
+  function setMusic(on){musicOn=!!on;applyMusic()}
 
   // ---- cafeteria ambience: babbling crowd + cutlery clinks + the odd tray clatter ----
   function startAmbience(){
@@ -393,6 +433,7 @@ window.FFSound=(function(){
     if(master)master.gain.setTargetAtTime(muted?0:.8,AC.currentTime,.05);
     if(muted&&amb){amb.stop();amb=null}else if(!muted&&ambWanted)startAmbience();
     if(muted&&window.speechSynthesis)try{speechSynthesis.cancel()}catch(e){}   // stop a callout that's mid-sentence
+    applyMusic();
   }
-  return {wake,play,ambience,setMuted,say:t=>speak(t),callout,voiceKey,setVoice:v=>{voiceSet=v||''},clips:()=>Object.keys(clips),get names(){return Object.keys(FX)}};
+  return {wake,play,ambience,setMuted,music,setMusic,get musicState(){return musPlay?musPlay.state:'off'},say:t=>speak(t),callout,voiceKey,setVoice:v=>{voiceSet=v||''},clips:()=>Object.keys(clips),get names(){return Object.keys(FX)}};
 })();

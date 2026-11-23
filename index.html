@@ -88,9 +88,40 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
 .follow{display:flex;align-items:center;gap:10px;justify-content:center;font-size:14px;color:var(--ink);margin:8px 0 2px;min-height:44px;cursor:pointer;flex-wrap:wrap}
 .follow input{width:22px;height:22px;accent-color:#F7C548}
 .follow small{color:var(--muted);font-size:12px}
+.modehow.lockmsg{color:#F7C548;font-weight:700}
+#lookMsg{min-height:0}
+.lvchip{display:grid;grid-template-columns:auto auto 1fr auto;align-items:center;gap:8px;width:100%;min-height:44px;padding:6px 12px;border-radius:14px;border:1px solid var(--line,#2c3150);background:var(--panel2,rgba(255,255,255,.04));color:var(--ink);font:inherit;cursor:pointer;text-align:left}
+.lvchip b{font-family:var(--display,inherit);font-size:16px;color:#F7C548;white-space:nowrap}
+.lvchip span{font-size:13px;font-weight:800;white-space:nowrap}
+.lvchip small{font-size:11px;color:var(--muted);white-space:nowrap;font-variant-numeric:tabular-nums}
+.xpbar{display:block;height:8px;border-radius:5px;background:rgba(127,127,160,.25);overflow:hidden;min-width:40px}
+.xpbar>i{display:block;height:100%;width:0;background:linear-gradient(90deg,#F7C548,#E5682A);border-radius:5px;transition:width .6s cubic-bezier(.2,.8,.2,1)}
+.daily{display:grid;grid-template-columns:auto 1fr auto auto;align-items:center;gap:10px;width:100%;min-height:52px;padding:8px 12px;border-radius:16px;border:2px solid #F7C548;background:linear-gradient(135deg,rgba(247,197,72,.16),rgba(229,104,42,.12));color:var(--ink);font:inherit;cursor:pointer;text-align:left}
+.daily .dsun{font-size:24px;color:#F7C548}
+.daily b{display:block;font-size:15px}.daily small{display:block;font-size:12px;color:var(--muted)}
+.daily .dstreak{font-size:12px;font-weight:800;color:#E5682A;white-space:nowrap}
+.daily .dgo{font-weight:800;background:#F7C548;color:#2A1E05;border-radius:10px;padding:6px 12px}
+.daily.done .dgo{background:transparent;color:#F7C548;border:1px solid #F7C548}
+.vcard.locked,.pick.locked,.cz.locked{opacity:.5;filter:grayscale(.7);position:relative}
+.lockbadge{position:absolute;top:6px;right:6px;font-size:10px;font-weight:800;background:#2A1E05;color:#F7C548;border:1px solid #F7C548;border-radius:8px;padding:2px 6px;z-index:2}
+.xpline{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:10px;font-size:13px;font-weight:700;margin:2px 0}
+.xpline b{color:#F7C548;white-space:nowrap}.xpline span{color:var(--muted);white-space:nowrap}
+.levelup{border:2px solid #F7C548;border-radius:14px;padding:8px 12px;font-size:13px;text-align:center;background:rgba(247,197,72,.12);animation:lvpop .5s cubic-bezier(.2,1.4,.4,1)}
+.levelup b{display:block;font-family:var(--display,inherit);font-size:20px;color:#F7C548}
+@keyframes lvpop{from{transform:scale(.8);opacity:0}to{transform:none;opacity:1}}
+@media (prefers-reduced-motion:reduce){.levelup{animation:none}.xpbar>i{transition:none}}
+@media (max-width:600px){#ovStart .lvchip{min-height:38px;padding:4px 10px;margin:-2px 0}#ovStart .daily{min-height:46px;padding:6px 10px}}
 .foe{position:relative;flex:1;min-width:0;display:flex;flex-direction:column;align-items:stretch;gap:5px;background:var(--panel);border:2px solid transparent;border-radius:14px;padding:6px 8px;text-align:left;transition:background .15s,border-color .15s,opacity .3s}
 .foe .bubble{position:absolute;left:4px;right:4px;bottom:4px;z-index:5;background:#FFF8E6;color:#2A1A12;font:700 13px/1.25 var(--body,system-ui);padding:6px 9px;border-radius:12px;box-shadow:0 4px 12px rgba(0,0,0,.35);pointer-events:none;animation:bubIn .18s ease-out;transition:opacity .35s}
 .foe .bubble.out{opacity:0}
+.foe .bubble.emote{background:var(--gold);color:var(--gold-ink)}
+#bEmote.sent{background:var(--gold);color:var(--gold-ink)}
+.emotemenu{position:fixed;top:calc(56px + env(safe-area-inset-top,0px));right:12px;z-index:40;background:var(--panel);border-radius:16px;padding:10px;box-shadow:0 10px 30px rgba(0,0,0,.4);width:min(300px,calc(100% - 24px))}
+.emolist{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.emo{min-height:44px;border:0;border-radius:10px;background:var(--panel2);color:var(--ink);font:700 13px/1.2 var(--body,system-ui);padding:8px;text-align:left}
+.emo small{display:block;font-weight:600;color:var(--muted);font-size:11px}
+.emo.locked{opacity:.55}
+.emomute{margin-top:8px;width:100%;min-height:40px;border:0;background:none;color:var(--muted);font:600 12px var(--body,system-ui);text-decoration:underline}
 @keyframes bubIn{from{opacity:0;transform:scale(.9)}to{opacity:1;transform:none}}
 @media (prefers-reduced-motion:reduce){.foe .bubble{animation:none}}
 .foe canvas{width:32px;height:64px;border-radius:4px;flex:none;background:var(--well);display:block}
@@ -391,6 +422,8 @@ button.nextbox:active{background:var(--gold)}
 .fform{display:flex;flex-direction:column;gap:8px}
 .fform input,.fsearch{width:100%;border:2px solid var(--line);background:var(--well);color:var(--ink);border-radius:12px;padding:11px 12px;font:inherit;font-size:16px;-webkit-user-select:text;user-select:text}
 .linkbtn{background:none;border:0;color:var(--accent-text);font-weight:700;font-size:13px;padding:4px;text-decoration:underline}
+.setlinks{text-align:center;margin:16px 0 4px;font-size:13px;color:var(--muted)}.setlinks a{color:var(--accent-text);display:inline-block;padding:8px 4px}
+.linkbtn.fdel{display:block;margin:18px auto 4px;color:var(--muted);font-weight:600;font-size:12px;min-height:40px}
 .fmsg{margin:0;font-size:13px;color:var(--accent-text)}
 .fme{display:flex;align-items:center;gap:10px;background:var(--well);border-radius:14px;padding:8px}
 .flist{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
@@ -596,6 +629,7 @@ button.nextbox:active{background:var(--gold)}
 .endcard h2{font-size:28px}
 .endcard #eSub{margin:-2px 0 0;font-size:13px;line-height:1.3}
 .endcard .rankline{font-size:13px;min-height:0}
+.rankline.rating{color:var(--ink)}.rankline.rating .up{color:var(--accent-text)}.rankline.rating .down{color:var(--muted)}
 .erow{display:flex;gap:8px;align-items:stretch;justify-content:center}
 .erow .ewin{margin:0;flex:0 1 auto;min-width:0}
 .erow .ewin b{font-size:20px;max-width:38vw}
@@ -630,6 +664,8 @@ button.nextbox:active{background:var(--gold)}
 .seats .av{width:26px;height:26px}
 .toast{position:fixed;left:50%;bottom:calc(16px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:35;background:var(--panel);border-radius:16px;padding:12px 14px;display:flex;align-items:center;gap:12px;box-shadow:0 10px 30px rgba(0,0,0,.35);width:min(400px,calc(100% - 32px))}
 .toast p{margin:0;flex:1;font-size:13px;line-height:1.35}
+.toast.coach{bottom:auto;top:calc(64px + env(safe-area-inset-top,0px));border:2px solid var(--gold);z-index:36}.toast.coach b{display:block;color:var(--accent-text);font-size:12px;letter-spacing:.04em;text-transform:uppercase;margin-bottom:2px}
+@media (prefers-reduced-motion:no-preference){.toast.coach:not([hidden]){animation:coachIn .25s ease-out}@keyframes coachIn{from{opacity:0;transform:translate(-50%,-8px)}}}
 .toast .btn{flex:none;padding:9px 12px}
 .toast .av{width:22px;height:22px;border-radius:50%;vertical-align:-6px;margin-right:2px}
 .toast p small{display:block;color:var(--muted);font-size:12px;margin-top:2px}
@@ -671,6 +707,7 @@ html.calm .fly{transition:none}html.calm .movepad.reversed{animation:none}html.c
       <div class="stat"><b id="sScore">0</b><span>Score</span></div>
       <div class="stat"><b id="sThird">1</b><span id="sThirdL">Heat</span></div>
     </div>
+    <button class="icon" id="bEmote" aria-label="Send an emote" aria-haspopup="true" aria-expanded="false" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/><path d="M9 10h.01M15 10h.01M9.5 14a3.5 3.5 0 0 0 5 0"/></svg></button>
     <button class="icon" id="bSound" aria-label="Sound on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9v6h4l5 4V5L8 9H4z"/><path id="wave" d="M16.5 8.5a5 5 0 0 1 0 7"/></svg></button>
     <button class="icon" id="bPause" aria-label="Pause"><svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg></button>
   </header>
@@ -727,9 +764,11 @@ html.calm .fly{transition:none}html.calm .movepad.reversed{animation:none}html.c
   <div class="card">
     <h1 class="sr">Food Fight</h1>
     <img class="logo" src="assets/logo.webp" alt="" width="900" height="593">
+    <button class="lvchip" id="lvChip" type="button" aria-label="Your cook level"><b id="lvNum">Lv 1</b><span id="lvTitle">Line Cook</span><i class="xpbar" aria-hidden="true"><i id="lvFill"></i></i><small id="lvXp"></small></button>
     <div class="lab">Your fighter</div>
     <div class="picker" id="picker"></div>
     <div class="field"><label class="lab" for="nameIn">Your name · shown on leaderboards</label><input id="nameIn" maxlength="14" autocomplete="nickname" spellcheck="false"></div>
+    <button class="daily" id="bDaily" type="button"><span class="dsun" aria-hidden="true">&#9728;</span><span class="dtxt"><b>Daily challenge</b><small id="dailySub">Same match for everyone today</small></span><span class="dstreak" id="dailyStreak" hidden></span><span class="dgo">Play</span></button>
     <div class="lab">Game mode</div>
     <div class="variants" id="variants" role="radiogroup" aria-label="Game mode"></div>
     <p class="modehow" id="modeHow"></p>
@@ -819,8 +858,9 @@ html.calm .fly{transition:none}html.calm .movepad.reversed{animation:none}html.c
 <div class="overlay sheet" id="ovLook" hidden>
   <div class="card">
     <div class="cardhead"><h2>Colors &amp; look</h2><button class="x" data-close aria-label="Close"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
-    <div class="lab">Cuisine <span class="free">All free during early access</span></div>
+    <div class="lab">Cuisine <span class="free" id="czNote">All free during early access</span></div>
     <div class="pals cuisines" id="cuisines"></div>
+    <p class="modehow" id="lookMsg" aria-live="polite"></p>
     <div class="lab">Snack Stack controls</div>
     <div class="seg" id="stackCtl">
       <button data-s="buttons">Thumb buttons<small>Slide pad left · Spin and Drop right</small></button>
@@ -845,11 +885,17 @@ html.calm .fly{transition:none}html.calm .movepad.reversed{animation:none}html.c
       <button data-m="reduced">Reduced<small>No shaking</small></button>
       <button data-m="auto">Device<small>Phone setting</small></button>
     </div>
+    <div class="lab">Music</div>
+    <div class="seg" id="musicSet">
+      <button data-mu="on">On<small>Picks up when it gets tight</small></button>
+      <button data-mu="off">Off<small>Sound effects only</small></button>
+    </div>
     <div class="lab buzzRow" hidden>Vibration</div>
     <div class="seg buzzRow" id="buzz" hidden>
       <button data-b="on">On<small>Feel matches, attacks and knockouts</small></button>
       <button data-b="off">Off</button>
     </div>
+    <p class="setlinks"><a href="privacy.html" target="_blank" rel="noopener">Privacy</a> · <a href="mailto:justin@grudgematchgames.com">Contact</a></p>
     <p>Every food and every symbol has its own outline, so you can play by shape in any color set. In Food art the colors tint the plate behind each food, whatever the cuisine. Your cuisine only changes what you see: opponents see their own. Saved on this device.</p>
   </div>
 </div>
@@ -858,6 +904,7 @@ html.calm .fly{transition:none}html.calm .movepad.reversed{animation:none}html.c
 <div class="overlay sheet" id="ovBoard" hidden>
   <div class="card">
     <div class="cardhead"><h2>Leaderboards</h2><button class="x" data-close aria-label="Close"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+    <div class="seg three" id="lbKind"><button data-v="modes">Modes</button><button data-v="daily">Daily</button><button data-v="ranked">Ranked</button></div>
     <div class="seg" id="lbVar" style="grid-template-columns:repeat(4,1fr)"><button data-v="classic">Classic</button><button data-v="order">Order</button><button data-v="stack">Stack</button><button data-v="shot">Shot</button><button data-v="boss">Boss</button><button data-v="slurp">Slurp</button><button data-v="buffet">Buffet</button><button data-v="mold">Mould</button><button data-v="pancake">Pancake</button><button data-v="merge">Merge</button><button data-v="conveyor">Belt</button><button data-v="pest">Pests</button></div>
     <div class="seg" id="lbMode" style="grid-template-columns:repeat(4,1fr)"><button data-v="duel">Duel</button><button data-v="brawl">Brawl</button><button data-v="brawl8">Big</button><button data-v="online">Online</button></div>
     <div class="seg three" id="lbDiff"><button data-v="0">Easy</button><button data-v="1">Normal</button><button data-v="2">Hard</button></div>
@@ -950,6 +997,8 @@ html.calm .fly{transition:none}html.calm .movepad.reversed{animation:none}html.c
 
 <!-- knocked out while others play -->
 <div class="toast invitetoast" id="inviteToast" hidden><p></p><button class="btn primary" id="inviteJoin" type="button">Join</button><button class="btn" id="inviteNo" type="button">Not now</button></div>
+<div class="emotemenu" id="emoteMenu" hidden role="menu" aria-label="Emotes"><div class="emolist" id="emoteList"></div><button class="emomute" id="emoteMute" type="button" aria-pressed="false">Hide emotes from others</button></div>
+<div class="toast coach" id="coach" hidden role="status" aria-live="polite"><p><b id="coachHead">First time here</b><span id="coachText"></span></p><button class="btn" id="bCoachSkip" type="button">Skip</button></div>
 <div class="toast" id="outToast" hidden><p id="outText">You placed 3rd. Watching the rest of the match.</p><button class="btn primary" id="bFF" hidden>Fast forward</button><button class="btn" id="bOutLeave">Lobby</button></div>
 
 <!-- end -->
@@ -962,6 +1011,9 @@ html.calm .fly{transition:none}html.calm .movepad.reversed{animation:none}html.c
     <div class="eko" id="eVic" hidden><div class="ekocap" id="eVicCap"></div><div class="kolosers" id="eVicLosers"></div></div></div>
     <div class="estand" id="eStand" hidden></div>
     <div class="rankline" id="eRank"></div>
+    <div class="rankline rating" id="eRating" hidden></div>
+    <div class="xpline" id="eXp" hidden><b id="eXpGain"></b><i class="xpbar" aria-hidden="true"><i id="eXpFill"></i></i><span id="eXpLv"></span></div>
+    <div class="levelup" id="eLevelUp" hidden></div>
     <div class="results">
       <div><b id="eTime">0:00</b><span>Time</span></div>
       <div><b id="eChain">1</b><span>Best chain</span></div>
@@ -1005,6 +1057,7 @@ html.calm .fly{transition:none}html.calm .movepad.reversed{animation:none}html.c
 <script src="js/ui/merge.js"></script>
 <script src="js/ui/conveyor.js"></script>
 <script src="js/ui/pest.js"></script>
+<script src="js/progress.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>

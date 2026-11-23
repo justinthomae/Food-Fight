@@ -1,0 +1,12 @@
+{
+  "appId": "com.grudgematchgames.foodfight",
+  "appName": "Food Fight",
+  "webDir": "www",
+  "backgroundColor": "#131627",
+  "ios": { "contentInset": "never", "scheme": "Food Fight" },
+  "android": { "allowMixedContent": false },
+  "plugins": {
+    "SplashScreen": { "launchShowDuration": 600, "launchAutoHide": true, "backgroundColor": "#131627", "showSpinner": false },
+    "StatusBar": { "overlaysWebView": true, "style": "DARK" }
+  }
+}
