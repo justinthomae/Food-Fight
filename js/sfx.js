@@ -344,6 +344,7 @@ window.FFSound=(function(){
   // ---- adaptive music: a steady kitchen groove, crossfading to a tense loop when the match gets tight ----
   // assets/audio/m-main.mp3 and m-intense.mp3 (ElevenLabs Music); loaded only when music is on, and optional
   const MUSIC_LV=.32;
+  const MUS_LEN={main:57.0458,intense:41.3644};   // seconds: 28 bars at 117.8 BPM, 24 bars at 139.25 BPM
   const mus={main:null,intense:null},musLoad={};let musicWant='off',musicOn=true,musPlay=null;
   function loadMusic(){
     if(!AC||typeof fetch!=='function')return;
@@ -354,6 +355,8 @@ window.FFSound=(function(){
   function startLayers(){
     if(musPlay||!mus.main)return;
     const t=AC.currentTime+.05,layer=k=>{const buf=mus[k];if(!buf)return null;const src=AC.createBufferSource();src.buffer=buf;src.loop=true;
+      // loop on the exact whole-bar length, in case a browser's decoder pads the end of the mp3
+      if(MUS_LEN[k]&&buf.duration>MUS_LEN[k]){src.loopStart=0;src.loopEnd=MUS_LEN[k]}
       const g=AC.createGain();g.gain.value=.0001;src.connect(g);g.connect(musicBus);src.start(t);return {src,g}};
     musPlay={main:layer('main'),intense:layer('intense'),state:''};
   }
