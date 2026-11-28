@@ -116,7 +116,8 @@ class Board{
     for(let r=0;r<ROWS-1;r++)g[r]=g[r+1];
     g[ROWS-1]=this.preview.map((t,c)=>{const x=T(t);if(this.previewSp&&this.previewSp[c])x.sp=this.previewSp[c];return x});
     this.preview=genRow(g[ROWS-1],g[ROWS-2],this.rng);
-    this.previewSp=specialRow(this.rng);
+    this.previewSp=this.game.tutorial?null:specialRow(this.rng);
+    this.raised=(this.raised||0)+1;
     this.score+=1;
     if(this===this.game.player&&this.game.hooks.shift)this.game.hooks.shift();
   }
@@ -204,7 +205,9 @@ class Board{
     }
     // 4. stale chain flags, chain end
     let busy=false,moving=false;
-    this.each(t=>{if(t.chain&&t.st==='idle'&&t.clr===0&&!hit.has(t))t.chain=false;if(t.clr>0)busy=true;if(t.st!=='idle')moving=true});
+    // a tile that just landed is still sliding into place (yo < 0) and can't match yet: keep its chain flag until it settles,
+    // otherwise food falling into a new match never counts as a chain
+    this.each(t=>{if(t.chain&&t.st==='idle'&&t.clr===0&&!hit.has(t)&&t.yo>-.05&&Math.abs(t.xo)<.05)t.chain=false;if(t.clr>0)busy=true;if(t.st!=='idle')moving=true});
     if(this.chain>1&&!busy&&!moving){this.chain=1;if(this.tower){const a=this.towerAt||{c:3,r:6};this.earn({k:'tower',cells:this.tower,at:a},a.c,a.r);this.tower=0}}
     // 5. rise
     if(this.isBot)this.ai();
@@ -213,10 +216,11 @@ class Board{
     const top=g[0].some(Boolean);
     this.riseD=0;
     if(!busy&&(this.stop<=0||this.rushT>0)){
-      if(top){if(!moving){this.grace--;if(this.grace<=0)return this.die()}}
+      // the tutorial never knocks you out, and the stack only moves when you raise it
+      if(top){if(!moving&&!game.tutorial){this.grace--;if(this.grace<=0)return this.die()}}
       else{
         this.grace=GRACE;
-        this.riseD=this.raising?.1:this.rushT>0?.012:(.10+game.level()*.045)/60;this.rise+=this.riseD;
+        this.riseD=this.raising?.1:game.tutorial?0:this.rushT>0?.012:(.10+game.level()*.045)/60;this.rise+=this.riseD;
         if(this.rise>=1){this.rise-=1;this.shiftUp()}
       }
     }else if(!top)this.grace=GRACE;
@@ -263,7 +267,7 @@ class Board{
     }
     const tgt=this.pickTarget();if(!tgt)return false;
     const item=this.rack.splice(i,1)[0];
-    this.game.launch(this,item,tgt,i);
+    this.game.launch(this,item,tgt,i);this.thrown=(this.thrown||0)+1;
     if(this===this.game.player&&this.game.hooks.rack)this.game.hooks.rack();
     return true;
   }
@@ -808,7 +812,7 @@ class Game{
   netSwapGrid(m){const b=this.byId(m.to),o=this.byId(m.from);if(!b||b.remote||b.dead||this.over||!b.loadGrid(m.g))return;b.swapped(o)}
   netLeave(ownerId){this.boards.filter(b=>b.remote&&b.owner===ownerId&&!b.dead).forEach(b=>this.netKO(b.id,null))}
   level(){return Math.min(10,1+Math.floor(this.frame/(60*20)))}
-  margin(){const s=this.frame/60-MARGIN;return s>0?1+Math.floor(s/15)*.3:1}
+  margin(){if(this.tutorial)return 1;const s=this.frame/60-MARGIN;return s>0?1+Math.floor(s/15)*.3:1}
   alive(){return this.boards.filter(b=>!b.dead)}
   deliver(to,item,from){
     if(to.blocks&&item.k!=='swap'&&!JUNK_KINDS.includes(item.k)){to.effect(item.k,from);return}   // Packed Lunch items

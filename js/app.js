@@ -1,6 +1,6 @@
 // Food Fight UI: drawing, input, settings, practice mode and the online lobby.
 (function(){
-const VERSION='1.25.2';
+const VERSION='1.26.0';
 let spec=null; // board being spectated after you're knocked out
 // how far we are between two 60Hz game steps (0..1): drawing uses it so motion is smooth on 90/120/144Hz screens too
 let ALPHA=0,lastDraw=performance.now(),drawDt=16,SIDEW=0;
@@ -1629,6 +1629,8 @@ $('#bBoardEnd').addEventListener('click',()=>openBoard(lastBoard.mode,lastBoard.
 
 /* ---------- practice ---------- */
 function startPractice(d,mode,size){
+  // a brand-new cook gets the tutorial first, then this exact game
+  if(prefs.variant==='classic'&&tutorialWanted()){startTutorial(()=>startPractice(d,mode,size));return}
   wakeAudio();lastDaily=null;
   lastDiff=d;lastMode=mode;lastSize=size;
   G=new Game(mode,d,baseHooks,false,{av:prefs.av,name:ME.name,size,variant:prefs.variant});
@@ -1638,6 +1640,93 @@ function startPractice(d,mode,size){
   const coach=coachWanted(prefs.variant);if(coach)G.holdBots=true;
   showMatchup(1,()=>{if(G){G.paused=false;G.waiting=false;if(coach)startCoach(G)}});
 }
+/* ---------- first-time tutorial: a few prepared Classic boards, one move each (lessons in js/tutorial.js) ----------
+   Only for brand-new cooks (no scores, not a veteran), once; Settings can replay it. The rival is held, the stack
+   only moves when you raise it, and you can't be knocked out. Nothing here is scored or sent anywhere. */
+const TUT=window.FFTutorial||null,TUT_KEY='ff-tutorial';
+function tutorialWanted(){
+  if(!TUT)return false;try{if(localStorage.getItem(TUT_KEY))return false}catch(e){return false}
+  return !(PROG&&PROG.veteran)&&!Object.keys(localScores).some(k=>(localScores[k]||[]).length);
+}
+let tut=null,tutT=null;
+function startTutorial(after){
+  if(!TUT)return after&&after();
+  try{localStorage.setItem(TUT_KEY,'1')}catch(e){}
+  // the tips for a first Classic game would only repeat what the tutorial just taught
+  {const c=coached();c.classic=1;try{localStorage.setItem(COACHED_KEY,JSON.stringify(c))}catch(e){}}
+  wakeAudio();lastDaily=null;
+  G=new Game('duel',0,baseHooks,false,{av:prefs.av,name:ME.name,variant:'classic'});
+  G.tutorial=true;G.holdBots=true;G.paused=false;G.waiting=false;
+  rackIds='~';trayKey='~';plating=null;
+  hideAll();buildOpps();renderRack();resize();
+  tut={g:G,i:-1,after:after||null};
+  $('#tut').hidden=false;tutLesson(0);
+  clearInterval(tutT);tutT=setInterval(tutTick,100);
+}
+const tutRival=()=>{const b=tut&&tut.g.boards.find(x=>x!==tut.g.player);return b?b.name:'your rival'};
+function tutLesson(i){
+  const L=TUT.LESSONS[i],B=tut.g.player;
+  Object.assign(tut,{i,start:null,doneAt:0,wrongAt:0,junkAt:0});
+  const txt=(matchMedia('(pointer:fine)').matches&&L.textDesk)||L.text;
+  $('#tutStep').textContent=`Step ${i+1} of ${TUT.LESSONS.length}`;
+  $('#tutHead').textContent=L.head;$('#tutText').textContent=typeof txt==='function'?txt(tutRival()):txt;
+  $('#bTutGo').hidden=!L.info;$('#bTutGo').textContent=L.info||'';$('#bTutSkip').hidden=!!L.info;
+  if(L.grid){
+    B.loadGrid({g:L.grid,sp:[]});B.rack=[];renderRack();
+    Object.assign(B,{previewSp:null,score:0,maxChain:1,chain:1,raised:0,side:false,streak:0,streakType:null,inc:[],rise:0,stop:0,raising:false});
+  }
+  if(L.junk)tut.junkAt=tut.g.frame+50;
+  $('#slots').classList.toggle('tutpulse',!!L.tray);$('#bRaise').classList.toggle('tutpulse',!!L.raise);
+  tutPoint();
+}
+// is the board at rest (nothing clearing, falling or sliding)?
+function tutIdle(B){let ok=true;B.each(t=>{if(t.clr>0||t.st!=='idle'||Math.abs(t.xo)>.02||Math.abs(t.yo)>.02)ok=false});return ok&&B.chain===1}
+// the glow box over the hinted pair and the hand showing the swipe
+function tutPoint(){
+  const L=tut&&TUT.LESSONS[tut.i],gl=$('#tutGlow'),hand=$('#tutHand');
+  if(!L||!L.hint||tut.doneAt||tut.junkAt){gl.hidden=hand.hidden=true;return}
+  const B=tut.g.player,r=cv.getBoundingClientRect(),[r1,c1]=L.hint.from,[r2,c2]=L.hint.to,off=B.rise*S;
+  const x=r.left+Math.min(c1,c2)*S,y=r.top+Math.min(r1,r2)*S-off,w=(Math.abs(c2-c1)+1)*S,h=(Math.abs(r2-r1)+1)*S;
+  Object.assign(gl.style,{left:x-3+'px',top:y-3+'px',width:w+6+'px',height:h+6+'px'});gl.hidden=false;
+  Object.assign(hand.style,{left:r.left+(c1+.5)*S+'px',top:r.top+(r1+.5)*S-off+'px'});
+  hand.style.setProperty('--dx',(c2-c1)*S+'px');hand.style.setProperty('--dy',(r2-r1)*S+'px');
+  hand.classList.toggle('move',!calmMotion());hand.hidden=false;
+}
+function tutTick(){
+  if(!tut)return;
+  const g=tut.g,B=g.player,L=TUT.LESSONS[tut.i];
+  if(G!==g){endTutorial(false);return}           // left for the menu (pause > quit)
+  if(g.paused){$('#tutGlow').hidden=$('#tutHand').hidden=true;return}
+  if(tut.junkAt&&g.frame>=tut.junkAt){tut.junkAt=0;B.dropJunk(L.junk,null);sfx('junk');taunt(g.boards.find(x=>x!==B))}
+  // Raise only does anything in its own lesson, and stops once that lesson is done
+  if((!L.raise||tut.doneAt)&&B.raising){B.raising=false;$('#bRaise').classList.remove('on')}
+  if(L.info){tutPoint();return}
+  if(tut.doneAt){if(g.frame>=tut.doneAt)tutLesson(tut.i+1);return}
+  if(L.goal(B)&&(L.tray||L.raise||tutIdle(B))){
+    tut.doneAt=g.frame+50;sfx('helping');
+    $('#tutHead').textContent=['Nice!','Tasty!','Yes, chef!','Sizzlin’!','Top dog!'][tut.i%5];
+    $('#slots').classList.remove('tutpulse');$('#bRaise').classList.remove('tutpulse');tutPoint();return;
+  }
+  // a different move than the lesson's: put the board back once it settles
+  if(L.hint&&!tut.junkAt&&tutIdle(B)){
+    const code=B.gridCode().g;
+    if(tut.start==null)tut.start=code;
+    else if(code!==tut.start&&!tut.wrongAt){tut.wrongAt=g.frame+40;$('#tutText').textContent='Not quite. Swipe the glowing one the way the hand shows.'}
+  }
+  if(tut.wrongAt&&g.frame>=tut.wrongAt){const keep=$('#tutText').textContent;tutLesson(tut.i);$('#tutText').textContent=keep}
+  tutPoint();
+}
+function endTutorial(go){
+  clearInterval(tutT);tutT=null;
+  ['#tut','#tutGlow','#tutHand'].forEach(id=>$(id).hidden=true);
+  $('#slots').classList.remove('tutpulse');$('#bRaise').classList.remove('tutpulse');
+  const after=tut&&tut.after,g=tut&&tut.g;tut=null;
+  if(!go)return;
+  if(after)after();else startPractice(0,'duel');
+}
+$('#bTutGo').addEventListener('click',()=>{sfx('tap');endTutorial(true)});
+$('#bTutSkip').addEventListener('click',()=>{sfx('tap');endTutorial(true)});
+$('#bTutAgain').addEventListener('click',()=>{sfx('tap');startTutorial(null)});
 /* ---------- guided first match: the first practice of each mode holds the rivals while tips walk you in ----------
    Offered once per mode, never online or in the daily challenge, and not for modes you've already played. */
 const COACHED_KEY='ff-coached';

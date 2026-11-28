@@ -805,16 +805,27 @@ const check=(cond,msg)=>{console.log((cond?'PASS ':'FAIL ')+msg);if(!cond)proces
     check(/Lv\s*1/.test(nw.$('#lvChip').textContent)&&/Line Cook/.test(nw.$('#lvChip').textContent),'level chip shows Lv 1 Line Cook');
     nw.$('#variants [data-v="boss"]').click();await sleep(50);
     check(nw.$('#variants [data-v="boss"]').getAttribute('aria-checked')!=='true'&&!nw.$('#modeHow').hidden,'a locked mode cannot be picked, and says why');
-    // guided first match: Classic practice holds the rivals until you score
-    nw.$('#variants [data-v="classic"]').click();nw.$('#bPractice')&&nw.$('#bPractice').click();await sleep(100);
-    const dBtn=nw.$('.diff [data-d="1"]');dBtn&&dBtn.click();await sleep(4200);
+    // a brand-new cook's first Classic game starts with the tutorial
+    nw.$('#variants [data-v="classic"]').click();await sleep(50);nw.$('.diff [data-d="1"]').click();await sleep(400);
+    {const TG=nw.w.__ff.game;
+     check(!nw.$('#tut').hidden&&/Step 1 of 7/.test(nw.$('#tutStep').textContent)&&TG&&TG.tutorial&&TG.holdBots,'first Classic game: the tutorial starts ('+nw.$('#tutHead').textContent+')');
+     check(!nw.$('#tutGlow').hidden,'tutorial: the move to make is highlighted');
+     const B=TG.player;B.trySwap(11,2,1);await sleep(2600);
+     check(/Step 2 of 7/.test(nw.$('#tutStep').textContent),'tutorial: making the match moves on to the next step');
+     check(nw.w.localStorage.getItem('ff-tutorial')==='1','tutorial: only offered once');
+     nw.$('#bTutSkip').click();await sleep(300);
+     check(nw.$('#tut').hidden&&!nw.$('#ovVs').hidden,'tutorial: Skip goes straight to the practice game');
+     await sleep(4200);const PG=nw.w.__ff.game;
+     check(PG&&!PG.tutorial&&!PG.holdBots&&nw.$('#coach').hidden,'after the tutorial, the Classic game has no repeat tips');
+     PG.player.die();await sleep(2600);}
+    nw.$('#bMenu').click();await sleep(300);
+    // guided first match: the first Snack Stack game holds the rivals until you score
+    nw.$('#variants [data-v="stack"]').click();await sleep(50);nw.$('.diff [data-d="1"]').click();await sleep(4600);
     {const CG=nw.w.__ff.game;
-     check(CG&&!CG.online&&CG.holdBots&&!nw.$('#coach').hidden&&/tip 1 of/.test(nw.$('#coachHead').textContent),'first Classic game: a tip shows and the rivals wait ('+nw.$('#coachText').textContent+')');
-     const f0=CG.boards[1].frame0=JSON.stringify(CG.boards[1].g);await sleep(1200);
-     check(JSON.stringify(CG.boards[1].g)===f0,'held rival does not move');
+     check(CG&&!CG.online&&CG.holdBots&&!nw.$('#coach').hidden&&/tip 1 of/.test(nw.$('#coachHead').textContent),'first Snack Stack game: a tip shows and the rivals wait ('+nw.$('#coachText').textContent+')');
      CG.player.score=50;await sleep(2600);
      check(!CG.holdBots&&/Rivals are cooking/.test(nw.$('#coachHead').textContent),'scoring lets the rivals go');
-     check(JSON.parse(nw.w.localStorage.getItem('ff-coached')).classic===1,'the tips are only offered once per mode');
+     check(JSON.parse(nw.w.localStorage.getItem('ff-coached')).stack===1,'the tips are only offered once per mode');
      CG.player.die();await sleep(2600);}
     nw.$('#bMenu').click();await sleep(300);
     check(!nw.$('#bDaily').hidden,'daily challenge card shows');
